@@ -15,7 +15,7 @@ export function EventItem({ event, color, onClick, yearRange, timelineHeight, sc
   const isPointEvent = !event.end;
 
   // 年軸のヘッダー高さを考慮した位置計算
-  const headerHeight = 100;
+  const headerHeight = 60;
   const contentHeight = timelineHeight - headerHeight;
 
   // 重複解消済みのY位置を使用（computeLayoutで計算済み）
@@ -38,7 +38,7 @@ export function EventItem({ event, color, onClick, yearRange, timelineHeight, sc
       <Box
         sx={{
           position: 'absolute',
-          left: 20,
+          left: 10,
           top: adjustedY,
           right: 20,
           cursor: 'pointer',
@@ -59,11 +59,11 @@ export function EventItem({ event, color, onClick, yearRange, timelineHeight, sc
               alignItems: 'center',
               gap: 1,
               minHeight: event.height,
-              backgroundColor: 'rgba(255,255,255,0.9)',
-              borderRadius: 1,
-              p: 0.5,
-              border: `2px solid ${color}`,
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              backgroundColor: 'rgba(255,255,255,0.8)',
+              borderRadius: 0.5,
+              p: 0.25,
+              border: `1px solid ${color}`,
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
             }}
           >
             <Box
@@ -98,11 +98,11 @@ export function EventItem({ event, color, onClick, yearRange, timelineHeight, sc
               alignItems: 'flex-start',
               gap: 1,
               minHeight: event.height,
-              backgroundColor: 'rgba(255,255,255,0.9)',
-              borderRadius: 1,
-              p: 0.5,
-              border: `2px solid ${color}`,
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              backgroundColor: 'rgba(255,255,255,0.8)',
+              borderRadius: 0.5,
+              p: 0.25,
+              border: `1px solid ${color}`,
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
             }}
           >
             <Box

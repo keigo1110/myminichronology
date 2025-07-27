@@ -25,7 +25,7 @@ export function LaneColumn({
   scrollPosition
 }: LaneColumnProps) {
   // 年軸のヘッダー高さを考慮した位置計算
-  const headerHeight = 100;
+  const headerHeight = 60;
   const contentHeight = timelineHeight - headerHeight;
 
   return (
@@ -36,37 +36,39 @@ export function LaneColumn({
         height: timelineHeight,
         backgroundColor: color,
         borderRight: '1px solid rgba(0,0,0,0.1)',
-        overflow: 'hidden',
+        // overflow: 'hidden' を削除してsticky要素が正しく動作するようにする
         display: 'flex',
         flexDirection: 'column'
       }}
     >
-      {/* レーンタイトル（縦書き） */}
+      {/* レーンタイトル（横書き） */}
       <Box
         sx={{
           position: 'sticky',
           top: 0,
-          zIndex: 20,
+          zIndex: 30, // より高いz-indexに設定
           backgroundColor: color,
           borderBottom: '2px solid rgba(0,0,0,0.2)',
-          p: 1.5,
-          height: 100,
+          p: 1,
+          height: headerHeight,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          // スクロール時の固定を強化
+          willChange: 'transform',
+          transform: 'translateZ(0)', // ハードウェアアクセラレーション
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)' // 固定感を強調
         }}
       >
         <Typography
-          variant="h5"
+          variant="h6"
           sx={{
             fontWeight: 'bold',
             color: '#212121',
-            writingMode: 'vertical-rl',
-            textOrientation: 'mixed',
-            fontSize: '1.25rem',
+            fontSize: '1rem',
             lineHeight: 1.2,
             textAlign: 'center',
-            letterSpacing: '0.1em'
+            letterSpacing: '0.05em'
           }}
         >
           {lane.name}
@@ -77,8 +79,8 @@ export function LaneColumn({
       <Box
         sx={{
           position: 'relative',
-          height: `calc(${timelineHeight}px - 100px)`,
-          overflow: 'hidden'
+          height: `calc(${timelineHeight}px - ${headerHeight}px)`,
+          overflow: 'visible' // hiddenからvisibleに変更してsticky要素が正しく動作するようにする
         }}
       >
         {/* 10年ごとのグリッド線 - 座標系を年代軸と完全に一致させる */}

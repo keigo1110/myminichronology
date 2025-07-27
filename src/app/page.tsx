@@ -11,7 +11,7 @@ import { PositionedEvent } from '../lib/types';
 
 export default function Home() {
   const { data, loading, error, loadExcelFile, loadGoogleSheet, loadSampleData, clearData } = useSheetLoader();
-  const { positionedEvents, layoutConfig, yearRange, laneColors, setSelectedEvent } = useTimelineData(data);
+  const { positionedEvents, layoutConfig, yearRange, laneColors, setSelectedEvent, yearHeight, setYearHeight } = useTimelineData(data);
   const { exporting, exportError, exportToPdf, clearExportError } = usePdfExport();
 
   const handleFileDrop = (file: File) => {
@@ -37,6 +37,10 @@ export default function Home() {
     setSelectedEvent(event);
   };
 
+  const handleYearHeightChange = (height: number) => {
+    setYearHeight(height);
+  };
+
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* ヘッダー */}
@@ -45,6 +49,8 @@ export default function Home() {
         onUrlSubmit={handleUrlSubmit}
         onSampleDataLoad={handleSampleDataLoad}
         onPdfExport={handlePdfExport}
+        onYearHeightChange={handleYearHeightChange}
+        yearHeight={yearHeight}
         loading={loading}
         error={error}
         exporting={exporting}

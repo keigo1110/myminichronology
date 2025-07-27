@@ -4,6 +4,7 @@ import { computeLayout, calculateTimelineHeight, calculateTimelineWidth } from '
 
 export function useTimelineData(data: TimelineData | null) {
   const [selectedEvent, setSelectedEvent] = useState<PositionedEvent | null>(null);
+  const [yearHeight, setYearHeight] = useState(24); // 年間高さの状態
 
   const layoutResult = useMemo(() => {
     if (!data) {
@@ -12,8 +13,10 @@ export function useTimelineData(data: TimelineData | null) {
         layoutConfig: { laneWidths: [], yearAxisWidth: 120, totalWidth: 120, timelineHeight: 800 }
       };
     }
-    return computeLayout(data);
-  }, [data]);
+    // 年間高さのスケールファクターを計算（基準値24pxに対する比率）
+    const yearHeightScale = yearHeight / 24;
+    return computeLayout(data, yearHeightScale);
+  }, [data, yearHeight]);
 
   const { positionedEvents, layoutConfig } = layoutResult;
 
@@ -71,6 +74,8 @@ export function useTimelineData(data: TimelineData | null) {
     yearRange,
     laneColors,
     selectedEvent,
-    setSelectedEvent
+    setSelectedEvent,
+    yearHeight,
+    setYearHeight
   };
 }

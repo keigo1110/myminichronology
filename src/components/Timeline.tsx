@@ -28,7 +28,7 @@ export function Timeline({
   const { yearAxisWidth, totalWidth } = layoutConfig;
 
   // 年軸のヘッダー高さを考慮した位置計算
-  const headerHeight = 100;
+  const headerHeight = 60;
   const contentHeight = timelineHeight - headerHeight;
 
   // スクロールハンドラー
@@ -79,7 +79,13 @@ export function Timeline({
             borderBottom: '2px solid rgba(0,0,0,0.2)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            position: 'sticky',
+            top: 0,
+            zIndex: 25, // レーンラベルより低いが、他の要素より高い
+            willChange: 'transform',
+            transform: 'translateZ(0)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
           }}
         >
           <Typography
@@ -154,8 +160,8 @@ export function Timeline({
         sx={{
           display: 'flex',
           flex: 1,
-          height: timelineHeight,
-          overflow: 'hidden'
+          height: timelineHeight
+          // overflow: 'hidden' を削除してsticky要素が正しく動作するようにする
         }}
       >
         {data.map((lane, index) => (

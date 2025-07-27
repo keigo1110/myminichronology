@@ -8,7 +8,12 @@ import {
   IconButton,
   Tooltip,
   Paper,
-  Collapse
+  Collapse,
+  Slider,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import {
   CloudUpload,
@@ -16,7 +21,9 @@ import {
   DataObject,
   PictureAsPdf,
   ExpandMore,
-  ExpandLess
+  ExpandLess,
+  Height,
+  RestartAlt
 } from '@mui/icons-material';
 
 interface HeaderProps {
@@ -24,6 +31,8 @@ interface HeaderProps {
   onUrlSubmit: (url: string) => void;
   onSampleDataLoad: () => void;
   onPdfExport: () => void;
+  onYearHeightChange?: (height: number) => void;
+  yearHeight?: number;
   loading: boolean;
   error: string | null;
   exporting: boolean;
@@ -36,6 +45,8 @@ export function Header({
   onUrlSubmit,
   onSampleDataLoad,
   onPdfExport,
+  onYearHeightChange,
+  yearHeight = 24,
   loading,
   error,
   exporting,
@@ -82,6 +93,15 @@ export function Header({
     }
   }, [url, onUrlSubmit]);
 
+  const handleYearHeightChange = useCallback((event: Event, newValue: number | number[]) => {
+    const height = Array.isArray(newValue) ? newValue[0] : newValue;
+    onYearHeightChange?.(height);
+  }, [onYearHeightChange]);
+
+  const handleResetYearHeight = useCallback(() => {
+    onYearHeightChange?.(24); // デフォルト値にリセット
+  }, [onYearHeightChange]);
+
   return (
     <Box
       sx={{
@@ -101,6 +121,45 @@ export function Header({
         </Typography>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {/* 年間高さ調整（データがある場合のみ表示） */}
+          {hasData && (
+            <Tooltip title="年間高さ調整">
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 140 }}>
+                <Height sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <Slider
+                  size="small"
+                  value={yearHeight}
+                  onChange={handleYearHeightChange}
+                  min={8}
+                  max={120}
+                  step={2}
+                  sx={{
+                    '& .MuiSlider-thumb': { width: 12, height: 12 },
+                    '& .MuiSlider-track': { height: 2 },
+                    '& .MuiSlider-rail': { height: 2 }
+                  }}
+                />
+                <Typography variant="caption" sx={{ minWidth: 20, textAlign: 'center' }}>
+                  {yearHeight}px
+                </Typography>
+                <Tooltip title="デフォルト値（24px）にリセット">
+                  <IconButton
+                    size="small"
+                    onClick={handleResetYearHeight}
+                    disabled={yearHeight === 24}
+                    sx={{
+                      width: 20,
+                      height: 20,
+                      '&:disabled': { opacity: 0.3 }
+                    }}
+                  >
+                    <RestartAlt sx={{ fontSize: 14 }} />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </Tooltip>
+          )}
+
           {/* ファイルアップロード */}
           <Tooltip title="Excel ファイルをアップロード">
             <IconButton
@@ -191,12 +250,12 @@ export function Header({
       {(error || exportError) && (
         <Box sx={{ px: 2, pb: 1 }}>
           {error && (
-            <Alert severity="error" size="small">
+            <Alert severity="error">
               {error}
             </Alert>
           )}
           {exportError && (
-            <Alert severity="error" size="small">
+            <Alert severity="error">
               {exportError}
             </Alert>
           )}
