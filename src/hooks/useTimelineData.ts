@@ -1,0 +1,76 @@
+import { useState, useMemo } from 'react';
+import { TimelineData, PositionedEvent, DynamicLayoutConfig } from '../lib/types';
+import { computeLayout, calculateTimelineHeight, calculateTimelineWidth } from '../lib/computeLayout';
+
+export function useTimelineData(data: TimelineData | null) {
+  const [selectedEvent, setSelectedEvent] = useState<PositionedEvent | null>(null);
+
+  const layoutResult = useMemo(() => {
+    if (!data) {
+      return {
+        positionedEvents: [],
+        layoutConfig: { laneWidths: [], yearAxisWidth: 120, totalWidth: 120, timelineHeight: 800 }
+      };
+    }
+    return computeLayout(data);
+  }, [data]);
+
+  const { positionedEvents, layoutConfig } = layoutResult;
+
+  const timelineHeight = useMemo(() => {
+    if (!data) return 800;
+    // layoutConfigから動的高さを使用、フォールバックとして計算関数を使用
+    return layoutConfig.timelineHeight || calculateTimelineHeight(data);
+  }, [data, layoutConfig.timelineHeight]);
+
+  const timelineWidth = useMemo(() => {
+    if (!data) return 120;
+    return layoutConfig.totalWidth || calculateTimelineWidth(data);
+  }, [data, layoutConfig.totalWidth]);
+
+  const yearRange = useMemo(() => {
+    if (!data || data.length === 0) return { min: 0, max: 0 };
+
+    let minYear = Infinity;
+    let maxYear = -Infinity;
+
+    data.forEach(lane => {
+      lane.events.forEach(event => {
+        minYear = Math.min(minYear, event.start);
+        if (event.end) {
+          maxYear = Math.max(maxYear, event.end);
+        } else {
+          maxYear = Math.max(maxYear, event.start);
+        }
+      });
+    });
+
+    return {
+      min: Math.floor(minYear / 10) * 10,
+      max: Math.ceil(maxYear / 10) * 10
+    };
+  }, [data]);
+
+  const laneColors = useMemo(() => {
+    const colors = [
+      '#E3F2FD', // 薄い青
+      '#F3E5F5', // 薄い紫
+      '#E8F5E8', // 薄い緑
+      '#FFF3E0', // 薄いオレンジ
+      '#FCE4EC'  // 薄いピンク
+    ];
+
+    return colors.slice(0, data?.length || 0);
+  }, [data]);
+
+  return {
+    positionedEvents,
+    layoutConfig,
+    timelineHeight,
+    timelineWidth,
+    yearRange,
+    laneColors,
+    selectedEvent,
+    setSelectedEvent
+  };
+}
