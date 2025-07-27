@@ -142,7 +142,7 @@ export function Header({
       {/* メインヘッダー */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2 }}>
         <Typography variant="h5" component="h1" sx={{ fontWeight: 'bold' }}>
-          年表可視化ツール
+          ミニクロ
         </Typography>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

@@ -6,8 +6,8 @@ import { ThemeProvider } from './providers';
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "年表可視化ツール",
-  description: "Excel または Google Sheets のデータを読み込んで年表を作成し、PDF にエクスポートできます",
+  title: "ミニクロ",
+  description: "Excel または Google Sheets のデータを読み込んで年表を可視化し、PDF にエクスポートできます",
 };
 
 export default function RootLayout({
