@@ -1,52 +1,71 @@
 import React, { useCallback, useState } from 'react';
 import { Box, Paper, Typography, TextField, Button, Alert } from '@mui/material';
-import { CloudUpload, Link, DataObject } from '@mui/icons-material';
+import { CloudUpload, Link } from '@mui/icons-material';
 
 interface ControlsProps {
   onFileDrop: (file: File) => void;
   onUrlSubmit: (url: string) => void;
-  onSampleDataLoad: () => void;
   loading: boolean;
   error: string | null;
 }
 
-export function Controls({ onFileDrop, onUrlSubmit, onSampleDataLoad, loading, error }: ControlsProps) {
+export function Controls({ onFileDrop, onUrlSubmit, loading, error }: ControlsProps) {
   const [url, setUrl] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
+    try {
+      e.preventDefault();
+      setIsDragOver(true);
+    } catch (err) {
+      console.error('Drag over error:', err);
+    }
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
+    try {
+      e.preventDefault();
+      setIsDragOver(false);
+    } catch (err) {
+      console.error('Drag leave error:', err);
+    }
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
+    try {
+      e.preventDefault();
+      setIsDragOver(false);
 
-    const files = Array.from(e.dataTransfer.files);
-    const excelFile = files.find(file => file.name.endsWith('.xlsx'));
+      const files = Array.from(e.dataTransfer.files);
+      const excelFile = files.find(file => file.name.endsWith('.xlsx'));
 
-    if (excelFile) {
-      onFileDrop(excelFile);
+      if (excelFile) {
+        onFileDrop(excelFile);
+      }
+    } catch (err) {
+      console.error('Drop error:', err);
     }
   }, [onFileDrop]);
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.name.endsWith('.xlsx')) {
-      onFileDrop(file);
+    try {
+      const file = e.target.files?.[0];
+      if (file && file.name.endsWith('.xlsx')) {
+        onFileDrop(file);
+      }
+    } catch (err) {
+      console.error('File input error:', err);
     }
   }, [onFileDrop]);
 
   const handleUrlSubmit = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
-    if (url.trim()) {
-      onUrlSubmit(url.trim());
+    try {
+      e.preventDefault();
+      if (url.trim()) {
+        onUrlSubmit(url.trim());
+      }
+    } catch (err) {
+      console.error('URL submit error:', err);
     }
   }, [url, onUrlSubmit]);
 
@@ -125,18 +144,7 @@ export function Controls({ onFileDrop, onUrlSubmit, onSampleDataLoad, loading, e
         </Paper>
       </Box>
 
-      {/* サンプルデータ読み込みボタン */}
-      <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-        <Button
-          variant="outlined"
-          startIcon={<DataObject />}
-          onClick={onSampleDataLoad}
-          disabled={loading}
-          sx={{ minWidth: 200 }}
-        >
-          {loading ? '読み込み中...' : 'サンプルデータを読み込み'}
-        </Button>
-      </Box>
+
 
       {/* エラー表示 */}
       {error && (

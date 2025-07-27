@@ -18,7 +18,6 @@ import {
 import {
   CloudUpload,
   Link,
-  DataObject,
   PictureAsPdf,
   ExpandMore,
   ExpandLess,
@@ -29,7 +28,6 @@ import {
 interface HeaderProps {
   onFileDrop: (file: File) => void;
   onUrlSubmit: (url: string) => void;
-  onSampleDataLoad: () => void;
   onPdfExport: () => void;
   onYearHeightChange?: (height: number) => void;
   yearHeight?: number;
@@ -43,7 +41,6 @@ interface HeaderProps {
 export function Header({
   onFileDrop,
   onUrlSubmit,
-  onSampleDataLoad,
   onPdfExport,
   onYearHeightChange,
   yearHeight = 24,
@@ -58,48 +55,76 @@ export function Header({
   const [expanded, setExpanded] = useState(false);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
+    try {
+      e.preventDefault();
+      setIsDragOver(true);
+    } catch (err) {
+      console.error('Drag over error:', err);
+    }
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
+    try {
+      e.preventDefault();
+      setIsDragOver(false);
+    } catch (err) {
+      console.error('Drag leave error:', err);
+    }
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
+    try {
+      e.preventDefault();
+      setIsDragOver(false);
 
-    const files = Array.from(e.dataTransfer.files);
-    const excelFile = files.find(file => file.name.endsWith('.xlsx'));
+      const files = Array.from(e.dataTransfer.files);
+      const excelFile = files.find(file => file.name.endsWith('.xlsx'));
 
-    if (excelFile) {
-      onFileDrop(excelFile);
+      if (excelFile) {
+        onFileDrop(excelFile);
+      }
+    } catch (err) {
+      console.error('Drop error:', err);
     }
   }, [onFileDrop]);
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.name.endsWith('.xlsx')) {
-      onFileDrop(file);
+    try {
+      const file = e.target.files?.[0];
+      if (file && file.name.endsWith('.xlsx')) {
+        onFileDrop(file);
+      }
+    } catch (err) {
+      console.error('File input error:', err);
     }
   }, [onFileDrop]);
 
   const handleUrlSubmit = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
-    if (url.trim()) {
-      onUrlSubmit(url.trim());
+    try {
+      e.preventDefault();
+      if (url.trim()) {
+        onUrlSubmit(url.trim());
+      }
+    } catch (err) {
+      console.error('URL submit error:', err);
     }
   }, [url, onUrlSubmit]);
 
   const handleYearHeightChange = useCallback((event: Event, newValue: number | number[]) => {
-    const height = Array.isArray(newValue) ? newValue[0] : newValue;
-    onYearHeightChange?.(height);
+    try {
+      const height = Array.isArray(newValue) ? newValue[0] : newValue;
+      onYearHeightChange?.(height);
+    } catch (err) {
+      console.error('Year height change error:', err);
+    }
   }, [onYearHeightChange]);
 
   const handleResetYearHeight = useCallback(() => {
-    onYearHeightChange?.(24); // デフォルト値にリセット
+    try {
+      onYearHeightChange?.(24); // デフォルト値にリセット
+    } catch (err) {
+      console.error('Reset year height error:', err);
+    }
   }, [onYearHeightChange]);
 
   return (
@@ -184,12 +209,7 @@ export function Header({
             </IconButton>
           </Tooltip>
 
-          {/* サンプルデータ */}
-          <Tooltip title="サンプルデータを読み込み">
-            <IconButton onClick={onSampleDataLoad} disabled={loading}>
-              <DataObject />
-            </IconButton>
-          </Tooltip>
+
 
           {/* PDF エクスポート */}
           {hasData && (

@@ -10,35 +10,71 @@ import { usePdfExport } from '../hooks/usePdfExport';
 import { PositionedEvent } from '../lib/types';
 
 export default function Home() {
-  const { data, loading, error, loadExcelFile, loadGoogleSheet, loadSampleData, clearData } = useSheetLoader();
+  const { data, loading, error, loadExcelFile, loadGoogleSheet, clearData } = useSheetLoader();
   const { positionedEvents, layoutConfig, yearRange, laneColors, setSelectedEvent, yearHeight, setYearHeight } = useTimelineData(data);
   const { exporting, exportError, exportToPdf, clearExportError } = usePdfExport();
 
+  // グローバルエラーハンドラー
+  React.useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      console.error('Unhandled promise rejection:', event.reason);
+      event.preventDefault();
+    };
+
+    const handleError = (event: ErrorEvent) => {
+      console.error('Global error:', event.error);
+      event.preventDefault();
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    window.addEventListener('error', handleError);
+
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      window.removeEventListener('error', handleError);
+    };
+  }, []);
+
   const handleFileDrop = (file: File) => {
-    clearData();
-    loadExcelFile(file);
+    try {
+      clearData();
+      loadExcelFile(file);
+    } catch (err) {
+      console.error('File drop error:', err);
+    }
   };
 
   const handleUrlSubmit = (url: string) => {
-    clearData();
-    loadGoogleSheet(url);
-  };
-
-  const handleSampleDataLoad = () => {
-    clearData();
-    loadSampleData();
+    try {
+      clearData();
+      loadGoogleSheet(url);
+    } catch (err) {
+      console.error('URL submit error:', err);
+    }
   };
 
   const handlePdfExport = () => {
-    exportToPdf('timelineRoot');
+    try {
+      exportToPdf('timelineRoot');
+    } catch (err) {
+      console.error('PDF export error:', err);
+    }
   };
 
   const handleEventClick = (event: PositionedEvent) => {
-    setSelectedEvent(event);
+    try {
+      setSelectedEvent(event);
+    } catch (err) {
+      console.error('Event click error:', err);
+    }
   };
 
   const handleYearHeightChange = (height: number) => {
-    setYearHeight(height);
+    try {
+      setYearHeight(height);
+    } catch (err) {
+      console.error('Year height change error:', err);
+    }
   };
 
   return (
@@ -47,7 +83,6 @@ export default function Home() {
       <Header
         onFileDrop={handleFileDrop}
         onUrlSubmit={handleUrlSubmit}
-        onSampleDataLoad={handleSampleDataLoad}
         onPdfExport={handlePdfExport}
         onYearHeightChange={handleYearHeightChange}
         yearHeight={yearHeight}

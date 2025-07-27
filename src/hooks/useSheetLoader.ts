@@ -27,6 +27,7 @@ export function useSheetLoader() {
 
       setData(timelineData);
     } catch (err) {
+      console.error('Excel file load error:', err);
       const message = err instanceof Error ? err.message : 'Failed to load Excel file.';
       setError(message);
       setData(null);
@@ -49,28 +50,8 @@ export function useSheetLoader() {
 
       setData(timelineData);
     } catch (err) {
+      console.error('Google Sheets load error:', err);
       const message = err instanceof Error ? err.message : 'Failed to load Google Sheets.';
-      setError(message);
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadSampleData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch('/sample-data.json');
-      if (!response.ok) {
-        throw new Error('Failed to load sample data.');
-      }
-
-      const timelineData: TimelineData = await response.json();
-      setData(timelineData);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load sample data.';
       setError(message);
       setData(null);
     } finally {
@@ -89,7 +70,6 @@ export function useSheetLoader() {
     error,
     loadExcelFile,
     loadGoogleSheet,
-    loadSampleData,
     clearData
   };
 }
