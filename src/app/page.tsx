@@ -10,7 +10,7 @@ import { usePdfExport } from '../hooks/usePdfExport';
 import { PositionedEvent } from '../lib/types';
 
 export default function Home() {
-  const { data, loading, error, loadExcelFile, loadGoogleSheet, clearData } = useSheetLoader();
+  const { data, loading, error, loadExcelFile, clearData } = useSheetLoader();
   const { positionedEvents, layoutConfig, yearRange, laneColors, setSelectedEvent, yearHeight, setYearHeight } = useTimelineData(data);
   const { exporting, exportError, exportToPdf, clearExportError } = usePdfExport();
 
@@ -44,14 +44,7 @@ export default function Home() {
     }
   };
 
-  const handleUrlSubmit = (url: string) => {
-    try {
-      clearData();
-      loadGoogleSheet(url);
-    } catch (err) {
-      console.error('URL submit error:', err);
-    }
-  };
+
 
   const handlePdfExport = () => {
     try {
@@ -82,7 +75,6 @@ export default function Home() {
       {/* ヘッダー */}
       <Header
         onFileDrop={handleFileDrop}
-        onUrlSubmit={handleUrlSubmit}
         onPdfExport={handlePdfExport}
         onYearHeightChange={handleYearHeightChange}
         yearHeight={yearHeight}

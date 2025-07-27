@@ -4,13 +4,11 @@ import { CloudUpload, Link } from '@mui/icons-material';
 
 interface ControlsProps {
   onFileDrop: (file: File) => void;
-  onUrlSubmit: (url: string) => void;
   loading: boolean;
   error: string | null;
 }
 
-export function Controls({ onFileDrop, onUrlSubmit, loading, error }: ControlsProps) {
-  const [url, setUrl] = useState('');
+export function Controls({ onFileDrop, loading, error }: ControlsProps) {
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -58,91 +56,49 @@ export function Controls({ onFileDrop, onUrlSubmit, loading, error }: ControlsPr
     }
   }, [onFileDrop]);
 
-  const handleUrlSubmit = useCallback((e: React.FormEvent) => {
-    try {
-      e.preventDefault();
-      if (url.trim()) {
-        onUrlSubmit(url.trim());
-      }
-    } catch (err) {
-      console.error('URL submit error:', err);
-    }
-  }, [url, onUrlSubmit]);
+
 
   return (
     <Box sx={{ mb: 3 }}>
-      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-        {/* ファイルドロップゾーン */}
-        <Paper
-          sx={{
-            flex: 1,
-            p: 3,
-            border: '2px dashed',
-            borderColor: isDragOver ? 'primary.main' : 'grey.300',
-            backgroundColor: isDragOver ? 'primary.50' : 'background.paper',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-            '&:hover': {
-              borderColor: 'primary.main',
-              backgroundColor: 'primary.50'
-            }
-          }}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={() => document.getElementById('file-input')?.click()}
-        >
-          <input
-            id="file-input"
-            type="file"
-            accept=".xlsx"
-            onChange={handleFileInput}
-            style={{ display: 'none' }}
-          />
-          <Box sx={{ textAlign: 'center' }}>
-            <CloudUpload sx={{ fontSize: 48, color: 'primary.main', mb: 1 }} />
-            <Typography variant="h6" gutterBottom>
-              Excel ファイルをドラッグ & ドロップ
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              またはクリックしてファイルを選択
-            </Typography>
-            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-              対応形式: .xlsx
-            </Typography>
-          </Box>
-        </Paper>
-
-        {/* URL 入力 */}
-        <Paper sx={{ flex: 1, p: 3 }}>
+      {/* ファイルドロップゾーン */}
+      <Paper
+        sx={{
+          p: 3,
+          border: '2px dashed',
+          borderColor: isDragOver ? 'primary.main' : 'grey.300',
+          backgroundColor: isDragOver ? 'primary.50' : 'background.paper',
+          cursor: 'pointer',
+          transition: 'all 0.2s',
+          '&:hover': {
+            borderColor: 'primary.main',
+            backgroundColor: 'primary.50'
+          }
+        }}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={() => document.getElementById('file-input')?.click()}
+      >
+        <input
+          id="file-input"
+          type="file"
+          accept=".xlsx"
+          onChange={handleFileInput}
+          style={{ display: 'none' }}
+        />
+        <Box sx={{ textAlign: 'center' }}>
+          <CloudUpload sx={{ fontSize: 48, color: 'primary.main', mb: 1 }} />
           <Typography variant="h6" gutterBottom>
-            Google Sheets URL
+            Excel ファイルをドラッグ & ドロップ
           </Typography>
-          <form onSubmit={handleUrlSubmit}>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <TextField
-                fullWidth
-                size="small"
-                placeholder="https://docs.google.com/spreadsheets/d/..."
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                disabled={loading}
-                InputProps={{
-                  startAdornment: <Link sx={{ mr: 1, color: 'text.secondary' }} />
-                }}
-              />
-              <Button
-                type="submit"
-                variant="contained"
-                disabled={!url.trim() || loading}
-                sx={{ minWidth: 100 }}
-              >
-                {loading ? '読み込み中...' : '読み込み'}
-              </Button>
-            </Box>
-          </form>
-        </Paper>
-      </Box>
+          <Typography variant="body2" color="text.secondary">
+            またはクリックしてファイルを選択
+          </Typography>
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+            対応形式: .xlsx
+          </Typography>
+        </Box>
+      </Paper>
 
 
 

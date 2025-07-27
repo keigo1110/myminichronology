@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
 import { TimelineData } from '../lib/types';
 import { parseExcel } from '../lib/parseExcel';
-import { fetchGSheet } from '../lib/fetchGSheet';
 
 export function useSheetLoader() {
   const [data, setData] = useState<TimelineData | null>(null);
@@ -36,28 +35,7 @@ export function useSheetLoader() {
     }
   }, []);
 
-  const loadGoogleSheet = useCallback(async (url: string) => {
-    setLoading(true);
-    setError(null);
 
-    try {
-      const timelineData = await fetchGSheet(url);
-
-      // レーン数チェック
-      if (timelineData.length > 5) {
-        throw new Error('Maximum 5 sheets/lane supported.');
-      }
-
-      setData(timelineData);
-    } catch (err) {
-      console.error('Google Sheets load error:', err);
-      const message = err instanceof Error ? err.message : 'Failed to load Google Sheets.';
-      setError(message);
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   const clearData = useCallback(() => {
     setData(null);
@@ -69,7 +47,6 @@ export function useSheetLoader() {
     loading,
     error,
     loadExcelFile,
-    loadGoogleSheet,
     clearData
   };
 }

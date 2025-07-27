@@ -27,7 +27,6 @@ import {
 
 interface HeaderProps {
   onFileDrop: (file: File) => void;
-  onUrlSubmit: (url: string) => void;
   onPdfExport: () => void;
   onYearHeightChange?: (height: number) => void;
   yearHeight?: number;
@@ -40,7 +39,6 @@ interface HeaderProps {
 
 export function Header({
   onFileDrop,
-  onUrlSubmit,
   onPdfExport,
   onYearHeightChange,
   yearHeight = 24,
@@ -50,7 +48,6 @@ export function Header({
   exportError,
   hasData
 }: HeaderProps) {
-  const [url, setUrl] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -99,16 +96,7 @@ export function Header({
     }
   }, [onFileDrop]);
 
-  const handleUrlSubmit = useCallback((e: React.FormEvent) => {
-    try {
-      e.preventDefault();
-      if (url.trim()) {
-        onUrlSubmit(url.trim());
-      }
-    } catch (err) {
-      console.error('URL submit error:', err);
-    }
-  }, [url, onUrlSubmit]);
+
 
   const handleYearHeightChange = useCallback((event: Event, newValue: number | number[]) => {
     try {
@@ -231,37 +219,9 @@ export function Header({
       <Collapse in={expanded}>
         <Box sx={{ px: 2, pb: 2 }}>
           <Paper sx={{ p: 2 }}>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-end' }}>
-              {/* Google Sheets URL 入力 */}
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-                  Google Sheets URL
-                </Typography>
-                <form onSubmit={handleUrlSubmit}>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      placeholder="https://docs.google.com/spreadsheets/d/..."
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      disabled={loading}
-                      InputProps={{
-                        startAdornment: <Link sx={{ mr: 1, color: 'text.secondary' }} />
-                      }}
-                    />
-                    <Button
-                      type="submit"
-                      variant="contained"
-                      size="small"
-                      disabled={!url.trim() || loading}
-                    >
-                      {loading ? '読み込み中...' : '読み込み'}
-                    </Button>
-                  </Box>
-                </form>
-              </Box>
-            </Box>
+            <Typography variant="body2" color="text.secondary">
+              詳細設定は現在開発中です。
+            </Typography>
           </Paper>
         </Box>
       </Collapse>
