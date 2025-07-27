@@ -57,20 +57,21 @@ export function Timeline({
       onScroll={handleScroll}
     >
       {/* 年軸ラベル - 固定位置に変更 */}
-      <Box
-        sx={{
-          position: 'sticky',
-          left: 0,
-          top: 0,
-          width: yearAxisWidth,
-          height: timelineHeight,
-          backgroundColor: 'rgba(255,255,255,0.95)',
-          borderRight: '2px solid rgba(0,0,0,0.2)',
-          zIndex: 10,
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-      >
+              <Box
+          sx={{
+            position: 'sticky',
+            left: 0,
+            top: 0,
+            width: yearAxisWidth,
+            height: timelineHeight,
+            backgroundColor: 'rgba(255,255,255,0.95)',
+            borderRight: '2px solid rgba(0,0,0,0.2)',
+            zIndex: 10,
+            display: 'flex',
+            flexDirection: 'column',
+            minWidth: '60px' // 最小幅を保証
+          }}
+        >
         {/* 年代軸ヘッダー */}
         <Box
           sx={{
@@ -141,10 +142,12 @@ export function Timeline({
                   sx={{
                     color: '#212121',
                     fontWeight: 'bold',
-                    fontSize: '0.875rem',
+                    fontSize: '0.75rem',
                     backgroundColor: 'rgba(255,255,255,0.95)',
-                    px: 1,
-                    borderRadius: 1
+                    px: 0.5,
+                    borderRadius: 1,
+                    minWidth: 'fit-content',
+                    textAlign: 'center'
                   }}
                 >
                   {year}
