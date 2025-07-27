@@ -43,6 +43,7 @@ export function LaneColumn({
     >
       {/* レーンタイトル（横書き） */}
       <Box
+        data-lane-title="true"
         sx={{
           position: 'sticky',
           top: 0,
@@ -57,7 +58,11 @@ export function LaneColumn({
           // スクロール時の固定を強化
           willChange: 'transform',
           transform: 'translateZ(0)', // ハードウェアアクセラレーション
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)' // 固定感を強調
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          // PDFエクスポート時にstickyを解除
+          '.pdf-export &' : {
+            position: 'relative',
+          }
         }}
       >
         <Typography
