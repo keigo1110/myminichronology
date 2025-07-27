@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box, Typography, Button } from '@mui/material';
+import { HelpOutline } from '@mui/icons-material';
 import { Header } from '../components/Header';
 import { Timeline } from '../components/Timeline';
 import { useSheetLoader } from '../hooks/useSheetLoader';
@@ -157,6 +158,7 @@ export default function Home() {
           <Box
             sx={{
               display: 'flex',
+              flexDirection: 'column',
               justifyContent: 'center',
               alignItems: 'center',
               height: '100%',
@@ -165,12 +167,30 @@ export default function Home() {
               borderRadius: 1,
               border: '2px dashed',
               borderColor: isDragOver ? 'primary.main' : 'rgba(0,0,0,0.1)',
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              p: 3
             }}
           >
-            <Typography variant="h6" color="text.secondary">
-              {isDragOver ? 'ここにExcelファイルをドロップ' : 'データを読み込んで年表を表示してください'}
-            </Typography>
+            <Box sx={{ textAlign: 'center', mb: 3 }}>
+              <Typography variant="h5" color="text.secondary" gutterBottom>
+                {isDragOver ? 'ここにExcelファイルをドロップ' : 'Excelファイルをドラッグ&ドロップ'}
+              </Typography>
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+                {isDragOver ? 'ファイルを離して年表を表示' : 'またはヘッダーのアップロードボタンをクリック'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                対応形式: .xlsx（最大10MB）
+              </Typography>
+            </Box>
+
+            <Button
+              variant="outlined"
+              startIcon={<HelpOutline />}
+              onClick={() => window.open('https://note.com/namida1110/n/nfd97132121ef', '_blank')}
+              sx={{ mt: 2 }}
+            >
+              使い方ガイドを見る
+            </Button>
           </Box>
         )}
       </Box>

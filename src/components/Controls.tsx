@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { Box, Paper, Typography, TextField, Button, Alert } from '@mui/material';
-import { CloudUpload, Link } from '@mui/icons-material';
+import { CloudUpload, Link, HelpOutline } from '@mui/icons-material';
 
 interface ControlsProps {
   onFileDrop: (file: File) => void;
@@ -126,7 +126,7 @@ export function Controls({ onFileDrop, loading, error }: ControlsProps) {
           onChange={handleFileInput}
           style={{ display: 'none' }}
         />
-        <Box sx={{ textAlign: 'center' }}>
+                <Box sx={{ textAlign: 'center' }}>
           <CloudUpload
             sx={{
               fontSize: 48,
@@ -144,6 +144,18 @@ export function Controls({ onFileDrop, loading, error }: ControlsProps) {
           <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
             対応形式: .xlsx（最大10MB）
           </Typography>
+        </Box>
+
+        <Box sx={{ textAlign: 'center', mt: 2 }}>
+          <Button
+            variant="text"
+            size="small"
+            startIcon={<HelpOutline />}
+            onClick={() => window.open('https://note.com/namida1110/n/nfd97132121ef', '_blank')}
+            sx={{ color: 'text.secondary' }}
+          >
+            使い方ガイド
+          </Button>
         </Box>
       </Paper>
 

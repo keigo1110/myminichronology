@@ -22,7 +22,8 @@ import {
   ExpandMore,
   ExpandLess,
   Height,
-  RestartAlt
+  RestartAlt,
+  HelpOutline
 } from '@mui/icons-material';
 
 interface HeaderProps {
@@ -250,6 +251,16 @@ export function Header({
               </IconButton>
             </Tooltip>
           )}
+
+          {/* 使い方ガイド */}
+          <Tooltip title="使い方ガイド">
+            <IconButton
+              onClick={() => window.open('https://note.com/namida1110/n/nfd97132121ef', '_blank')}
+              size="small"
+            >
+              <HelpOutline />
+            </IconButton>
+          </Tooltip>
 
           {/* 展開/折りたたみボタン */}
           <IconButton onClick={() => setExpanded(!expanded)} size="small">
