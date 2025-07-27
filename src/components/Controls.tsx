@@ -10,11 +10,14 @@ interface ControlsProps {
 
 export function Controls({ onFileDrop, loading, error }: ControlsProps) {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [dragError, setDragError] = useState<string | null>(null);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     try {
       e.preventDefault();
+      e.stopPropagation();
       setIsDragOver(true);
+      setDragError(null);
     } catch (err) {
       console.error('Drag over error:', err);
     }
@@ -23,7 +26,9 @@ export function Controls({ onFileDrop, loading, error }: ControlsProps) {
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     try {
       e.preventDefault();
+      e.stopPropagation();
       setIsDragOver(false);
+      setDragError(null);
     } catch (err) {
       console.error('Drag leave error:', err);
     }
@@ -32,27 +37,61 @@ export function Controls({ onFileDrop, loading, error }: ControlsProps) {
   const handleDrop = useCallback((e: React.DragEvent) => {
     try {
       e.preventDefault();
+      e.stopPropagation();
       setIsDragOver(false);
+      setDragError(null);
 
       const files = Array.from(e.dataTransfer.files);
+
+      if (files.length === 0) {
+        setDragError('ファイルが選択されていません');
+        return;
+      }
+
       const excelFile = files.find(file => file.name.endsWith('.xlsx'));
 
-      if (excelFile) {
-        onFileDrop(excelFile);
+      if (!excelFile) {
+        setDragError('Excelファイル（.xlsx）を選択してください');
+        return;
       }
+
+      // ファイルサイズチェック（10MB制限）
+      if (excelFile.size > 10 * 1024 * 1024) {
+        setDragError('ファイルサイズが大きすぎます（10MB以下にしてください）');
+        return;
+      }
+
+      onFileDrop(excelFile);
     } catch (err) {
       console.error('Drop error:', err);
+      setDragError('ファイルの処理中にエラーが発生しました');
     }
   }, [onFileDrop]);
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     try {
       const file = e.target.files?.[0];
-      if (file && file.name.endsWith('.xlsx')) {
-        onFileDrop(file);
+      if (!file) {
+        setDragError('ファイルが選択されていません');
+        return;
       }
+
+      if (!file.name.endsWith('.xlsx')) {
+        setDragError('Excelファイル（.xlsx）を選択してください');
+        return;
+      }
+
+      // ファイルサイズチェック（10MB制限）
+      if (file.size > 10 * 1024 * 1024) {
+        setDragError('ファイルサイズが大きすぎます（10MB以下にしてください）');
+        return;
+      }
+
+      onFileDrop(file);
+      setDragError(null);
     } catch (err) {
       console.error('File input error:', err);
+      setDragError('ファイルの処理中にエラーが発生しました');
     }
   }, [onFileDrop]);
 
@@ -65,13 +104,14 @@ export function Controls({ onFileDrop, loading, error }: ControlsProps) {
         sx={{
           p: 3,
           border: '2px dashed',
-          borderColor: isDragOver ? 'primary.main' : 'grey.300',
-          backgroundColor: isDragOver ? 'primary.50' : 'background.paper',
+          borderColor: isDragOver ? 'primary.main' : dragError ? 'error.main' : 'grey.300',
+          backgroundColor: isDragOver ? 'primary.50' : dragError ? 'error.50' : 'background.paper',
           cursor: 'pointer',
           transition: 'all 0.2s',
+          position: 'relative',
           '&:hover': {
-            borderColor: 'primary.main',
-            backgroundColor: 'primary.50'
+            borderColor: isDragOver ? 'primary.main' : 'primary.main',
+            backgroundColor: isDragOver ? 'primary.50' : 'primary.50'
           }
         }}
         onDragOver={handleDragOver}
@@ -87,15 +127,22 @@ export function Controls({ onFileDrop, loading, error }: ControlsProps) {
           style={{ display: 'none' }}
         />
         <Box sx={{ textAlign: 'center' }}>
-          <CloudUpload sx={{ fontSize: 48, color: 'primary.main', mb: 1 }} />
+          <CloudUpload
+            sx={{
+              fontSize: 48,
+              color: isDragOver ? 'primary.main' : dragError ? 'error.main' : 'primary.main',
+              mb: 1,
+              transition: 'color 0.2s'
+            }}
+          />
           <Typography variant="h6" gutterBottom>
-            Excel ファイルをドラッグ & ドロップ
+            {isDragOver ? 'ここにファイルをドロップ' : 'Excel ファイルをドラッグ & ドロップ'}
           </Typography>
           <Typography variant="body2" color="text.secondary">
             またはクリックしてファイルを選択
           </Typography>
           <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-            対応形式: .xlsx
+            対応形式: .xlsx（最大10MB）
           </Typography>
         </Box>
       </Paper>
@@ -103,9 +150,9 @@ export function Controls({ onFileDrop, loading, error }: ControlsProps) {
 
 
       {/* エラー表示 */}
-      {error && (
+      {(error || dragError) && (
         <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
+          {error || dragError}
         </Alert>
       )}
     </Box>

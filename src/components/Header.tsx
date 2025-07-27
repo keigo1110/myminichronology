@@ -49,12 +49,15 @@ export function Header({
   hasData
 }: HeaderProps) {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [dragError, setDragError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     try {
       e.preventDefault();
+      e.stopPropagation();
       setIsDragOver(true);
+      setDragError(null);
     } catch (err) {
       console.error('Drag over error:', err);
     }
@@ -63,7 +66,9 @@ export function Header({
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     try {
       e.preventDefault();
+      e.stopPropagation();
       setIsDragOver(false);
+      setDragError(null);
     } catch (err) {
       console.error('Drag leave error:', err);
     }
@@ -72,27 +77,61 @@ export function Header({
   const handleDrop = useCallback((e: React.DragEvent) => {
     try {
       e.preventDefault();
+      e.stopPropagation();
       setIsDragOver(false);
+      setDragError(null);
 
       const files = Array.from(e.dataTransfer.files);
+
+      if (files.length === 0) {
+        setDragError('ファイルが選択されていません');
+        return;
+      }
+
       const excelFile = files.find(file => file.name.endsWith('.xlsx'));
 
-      if (excelFile) {
-        onFileDrop(excelFile);
+      if (!excelFile) {
+        setDragError('Excelファイル（.xlsx）を選択してください');
+        return;
       }
+
+      // ファイルサイズチェック（10MB制限）
+      if (excelFile.size > 10 * 1024 * 1024) {
+        setDragError('ファイルサイズが大きすぎます（10MB以下にしてください）');
+        return;
+      }
+
+      onFileDrop(excelFile);
     } catch (err) {
       console.error('Drop error:', err);
+      setDragError('ファイルの処理中にエラーが発生しました');
     }
   }, [onFileDrop]);
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     try {
       const file = e.target.files?.[0];
-      if (file && file.name.endsWith('.xlsx')) {
-        onFileDrop(file);
+      if (!file) {
+        setDragError('ファイルが選択されていません');
+        return;
       }
+
+      if (!file.name.endsWith('.xlsx')) {
+        setDragError('Excelファイル（.xlsx）を選択してください');
+        return;
+      }
+
+      // ファイルサイズチェック（10MB制限）
+      if (file.size > 10 * 1024 * 1024) {
+        setDragError('ファイルサイズが大きすぎます（10MB以下にしてください）');
+        return;
+      }
+
+      onFileDrop(file);
+      setDragError(null);
     } catch (err) {
       console.error('File input error:', err);
+      setDragError('ファイルの処理中にエラーが発生しました');
     }
   }, [onFileDrop]);
 
@@ -180,8 +219,9 @@ export function Header({
               disabled={loading}
               sx={{
                 border: '1px dashed',
-                borderColor: isDragOver ? 'primary.main' : 'grey.300',
-                backgroundColor: isDragOver ? 'primary.50' : 'transparent'
+                borderColor: isDragOver ? 'primary.main' : dragError ? 'error.main' : 'grey.300',
+                backgroundColor: isDragOver ? 'primary.50' : dragError ? 'error.50' : 'transparent',
+                transition: 'all 0.2s'
               }}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -193,7 +233,10 @@ export function Header({
                 onChange={handleFileInput}
                 style={{ display: 'none' }}
               />
-              <CloudUpload />
+              <CloudUpload sx={{
+                color: isDragOver ? 'primary.main' : dragError ? 'error.main' : 'inherit',
+                transition: 'color 0.2s'
+              }} />
             </IconButton>
           </Tooltip>
 
@@ -227,7 +270,7 @@ export function Header({
       </Collapse>
 
       {/* エラー表示 */}
-      {(error || exportError) && (
+      {(error || exportError || dragError) && (
         <Box sx={{ px: 2, pb: 1 }}>
           {error && (
             <Alert severity="error">
@@ -237,6 +280,11 @@ export function Header({
           {exportError && (
             <Alert severity="error">
               {exportError}
+            </Alert>
+          )}
+          {dragError && (
+            <Alert severity="error">
+              {dragError}
             </Alert>
           )}
         </Box>
