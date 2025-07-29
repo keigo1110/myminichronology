@@ -7,7 +7,6 @@ import { Header } from '../components/Header';
 vi.mock('../components/DraggableLaneList', () => ({
   DraggableLaneList: ({ lanes, selectedLanes, onLaneSelectionChange, onLaneOrderChange }: any) => (
     <div data-testid="draggable-lane-list">
-      <div>表示するレーン（ドラッグで順序変更）:</div>
       {lanes.map((lane: string) => (
         <button
           key={lane}
@@ -50,15 +49,15 @@ describe('Header', () => {
     expect(screen.getByText('ミニクロ')).toBeInTheDocument();
   });
 
-  it('should render filter button when data is available', () => {
+  it('should render year height adjustment when data is available', () => {
     render(<Header {...mockProps} />);
-    expect(screen.getByTestId('FilterListIcon')).toBeInTheDocument();
+    expect(screen.getByTestId('HeightIcon')).toBeInTheDocument();
   });
 
-  it('should expand filter options when filter button is clicked', () => {
+  it('should expand filter options when expand button is clicked', () => {
     render(<Header {...mockProps} />);
-    const filterButton = screen.getByTestId('FilterListIcon').closest('button');
-    fireEvent.click(filterButton!);
+    const expandButton = screen.getByTestId('ExpandMoreIcon').closest('button');
+    fireEvent.click(expandButton!);
 
     expect(screen.getByText('年代範囲:')).toBeInTheDocument();
     expect(screen.getByLabelText('開始年')).toBeInTheDocument();
@@ -67,8 +66,8 @@ describe('Header', () => {
 
   it('should render year range input fields', () => {
     render(<Header {...mockProps} />);
-    const filterButton = screen.getByTestId('FilterListIcon').closest('button');
-    fireEvent.click(filterButton!);
+    const expandButton = screen.getByTestId('ExpandMoreIcon').closest('button');
+    fireEvent.click(expandButton!);
 
     const startYearInput = screen.getByLabelText('開始年');
     const endYearInput = screen.getByLabelText('終了年');
@@ -81,8 +80,8 @@ describe('Header', () => {
 
   it('should call onYearRangeChange when year range is modified', () => {
     render(<Header {...mockProps} />);
-    const filterButton = screen.getByTestId('FilterListIcon').closest('button');
-    fireEvent.click(filterButton!);
+    const expandButton = screen.getByTestId('ExpandMoreIcon').closest('button');
+    fireEvent.click(expandButton!);
 
     const startYearInput = screen.getByLabelText('開始年');
     fireEvent.change(startYearInput, { target: { value: '1950' } });
@@ -91,26 +90,35 @@ describe('Header', () => {
     expect(mockProps.onYearRangeChange).toHaveBeenCalledWith([1950, 2100]);
   });
 
+  it('should render year range reset button', () => {
+    render(<Header {...mockProps} />);
+    const expandButton = screen.getByTestId('ExpandMoreIcon').closest('button');
+    fireEvent.click(expandButton!);
+
+    const resetButtons = screen.getAllByTestId('RestartAltIcon');
+    expect(resetButtons.length).toBeGreaterThan(0);
+  });
+
   it('should render DraggableLaneList in the right section', () => {
     render(<Header {...mockProps} />);
-    const filterButton = screen.getByTestId('FilterListIcon').closest('button');
-    fireEvent.click(filterButton!);
+    const expandButton = screen.getByTestId('ExpandMoreIcon').closest('button');
+    fireEvent.click(expandButton!);
 
     expect(screen.getByTestId('draggable-lane-list')).toBeInTheDocument();
-    expect(screen.getByText('表示するレーン（ドラッグで順序変更）:')).toBeInTheDocument();
   });
 
-  it('should show active filter count when filters are applied', () => {
+  it('should render lane selection reset button', () => {
     render(<Header {...mockProps} />);
-    const filterButton = screen.getByTestId('FilterListIcon').closest('button');
+    const expandButton = screen.getByTestId('ExpandMoreIcon').closest('button');
+    fireEvent.click(expandButton!);
 
-    // アクティブフィルター数が表示されることを確認
-    expect(filterButton).toHaveClass('MuiIconButton-colorPrimary');
+    const resetButtons = screen.getAllByTestId('RestartAltIcon');
+    expect(resetButtons.length).toBeGreaterThan(1); // 年代範囲とレーン選択の2つのリセットボタン
   });
 
-  it('should not show filter button when no data is available', () => {
+  it('should not show year height adjustment when no data is available', () => {
     render(<Header {...mockProps} hasData={false} />);
-    expect(screen.queryByTestId('FilterListIcon')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('HeightIcon')).not.toBeInTheDocument();
   });
 
   it('should render file upload button', () => {
@@ -126,5 +134,10 @@ describe('Header', () => {
   it('should render help button', () => {
     render(<Header {...mockProps} />);
     expect(screen.getByTestId('HelpOutlineIcon')).toBeInTheDocument();
+  });
+
+  it('should render expand/collapse button', () => {
+    render(<Header {...mockProps} />);
+    expect(screen.getByTestId('ExpandMoreIcon')).toBeInTheDocument();
   });
 });

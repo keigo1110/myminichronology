@@ -24,8 +24,7 @@ import {
   ExpandLess,
   Height,
   RestartAlt,
-  HelpOutline,
-  FilterList
+  HelpOutline
 } from '@mui/icons-material';
 import { DraggableLaneList } from './DraggableLaneList';
 
@@ -185,11 +184,21 @@ export function Header({
     onYearRangeChange?.(filterYearRange);
   }, [filterYearRange, onYearRangeChange]);
 
-  // アクティブなレーンフィルター数
-  const activeLaneFilterCount = lanes.length > 0 && selectedLanes.length !== lanes.length ? selectedLanes.length : 0;
+  const handleResetYearRange = useCallback(() => {
+    const defaultRange: [number, number] = [yearRange.min, yearRange.max];
+    setFilterYearRange(defaultRange);
+    onYearRangeChange?.(defaultRange);
+  }, [yearRange.min, yearRange.max, onYearRangeChange]);
+
+  const handleResetLaneSelection = useCallback(() => {
+    onLaneSelectionChange?.(lanes);
+  }, [lanes, onLaneSelectionChange]);
 
   // 年代範囲フィルターがアクティブかどうか
   const isYearRangeActive = filterYearRange[0] !== yearRange.min || filterYearRange[1] !== yearRange.max;
+
+  // レーン選択がデフォルトかどうか（すべてのレーンが選択されているか）
+  const isLaneSelectionDefault = selectedLanes.length === lanes.length;
 
   return (
     <Box
@@ -246,33 +255,6 @@ export function Header({
                   </IconButton>
                 </Tooltip>
               </Box>
-            </Tooltip>
-          )}
-
-          {/* レーン選択・年代範囲ボタン（データがある場合のみ表示） */}
-          {hasData && lanes.length > 0 && (
-            <Tooltip title="レーン選択・年代範囲">
-              <IconButton
-                onClick={() => setExpanded(!expanded)}
-                color={(activeLaneFilterCount > 0 || isYearRangeActive) ? 'primary' : 'default'}
-                size="small"
-              >
-                <FilterList />
-                {(activeLaneFilterCount > 0 || isYearRangeActive) && (
-                  <Chip
-                    label={activeLaneFilterCount + (isYearRangeActive ? 1 : 0)}
-                    size="small"
-                    color="primary"
-                    sx={{
-                      position: 'absolute',
-                      top: -5,
-                      right: -5,
-                      height: 20,
-                      fontSize: '0.75rem'
-                    }}
-                  />
-                )}
-              </IconButton>
             </Tooltip>
           )}
 
@@ -338,9 +320,25 @@ export function Header({
               <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2 }}>
                 {/* 年代範囲（左側） */}
                 <Box sx={{ flex: { xs: '1', md: '0 0 50%' } }}>
-                  <Typography variant="body2" gutterBottom>
-                    年代範囲:
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Typography variant="body2">
+                      年代範囲:
+                    </Typography>
+                    <Tooltip title="デフォルト値にリセット">
+                      <IconButton
+                        size="small"
+                        onClick={handleResetYearRange}
+                        disabled={!isYearRangeActive}
+                        sx={{
+                          width: 16,
+                          height: 16,
+                          '&:disabled': { opacity: 0.3 }
+                        }}
+                      >
+                        <RestartAlt sx={{ fontSize: 12 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                     <TextField
                       size="small"
@@ -378,6 +376,25 @@ export function Header({
 
                 {/* レーン選択（右側） */}
                 <Box sx={{ flex: { xs: '1', md: '0 0 50%' } }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Typography variant="body2">
+                      表示するレーン（ドラッグで順序変更）:
+                    </Typography>
+                    <Tooltip title="すべてのレーンを表示">
+                      <IconButton
+                        size="small"
+                        onClick={handleResetLaneSelection}
+                        disabled={isLaneSelectionDefault}
+                        sx={{
+                          width: 16,
+                          height: 16,
+                          '&:disabled': { opacity: 0.3 }
+                        }}
+                      >
+                        <RestartAlt sx={{ fontSize: 12 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
                   <DraggableLaneList
                     lanes={lanes}
                     selectedLanes={selectedLanes}

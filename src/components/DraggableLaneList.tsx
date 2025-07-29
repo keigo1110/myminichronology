@@ -26,8 +26,8 @@ function SortableLaneChip({
   onDrop
 }: SortableLaneChipProps) {
   const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); // Prevent default drag behavior if it's also a click
+    e.stopPropagation(); // Stop event from bubbling up to parent drag handlers
     onClick();
   };
 
@@ -36,7 +36,7 @@ function SortableLaneChip({
   };
 
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
+    e.preventDefault(); // Necessary to allow dropping
     onDragOver(e);
   };
 
@@ -49,7 +49,7 @@ function SortableLaneChip({
     <Chip
       label={lane}
       onClick={handleClick}
-      draggable
+      draggable // Enable native drag and drop
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
@@ -57,12 +57,12 @@ function SortableLaneChip({
       variant={isSelected ? 'filled' : 'outlined'}
       size="small"
       sx={{
-        cursor: 'pointer',
+        cursor: 'pointer', // Indicate it's clickable
         '&:hover': {
           backgroundColor: isSelected ? 'primary.light' : 'action.hover',
         },
         '&:active': {
-          cursor: 'grabbing',
+          cursor: 'grabbing', // Indicate it's draggable when active
         },
       }}
     />
@@ -79,12 +79,12 @@ export function DraggableLaneList({
 
   const handleDragStart = (e: React.DragEvent, lane: string) => {
     setDraggedLane(lane);
-    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.effectAllowed = 'move'; // Specify the drag effect
   };
 
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    e.preventDefault(); // Necessary to allow dropping
+    e.dataTransfer.dropEffect = 'move'; // Visual feedback for drop
   };
 
   const handleDrop = (e: React.DragEvent, targetLane: string) => {
@@ -101,7 +101,7 @@ export function DraggableLaneList({
       onLaneOrderChange(newLanes);
     }
 
-    setDraggedLane(null);
+    setDraggedLane(null); // Reset dragged lane state
   };
 
   const toggleLane = (lane: string) => {
@@ -113,23 +113,18 @@ export function DraggableLaneList({
   };
 
   return (
-    <Box>
-      <Typography variant="body2" gutterBottom>
-        表示するレーン（ドラッグで順序変更）:
-      </Typography>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-        {lanes.map((lane) => (
-          <SortableLaneChip
-            key={lane}
-            lane={lane}
-            isSelected={selectedLanes.includes(lane)}
-            onClick={() => toggleLane(lane)}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-          />
-        ))}
-      </Box>
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+      {lanes.map((lane) => (
+        <SortableLaneChip
+          key={lane}
+          lane={lane}
+          isSelected={selectedLanes.includes(lane)}
+          onClick={() => toggleLane(lane)}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        />
+      ))}
     </Box>
   );
 }
