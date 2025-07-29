@@ -80,8 +80,8 @@
 ## 画像ファイルの配置
 
 - **タイトル画像**: `public/minikuro-title.jpg`
-- **ファビコン**: `src/app/favicon.ico` (favicon.jpg から ImageMagick で変換)
-- **OGP 画像**: `public/og-image.jpg` (minikuro-title.jpg から ImageMagick で変換 - 1200x630)
+- **ファビコン**: `src/app/favicon.ico` (favicon.jpg から ImageMagick で変換、適切な正方形サイズに調整)
+- **OGP 画像**: `public/og-image.jpg` (minikuro-title.jpg から ImageMagick で変換 - 1200x630、適切な余白確保)
 - **元画像**: `title.jpg` (ルートディレクトリ)
 - **ファビコン元画像**: `public/favicon.jpg` (時計アイコン)
 - **表示位置**: ヘッダーコンポーネントの左上

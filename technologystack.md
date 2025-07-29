@@ -24,8 +24,8 @@
 ## 画像・アセット
 
 - **タイトル画像**: `/public/minikuro-title.jpg` (ミニクロロゴ)
-- **ファビコン**: `/src/app/favicon.ico` (favicon.jpg から変換 - 16x16, 32x32, 48x48 サイズ)
-- **OGP 画像**: `/public/og-image.jpg` (minikuro-title.jpg から変換 - 1200x630 サイズ)
+- **ファビコン**: `/src/app/favicon.ico` (favicon.jpg から変換 - 16x16, 32x32, 48x48 サイズ、適切な正方形サイズに調整)
+- **OGP 画像**: `/public/og-image.jpg` (minikuro-title.jpg から変換 - 1200x630 サイズ、適切な余白確保)
 - **アイコン**: Material-UI アイコンセット
 
 ## SEO・ソーシャルメディア対応
