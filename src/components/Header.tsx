@@ -65,7 +65,7 @@ export function Header({
 }: HeaderProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [dragError, setDragError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(hasData); // データがある場合は自動で展開
   const [filterYearRange, setFilterYearRange] = useState<[number, number]>([
     yearRange.min,
     yearRange.max
@@ -75,6 +75,11 @@ export function Header({
   useEffect(() => {
     setFilterYearRange([yearRange.min, yearRange.max]);
   }, [yearRange.min, yearRange.max]);
+
+  // hasDataが変更されたときにexpandedを更新
+  useEffect(() => {
+    setExpanded(hasData);
+  }, [hasData]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     try {
@@ -314,97 +319,119 @@ export function Header({
 
       {/* 展開可能な詳細コントロール */}
       <Collapse in={expanded}>
-        <Box sx={{ px: 2, pb: 2 }}>
-          <Paper sx={{ p: 2 }}>
+        <Box sx={{ px: 2, pb: 1 }}>
+          <Paper sx={{ p: 1.5, backgroundColor: 'grey.50' }}>
             {hasData && lanes.length > 0 ? (
-              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2 }}>
+              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 1.5 }}>
                 {/* 年代範囲（左側） */}
                 <Box sx={{ flex: { xs: '1', md: '0 0 50%' } }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <Typography variant="body2">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" sx={{ minWidth: 'fit-content', fontSize: '0.875rem' }}>
                       年代範囲:
                     </Typography>
-                    <Tooltip title="デフォルト値にリセット">
-                      <IconButton
+                    <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flex: 1 }}>
+                      <TextField
                         size="small"
-                        onClick={handleResetYearRange}
-                        disabled={!isYearRangeActive}
-                        sx={{
-                          width: 16,
-                          height: 16,
-                          '&:disabled': { opacity: 0.3 }
+                        type="number"
+                        label="開始年"
+                        value={filterYearRange[0]}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value);
+                          if (!isNaN(value)) {
+                            setFilterYearRange([value, filterYearRange[1]]);
+                          }
                         }}
-                      >
-                        <RestartAlt sx={{ fontSize: 12 }} />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    <TextField
-                      size="small"
-                      type="number"
-                      label="開始年"
-                      value={filterYearRange[0]}
-                      onChange={(e) => {
-                        const value = parseInt(e.target.value);
-                        if (!isNaN(value)) {
-                          setFilterYearRange([value, filterYearRange[1]]);
-                        }
-                      }}
-                      onBlur={handleYearRangeCommit}
-                      sx={{ width: 100 }}
-                      inputProps={{ min: yearRange.min, max: yearRange.max }}
-                    />
-                    <Typography variant="body2">-</Typography>
-                    <TextField
-                      size="small"
-                      type="number"
-                      label="終了年"
-                      value={filterYearRange[1]}
-                      onChange={(e) => {
-                        const value = parseInt(e.target.value);
-                        if (!isNaN(value)) {
-                          setFilterYearRange([filterYearRange[0], value]);
-                        }
-                      }}
-                      onBlur={handleYearRangeCommit}
-                      sx={{ width: 100 }}
-                      inputProps={{ min: yearRange.min, max: yearRange.max }}
-                    />
+                        onBlur={handleYearRangeCommit}
+                        sx={{
+                          width: 75,
+                          '& .MuiInputLabel-root': { fontSize: '0.75rem' },
+                          '& .MuiInputBase-input': {
+                            fontSize: '0.75rem',
+                            py: 0.5,
+                            px: 1,
+                            minWidth: 0
+                          }
+                        }}
+                        inputProps={{ min: yearRange.min, max: yearRange.max }}
+                      />
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>-</Typography>
+                      <TextField
+                        size="small"
+                        type="number"
+                        label="終了年"
+                        value={filterYearRange[1]}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value);
+                          if (!isNaN(value)) {
+                            setFilterYearRange([filterYearRange[0], value]);
+                          }
+                        }}
+                        onBlur={handleYearRangeCommit}
+                        sx={{
+                          width: 85,
+                          '& .MuiInputLabel-root': { fontSize: '0.75rem' },
+                          '& .MuiInputBase-input': {
+                            fontSize: '0.75rem',
+                            py: 0.5,
+                            px: 1,
+                            minWidth: 0
+                          }
+                        }}
+                        inputProps={{ min: yearRange.min, max: yearRange.max }}
+                      />
+                      <Tooltip title="デフォルト値にリセット">
+                        <IconButton
+                          size="small"
+                          onClick={handleResetYearRange}
+                          disabled={!isYearRangeActive}
+                          sx={{
+                            width: 14,
+                            height: 14,
+                            '&:disabled': { opacity: 0.3 }
+                          }}
+                        >
+                          <RestartAlt sx={{ fontSize: 10 }} />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
                   </Box>
                 </Box>
 
                 {/* レーン選択（右側） */}
                 <Box sx={{ flex: { xs: '1', md: '0 0 50%' } }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <Typography variant="body2">
-                      表示するレーン（ドラッグで順序変更）:
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" sx={{ minWidth: 'fit-content', fontSize: '0.875rem' }}>
+                      表示するレーン:
                     </Typography>
-                    <Tooltip title="すべてのレーンを表示">
-                      <IconButton
-                        size="small"
-                        onClick={handleResetLaneSelection}
-                        disabled={isLaneSelectionDefault}
-                        sx={{
-                          width: 16,
-                          height: 16,
-                          '&:disabled': { opacity: 0.3 }
-                        }}
-                      >
-                        <RestartAlt sx={{ fontSize: 12 }} />
-                      </IconButton>
-                    </Tooltip>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1 }}>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.25, flex: 1 }}>
+                        <DraggableLaneList
+                          lanes={lanes}
+                          selectedLanes={selectedLanes}
+                          onLaneSelectionChange={onLaneSelectionChange || (() => {})}
+                          onLaneOrderChange={onLaneOrderChange || (() => {})}
+                        />
+                      </Box>
+                      <Tooltip title="すべてのレーンを表示">
+                        <IconButton
+                          size="small"
+                          onClick={handleResetLaneSelection}
+                          disabled={isLaneSelectionDefault}
+                          sx={{
+                            width: 14,
+                            height: 14,
+                            '&:disabled': { opacity: 0.3 }
+                          }}
+                        >
+                          <RestartAlt sx={{ fontSize: 10 }} />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
                   </Box>
-                  <DraggableLaneList
-                    lanes={lanes}
-                    selectedLanes={selectedLanes}
-                    onLaneSelectionChange={onLaneSelectionChange || (() => {})}
-                    onLaneOrderChange={onLaneOrderChange || (() => {})}
-                  />
                 </Box>
               </Box>
             ) : (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
                 詳細設定は現在開発中です。
               </Typography>
             )}

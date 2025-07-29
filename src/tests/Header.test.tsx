@@ -54,20 +54,40 @@ describe('Header', () => {
     expect(screen.getByTestId('HeightIcon')).toBeInTheDocument();
   });
 
-  it('should expand filter options when expand button is clicked', () => {
+  it('should automatically expand filter options when data is available', () => {
     render(<Header {...mockProps} />);
-    const expandButton = screen.getByTestId('ExpandMoreIcon').closest('button');
-    fireEvent.click(expandButton!);
 
+    // データがある場合は自動で展開される
     expect(screen.getByText('年代範囲:')).toBeInTheDocument();
     expect(screen.getByLabelText('開始年')).toBeInTheDocument();
     expect(screen.getByLabelText('終了年')).toBeInTheDocument();
   });
 
+  it('should not expand filter options when no data is available', () => {
+    render(<Header {...mockProps} hasData={false} />);
+
+    // データがない場合は展開されない
+    expect(screen.queryByText('年代範囲:')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('開始年')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('終了年')).not.toBeInTheDocument();
+  });
+
+  it('should toggle filter options when expand button is clicked', () => {
+    render(<Header {...mockProps} />);
+
+    // 最初は展開されている
+    expect(screen.getByText('年代範囲:')).toBeInTheDocument();
+
+    // ボタンをクリックして折りたたむ
+    const expandButton = screen.getByTestId('ExpandLessIcon').closest('button');
+    fireEvent.click(expandButton!);
+
+    // ボタンが展開アイコンに変わることを確認
+    expect(screen.getByTestId('ExpandMoreIcon')).toBeInTheDocument();
+  });
+
   it('should render year range input fields', () => {
     render(<Header {...mockProps} />);
-    const expandButton = screen.getByTestId('ExpandMoreIcon').closest('button');
-    fireEvent.click(expandButton!);
 
     const startYearInput = screen.getByLabelText('開始年');
     const endYearInput = screen.getByLabelText('終了年');
@@ -80,8 +100,6 @@ describe('Header', () => {
 
   it('should call onYearRangeChange when year range is modified', () => {
     render(<Header {...mockProps} />);
-    const expandButton = screen.getByTestId('ExpandMoreIcon').closest('button');
-    fireEvent.click(expandButton!);
 
     const startYearInput = screen.getByLabelText('開始年');
     fireEvent.change(startYearInput, { target: { value: '1950' } });
@@ -92,8 +110,6 @@ describe('Header', () => {
 
   it('should render year range reset button', () => {
     render(<Header {...mockProps} />);
-    const expandButton = screen.getByTestId('ExpandMoreIcon').closest('button');
-    fireEvent.click(expandButton!);
 
     const resetButtons = screen.getAllByTestId('RestartAltIcon');
     expect(resetButtons.length).toBeGreaterThan(0);
@@ -101,19 +117,21 @@ describe('Header', () => {
 
   it('should render DraggableLaneList in the right section', () => {
     render(<Header {...mockProps} />);
-    const expandButton = screen.getByTestId('ExpandMoreIcon').closest('button');
-    fireEvent.click(expandButton!);
 
     expect(screen.getByTestId('draggable-lane-list')).toBeInTheDocument();
   });
 
   it('should render lane selection reset button', () => {
     render(<Header {...mockProps} />);
-    const expandButton = screen.getByTestId('ExpandMoreIcon').closest('button');
-    fireEvent.click(expandButton!);
 
     const resetButtons = screen.getAllByTestId('RestartAltIcon');
     expect(resetButtons.length).toBeGreaterThan(1); // 年代範囲とレーン選択の2つのリセットボタン
+  });
+
+  it('should render lane selection label', () => {
+    render(<Header {...mockProps} />);
+
+    expect(screen.getByText('表示するレーン:')).toBeInTheDocument();
   });
 
   it('should not show year height adjustment when no data is available', () => {
@@ -138,6 +156,11 @@ describe('Header', () => {
 
   it('should render expand/collapse button', () => {
     render(<Header {...mockProps} />);
-    expect(screen.getByTestId('ExpandMoreIcon')).toBeInTheDocument();
+    expect(screen.getByTestId('ExpandLessIcon')).toBeInTheDocument(); // データがある場合は折りたたみアイコン
+  });
+
+  it('should show expand icon when no data is available', () => {
+    render(<Header {...mockProps} hasData={false} />);
+    expect(screen.getByTestId('ExpandMoreIcon')).toBeInTheDocument(); // データがない場合は展開アイコン
   });
 });

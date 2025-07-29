@@ -58,6 +58,12 @@ function SortableLaneChip({
       size="small"
       sx={{
         cursor: 'pointer', // Indicate it's clickable
+        fontSize: '0.7rem',
+        height: 20,
+        '& .MuiChip-label': {
+          px: 0.75,
+          py: 0.25
+        },
         '&:hover': {
           backgroundColor: isSelected ? 'primary.light' : 'action.hover',
         },
@@ -113,7 +119,7 @@ export function DraggableLaneList({
   };
 
   return (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.25 }}>
       {lanes.map((lane) => (
         <SortableLaneChip
           key={lane}
