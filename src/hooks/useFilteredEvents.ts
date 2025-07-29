@@ -1,6 +1,9 @@
 import { useMemo } from 'react';
 import { TimelineData, PositionedEvent } from '../lib/types';
-import { FilterState } from '../components/SearchFilter';
+
+export interface FilterState {
+  yearRange: [number, number];
+}
 
 export function useFilteredEvents(
   data: TimelineData | null,
@@ -11,7 +14,6 @@ export function useFilteredEvents(
   return useMemo(() => {
     if (!data) return { filteredData: null, filteredPositionedEvents: [] };
 
-    // フィルタリング処理
     const filteredData: TimelineData = [];
     const filteredPositionedEvents: PositionedEvent[][] = [];
 
@@ -29,15 +31,6 @@ export function useFilteredEvents(
           return false;
         }
 
-        // 検索フィルター
-        if (filters.searchTerm) {
-          const searchLower = filters.searchTerm.toLowerCase();
-          const labelLower = event.label.toLowerCase();
-          if (!labelLower.includes(searchLower)) {
-            return false;
-          }
-        }
-
         return true;
       });
 
@@ -47,7 +40,6 @@ export function useFilteredEvents(
           events: filteredLaneEvents
         });
 
-        // 対応する配置済みイベントもフィルタリング
         const filteredPositioned = positionedEvents[laneIndex]?.filter(pe =>
           filteredLaneEvents.some(e =>
             e.start === pe.start &&

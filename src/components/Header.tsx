@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -43,6 +43,8 @@ interface HeaderProps {
   selectedLanes?: string[];
   onLaneSelectionChange?: (selectedLanes: string[]) => void;
   onLaneOrderChange?: (orderedLanes: string[]) => void;
+  yearRange?: { min: number; max: number };
+  onYearRangeChange?: (yearRange: [number, number]) => void;
 }
 
 export function Header({
@@ -58,11 +60,22 @@ export function Header({
   lanes = [],
   selectedLanes = [],
   onLaneSelectionChange,
-  onLaneOrderChange
+  onLaneOrderChange,
+  yearRange = { min: 1900, max: 2100 },
+  onYearRangeChange
 }: HeaderProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [dragError, setDragError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [filterYearRange, setFilterYearRange] = useState<[number, number]>([
+    yearRange.min,
+    yearRange.max
+  ]);
+
+  // yearRangeが変更されたときにfilterYearRangeを更新
+  useEffect(() => {
+    setFilterYearRange([yearRange.min, yearRange.max]);
+  }, [yearRange.min, yearRange.max]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     try {
@@ -116,7 +129,6 @@ export function Header({
       onFileDrop(excelFile);
     } catch (err) {
       console.error('Drop error:', err);
-      setDragError('ファイルの処理中にエラーが発生しました');
     }
   }, [onFileDrop]);
 
@@ -164,8 +176,20 @@ export function Header({
     }
   }, [onYearHeightChange]);
 
+  const handleYearRangeChange = useCallback((event: Event, newValue: number | number[]) => {
+    const newRange = newValue as [number, number];
+    setFilterYearRange(newRange);
+  }, []);
+
+  const handleYearRangeCommit = useCallback(() => {
+    onYearRangeChange?.(filterYearRange);
+  }, [filterYearRange, onYearRangeChange]);
+
   // アクティブなレーンフィルター数
   const activeLaneFilterCount = lanes.length > 0 && selectedLanes.length !== lanes.length ? selectedLanes.length : 0;
+
+  // 年代範囲フィルターがアクティブかどうか
+  const isYearRangeActive = filterYearRange[0] !== yearRange.min || filterYearRange[1] !== yearRange.max;
 
   return (
     <Box
@@ -225,18 +249,18 @@ export function Header({
             </Tooltip>
           )}
 
-          {/* レーン選択ボタン（データがある場合のみ表示） */}
+          {/* レーン選択・年代範囲ボタン（データがある場合のみ表示） */}
           {hasData && lanes.length > 0 && (
-            <Tooltip title="レーン選択・順序変更">
+            <Tooltip title="レーン選択・年代範囲">
               <IconButton
                 onClick={() => setExpanded(!expanded)}
-                color={activeLaneFilterCount > 0 ? 'primary' : 'default'}
+                color={(activeLaneFilterCount > 0 || isYearRangeActive) ? 'primary' : 'default'}
                 size="small"
               >
                 <FilterList />
-                {activeLaneFilterCount > 0 && (
+                {(activeLaneFilterCount > 0 || isYearRangeActive) && (
                   <Chip
-                    label={activeLaneFilterCount}
+                    label={activeLaneFilterCount + (isYearRangeActive ? 1 : 0)}
                     size="small"
                     color="primary"
                     sx={{
@@ -311,12 +335,57 @@ export function Header({
         <Box sx={{ px: 2, pb: 2 }}>
           <Paper sx={{ p: 2 }}>
             {hasData && lanes.length > 0 ? (
-              <DraggableLaneList
-                lanes={lanes}
-                selectedLanes={selectedLanes}
-                onLaneSelectionChange={onLaneSelectionChange || (() => {})}
-                onLaneOrderChange={onLaneOrderChange || (() => {})}
-              />
+              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2 }}>
+                {/* 年代範囲（左側） */}
+                <Box sx={{ flex: { xs: '1', md: '0 0 50%' } }}>
+                  <Typography variant="body2" gutterBottom>
+                    年代範囲:
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    <TextField
+                      size="small"
+                      type="number"
+                      label="開始年"
+                      value={filterYearRange[0]}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (!isNaN(value)) {
+                          setFilterYearRange([value, filterYearRange[1]]);
+                        }
+                      }}
+                      onBlur={handleYearRangeCommit}
+                      sx={{ width: 100 }}
+                      inputProps={{ min: yearRange.min, max: yearRange.max }}
+                    />
+                    <Typography variant="body2">-</Typography>
+                    <TextField
+                      size="small"
+                      type="number"
+                      label="終了年"
+                      value={filterYearRange[1]}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (!isNaN(value)) {
+                          setFilterYearRange([filterYearRange[0], value]);
+                        }
+                      }}
+                      onBlur={handleYearRangeCommit}
+                      sx={{ width: 100 }}
+                      inputProps={{ min: yearRange.min, max: yearRange.max }}
+                    />
+                  </Box>
+                </Box>
+
+                {/* レーン選択（右側） */}
+                <Box sx={{ flex: { xs: '1', md: '0 0 50%' } }}>
+                  <DraggableLaneList
+                    lanes={lanes}
+                    selectedLanes={selectedLanes}
+                    onLaneSelectionChange={onLaneSelectionChange || (() => {})}
+                    onLaneOrderChange={onLaneOrderChange || (() => {})}
+                  />
+                </Box>
+              </Box>
             ) : (
               <Typography variant="body2" color="text.secondary">
                 詳細設定は現在開発中です。

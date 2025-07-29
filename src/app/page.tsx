@@ -5,7 +5,6 @@ import { Box, Typography, Button } from '@mui/material';
 import { HelpOutline } from '@mui/icons-material';
 import { Header } from '../components/Header';
 import { Timeline } from '../components/Timeline';
-import { SearchFilter, FilterState } from '../components/SearchFilter';
 import { useSheetLoader } from '../hooks/useSheetLoader';
 import { useTimelineData } from '../hooks/useTimelineData';
 import { useFilteredEvents } from '../hooks/useFilteredEvents';
@@ -18,17 +17,16 @@ export default function Home() {
   const { exporting, exportError, exportToPdf, clearExportError } = usePdfExport();
   const [isDragOver, setIsDragOver] = useState(false);
 
-  // フィルター状態の管理
-  const [filters, setFilters] = useState<FilterState>({
-    searchTerm: '',
-    yearRange: [yearRange.min, yearRange.max]
-  });
-
   // レーン選択状態の管理
   const [selectedLanes, setSelectedLanes] = useState<string[]>(data?.map(lane => lane.name) || []);
 
   // レーン順序状態の管理
   const [laneOrder, setLaneOrder] = useState<string[]>(data?.map(lane => lane.name) || []);
+
+  // 年代範囲フィルター状態の管理（yearRangeが有効な場合のみ初期化）
+  const [yearRangeFilter, setYearRangeFilter] = useState<[number, number]>(
+    yearRange.min > 0 && yearRange.max > 0 ? [yearRange.min, yearRange.max] : [1900, 2100]
+  );
 
   // レーン順序に基づいてデータを並び替え
   const orderedData = React.useMemo(() => {
@@ -49,23 +47,23 @@ export default function Home() {
     }).filter(events => events.length > 0);
   }, [positionedEvents, laneOrder, data]);
 
-  // フィルタリング適用
+  // フィルタリング適用（年代範囲のみ）
   const { filteredData, filteredPositionedEvents } = useFilteredEvents(
     orderedData,
     orderedPositionedEvents,
-    filters,
+    { yearRange: yearRangeFilter },
     selectedLanes
   );
 
   // データが変更されたときにフィルターをリセット
   React.useEffect(() => {
     if (data) {
-      setFilters({
-        searchTerm: '',
-        yearRange: [yearRange.min, yearRange.max]
-      });
       setSelectedLanes(data.map(lane => lane.name));
       setLaneOrder(data.map(lane => lane.name));
+      // yearRangeが有効な場合のみ更新
+      if (yearRange.min > 0 && yearRange.max > 0) {
+        setYearRangeFilter([yearRange.min, yearRange.max]);
+      }
     }
   }, [data, yearRange]);
 
@@ -169,6 +167,10 @@ export default function Home() {
     setLaneOrder(newLaneOrder);
   };
 
+  const handleYearRangeChange = (newYearRange: [number, number]) => {
+    setYearRangeFilter(newYearRange);
+  };
+
   return (
     <Box
       sx={{
@@ -196,6 +198,8 @@ export default function Home() {
         selectedLanes={selectedLanes}
         onLaneSelectionChange={handleLaneSelectionChange}
         onLaneOrderChange={handleLaneOrderChange}
+        yearRange={yearRange.min > 0 && yearRange.max > 0 ? yearRange : { min: 1900, max: 2100 }}
+        onYearRangeChange={handleYearRangeChange}
       />
 
       {/* メインコンテンツ - フルスクリーン */}
@@ -207,12 +211,6 @@ export default function Home() {
             height: '100%',
             minHeight: 'calc(100vh - 80px)' // ヘッダーの高さを引く
           }}>
-            {/* 検索・フィルター */}
-            <SearchFilter
-              yearRange={yearRange}
-              onFilterChange={setFilters}
-            />
-
             {/* タイムライン */}
             <Box sx={{
               display: 'flex',

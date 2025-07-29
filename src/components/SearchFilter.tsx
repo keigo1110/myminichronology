@@ -1,15 +1,13 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   Box,
-  TextField,
   Paper,
   Slider,
   Typography,
-  InputAdornment,
   IconButton,
   Collapse
 } from '@mui/material';
-import { Search, Clear, FilterList } from '@mui/icons-material';
+import { FilterList } from '@mui/icons-material';
 
 interface SearchFilterProps {
   yearRange: { min: number; max: number };
@@ -17,85 +15,34 @@ interface SearchFilterProps {
 }
 
 export interface FilterState {
-  searchTerm: string;
   yearRange: [number, number];
 }
 
 export function SearchFilter({ yearRange, onFilterChange }: SearchFilterProps) {
   const [expanded, setExpanded] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [filterYearRange, setFilterYearRange] = useState<[number, number]>([
     yearRange.min,
     yearRange.max
   ]);
 
-  // フィルター変更を親コンポーネントに通知
   const applyFilters = useCallback(() => {
     onFilterChange({
-      searchTerm,
       yearRange: filterYearRange
     });
-  }, [searchTerm, filterYearRange, onFilterChange]);
+  }, [filterYearRange, onFilterChange]);
 
-  // 検索語句変更（デバウンス付き）
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchTerm(value);
-  }, []);
-
-  // デバウンス処理
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      applyFilters();
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm, applyFilters]);
-
-  // 年代範囲変更
   const handleYearRangeChange = useCallback((event: Event, newValue: number | number[]) => {
     setFilterYearRange(newValue as [number, number]);
   }, []);
 
-  // アクティブなフィルター数
   const activeFilterCount = useMemo(() => {
-    let count = 0;
-    if (searchTerm) count++;
-    if (filterYearRange[0] !== yearRange.min || filterYearRange[1] !== yearRange.max) count++;
-    return count;
-  }, [searchTerm, filterYearRange, yearRange]);
+    if (filterYearRange[0] !== yearRange.min || filterYearRange[1] !== yearRange.max) return 1;
+    return 0;
+  }, [filterYearRange, yearRange]);
 
   return (
     <Paper sx={{ p: 2, mb: 2 }}>
-      {/* 検索バー */}
       <Box sx={{ display: 'flex', gap: 1, mb: expanded ? 2 : 0 }}>
-        <TextField
-          fullWidth
-          size="small"
-          placeholder="イベントを検索..."
-          value={searchTerm}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <Search />
-              </InputAdornment>
-            ),
-            endAdornment: searchTerm && (
-              <InputAdornment position="end">
-                <IconButton
-                  size="small"
-                  onClick={() => {
-                    setSearchTerm('');
-                    applyFilters();
-                  }}
-                >
-                  <Clear />
-                </IconButton>
-              </InputAdornment>
-            )
-          }}
-        />
-
         <IconButton
           onClick={() => setExpanded(!expanded)}
           color={activeFilterCount > 0 ? 'primary' : 'default'}
@@ -125,10 +72,8 @@ export function SearchFilter({ yearRange, onFilterChange }: SearchFilterProps) {
         </IconButton>
       </Box>
 
-      {/* 詳細フィルター */}
       <Collapse in={expanded}>
         <Box sx={{ mt: 2 }}>
-          {/* 年代範囲スライダー */}
           <Box sx={{ mb: 3 }}>
             <Typography variant="body2" gutterBottom>
               年代範囲: {filterYearRange[0]} - {filterYearRange[1]}
