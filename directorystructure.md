@@ -80,6 +80,17 @@
 ## 画像ファイルの配置
 
 - **タイトル画像**: `public/minikuro-title.jpg`
-- **ファビコン**: `public/favicon.ico` (ミニクロロゴ)
+- **ファビコン**: `src/app/favicon.ico` (favicon.jpg から ImageMagick で変換)
+- **OGP 画像**: `public/og-image.jpg` (minikuro-title.jpg から ImageMagick で変換 - 1200x630)
 - **元画像**: `title.jpg` (ルートディレクトリ)
+- **ファビコン元画像**: `public/favicon.jpg` (時計アイコン)
 - **表示位置**: ヘッダーコンポーネントの左上
+
+## SEO・ソーシャルメディア設定
+
+- **Open Graph Protocol**: ソーシャルメディアでの表示最適化
+- **Twitter Cards**: Twitter での表示最適化
+- **メタデータ**: 適切なタイトル、説明文、画像の設定
+- **metadataBase**: 本番環境での OGP 画像 URL 設定
+- **キャッシュ最適化**: 画像ファイルの長期キャッシュ設定（1 年）
+- **画像品質最適化**: 95%品質での JPEG 最適化
