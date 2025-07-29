@@ -160,7 +160,7 @@ export function computeLayout(data: TimelineData, yearHeightScale: number = 1): 
   if (data.length === 0) {
     return {
       positionedEvents: [],
-      layoutConfig: { laneWidths: [], yearAxisWidth: 120, totalWidth: 120 }
+      layoutConfig: { laneWidths: [], yearAxisWidth: 60, totalWidth: 120 }
     };
   }
 
@@ -190,7 +190,7 @@ export function computeLayout(data: TimelineData, yearHeightScale: number = 1): 
 
   // 年代軸の幅を動的に調整（最小120px、最大200px）- 4桁の数字を保証
   const maxLaneWidth = Math.max(...laneWidths);
-  const yearAxisWidth = Math.min(200, Math.max(120, maxLaneWidth * 0.25));
+  const yearAxisWidth = Math.min(200, Math.max(60, maxLaneWidth * 0.1));
 
   // 総幅を計算
   const totalWidth = yearAxisWidth + laneWidths.reduce((sum, width) => sum + width, 0);
@@ -285,7 +285,7 @@ export function calculateTimelineWidth(data: TimelineData): number {
 
   const laneWidths = data.map(lane => calculateOptimalLaneWidth(lane.events));
   const maxLaneWidth = Math.max(...laneWidths);
-  const yearAxisWidth = Math.min(200, Math.max(120, maxLaneWidth * 0.25));
+  const yearAxisWidth = Math.min(200, Math.max(60, maxLaneWidth * 0.1));
 
   return yearAxisWidth + laneWidths.reduce((sum, width) => sum + width, 0);
 }

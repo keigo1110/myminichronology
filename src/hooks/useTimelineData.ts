@@ -10,7 +10,7 @@ export function useTimelineData(data: TimelineData | null) {
     if (!data) {
       return {
         positionedEvents: [],
-        layoutConfig: { laneWidths: [], yearAxisWidth: 120, totalWidth: 120, timelineHeight: 800 }
+        layoutConfig: { laneWidths: [], yearAxisWidth: 60, totalWidth: 120, timelineHeight: 800 }
       };
     }
     // 年間高さのスケールファクターを計算（基準値24pxに対する比率）
