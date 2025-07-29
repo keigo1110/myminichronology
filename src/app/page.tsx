@@ -5,8 +5,10 @@ import { Box, Typography, Button } from '@mui/material';
 import { HelpOutline } from '@mui/icons-material';
 import { Header } from '../components/Header';
 import { Timeline } from '../components/Timeline';
+import { SearchFilter, FilterState } from '../components/SearchFilter';
 import { useSheetLoader } from '../hooks/useSheetLoader';
 import { useTimelineData } from '../hooks/useTimelineData';
+import { useFilteredEvents } from '../hooks/useFilteredEvents';
 import { usePdfExport } from '../hooks/usePdfExport';
 import { PositionedEvent } from '../lib/types';
 
@@ -15,6 +17,57 @@ export default function Home() {
   const { positionedEvents, layoutConfig, yearRange, laneColors, setSelectedEvent, yearHeight, setYearHeight } = useTimelineData(data);
   const { exporting, exportError, exportToPdf, clearExportError } = usePdfExport();
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // フィルター状態の管理
+  const [filters, setFilters] = useState<FilterState>({
+    searchTerm: '',
+    yearRange: [yearRange.min, yearRange.max]
+  });
+
+  // レーン選択状態の管理
+  const [selectedLanes, setSelectedLanes] = useState<string[]>(data?.map(lane => lane.name) || []);
+
+  // レーン順序状態の管理
+  const [laneOrder, setLaneOrder] = useState<string[]>(data?.map(lane => lane.name) || []);
+
+  // レーン順序に基づいてデータを並び替え
+  const orderedData = React.useMemo(() => {
+    if (!data || !laneOrder.length) return data;
+
+    return laneOrder.map(laneName =>
+      data.find(lane => lane.name === laneName)
+    ).filter(Boolean) as typeof data;
+  }, [data, laneOrder]);
+
+  // レーン順序に基づいてpositionedEventsを並び替え
+  const orderedPositionedEvents = React.useMemo(() => {
+    if (!positionedEvents.length || !laneOrder.length) return positionedEvents;
+
+    return laneOrder.map(laneName => {
+      const laneIndex = data?.findIndex(lane => lane.name === laneName);
+      return laneIndex !== undefined && laneIndex >= 0 ? positionedEvents[laneIndex] : [];
+    }).filter(events => events.length > 0);
+  }, [positionedEvents, laneOrder, data]);
+
+  // フィルタリング適用
+  const { filteredData, filteredPositionedEvents } = useFilteredEvents(
+    orderedData,
+    orderedPositionedEvents,
+    filters,
+    selectedLanes
+  );
+
+  // データが変更されたときにフィルターをリセット
+  React.useEffect(() => {
+    if (data) {
+      setFilters({
+        searchTerm: '',
+        yearRange: [yearRange.min, yearRange.max]
+      });
+      setSelectedLanes(data.map(lane => lane.name));
+      setLaneOrder(data.map(lane => lane.name));
+    }
+  }, [data, yearRange]);
 
   // グローバルエラーハンドラー
   React.useEffect(() => {
@@ -84,8 +137,6 @@ export default function Home() {
     }
   };
 
-
-
   const handlePdfExport = () => {
     try {
       exportToPdf('timelineRoot');
@@ -108,6 +159,14 @@ export default function Home() {
     } catch (err) {
       console.error('Year height change error:', err);
     }
+  };
+
+  const handleLaneSelectionChange = (newSelectedLanes: string[]) => {
+    setSelectedLanes(newSelectedLanes);
+  };
+
+  const handleLaneOrderChange = (newLaneOrder: string[]) => {
+    setLaneOrder(newLaneOrder);
   };
 
   return (
@@ -133,6 +192,10 @@ export default function Home() {
         exporting={exporting}
         exportError={exportError}
         hasData={!!data}
+        lanes={laneOrder.length > 0 ? laneOrder : data?.map(lane => lane.name) || []}
+        selectedLanes={selectedLanes}
+        onLaneSelectionChange={handleLaneSelectionChange}
+        onLaneOrderChange={handleLaneOrderChange}
       />
 
       {/* メインコンテンツ - フルスクリーン */}
@@ -140,19 +203,32 @@ export default function Home() {
         {data ? (
           <Box sx={{
             display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
+            flexDirection: 'column',
             height: '100%',
             minHeight: 'calc(100vh - 80px)' // ヘッダーの高さを引く
           }}>
-            <Timeline
-              data={data}
-              positionedEvents={positionedEvents}
-              layoutConfig={layoutConfig}
-              laneColors={laneColors}
+            {/* 検索・フィルター */}
+            <SearchFilter
               yearRange={yearRange}
-              onEventClick={handleEventClick}
+              onFilterChange={setFilters}
             />
+
+            {/* タイムライン */}
+            <Box sx={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              flex: 1
+            }}>
+              <Timeline
+                data={filteredData || orderedData || data}
+                positionedEvents={filteredPositionedEvents.length > 0 ? filteredPositionedEvents : orderedPositionedEvents.length > 0 ? orderedPositionedEvents : positionedEvents}
+                layoutConfig={layoutConfig}
+                laneColors={laneColors}
+                yearRange={yearRange}
+                onEventClick={handleEventClick}
+              />
+            </Box>
           </Box>
         ) : (
           <Box

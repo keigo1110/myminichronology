@@ -13,7 +13,8 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Chip
 } from '@mui/material';
 import {
   CloudUpload,
@@ -23,8 +24,10 @@ import {
   ExpandLess,
   Height,
   RestartAlt,
-  HelpOutline
+  HelpOutline,
+  FilterList
 } from '@mui/icons-material';
+import { DraggableLaneList } from './DraggableLaneList';
 
 interface HeaderProps {
   onFileDrop: (file: File) => void;
@@ -36,6 +39,10 @@ interface HeaderProps {
   exporting: boolean;
   exportError: string | null;
   hasData: boolean;
+  lanes?: string[];
+  selectedLanes?: string[];
+  onLaneSelectionChange?: (selectedLanes: string[]) => void;
+  onLaneOrderChange?: (orderedLanes: string[]) => void;
 }
 
 export function Header({
@@ -47,7 +54,11 @@ export function Header({
   error,
   exporting,
   exportError,
-  hasData
+  hasData,
+  lanes = [],
+  selectedLanes = [],
+  onLaneSelectionChange,
+  onLaneOrderChange
 }: HeaderProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [dragError, setDragError] = useState<string | null>(null);
@@ -136,8 +147,6 @@ export function Header({
     }
   }, [onFileDrop]);
 
-
-
   const handleYearHeightChange = useCallback((event: Event, newValue: number | number[]) => {
     try {
       const height = Array.isArray(newValue) ? newValue[0] : newValue;
@@ -154,6 +163,9 @@ export function Header({
       console.error('Reset year height error:', err);
     }
   }, [onYearHeightChange]);
+
+  // アクティブなレーンフィルター数
+  const activeLaneFilterCount = lanes.length > 0 && selectedLanes.length !== lanes.length ? selectedLanes.length : 0;
 
   return (
     <Box
@@ -213,6 +225,33 @@ export function Header({
             </Tooltip>
           )}
 
+          {/* レーン選択ボタン（データがある場合のみ表示） */}
+          {hasData && lanes.length > 0 && (
+            <Tooltip title="レーン選択・順序変更">
+              <IconButton
+                onClick={() => setExpanded(!expanded)}
+                color={activeLaneFilterCount > 0 ? 'primary' : 'default'}
+                size="small"
+              >
+                <FilterList />
+                {activeLaneFilterCount > 0 && (
+                  <Chip
+                    label={activeLaneFilterCount}
+                    size="small"
+                    color="primary"
+                    sx={{
+                      position: 'absolute',
+                      top: -5,
+                      right: -5,
+                      height: 20,
+                      fontSize: '0.75rem'
+                    }}
+                  />
+                )}
+              </IconButton>
+            </Tooltip>
+          )}
+
           {/* ファイルアップロード */}
           <Tooltip title="Excel ファイルをアップロード">
             <IconButton
@@ -240,8 +279,6 @@ export function Header({
               }} />
             </IconButton>
           </Tooltip>
-
-
 
           {/* PDF エクスポート */}
           {hasData && (
@@ -273,9 +310,18 @@ export function Header({
       <Collapse in={expanded}>
         <Box sx={{ px: 2, pb: 2 }}>
           <Paper sx={{ p: 2 }}>
-            <Typography variant="body2" color="text.secondary">
-              詳細設定は現在開発中です。
-            </Typography>
+            {hasData && lanes.length > 0 ? (
+              <DraggableLaneList
+                lanes={lanes}
+                selectedLanes={selectedLanes}
+                onLaneSelectionChange={onLaneSelectionChange || (() => {})}
+                onLaneOrderChange={onLaneOrderChange || (() => {})}
+              />
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                詳細設定は現在開発中です。
+              </Typography>
+            )}
           </Paper>
         </Box>
       </Collapse>
