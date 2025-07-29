@@ -5,142 +5,85 @@ import { PositionedEvent } from '../lib/types';
 interface EventItemProps {
   event: PositionedEvent;
   color: string;
-  onClick?: () => void;
-  yearRange: { min: number; max: number };
-  timelineHeight: number;
-  scrollPosition: number;
+  onClick?: (event: PositionedEvent) => void;
+  style?: React.CSSProperties;
 }
 
-export function EventItem({ event, color, onClick, yearRange, timelineHeight, scrollPosition }: EventItemProps) {
+export function EventItem({ event, color, onClick, style }: EventItemProps) {
   const isPointEvent = !event.end;
-
-  // 年軸のヘッダー高さを考慮した位置計算
-  const headerHeight = 60;
-  const contentHeight = timelineHeight - headerHeight;
-
-  // 重複解消済みのY位置を使用（computeLayoutで計算済み）
-  const adjustedY = event.y - scrollPosition;
 
   // イベントラベルに年代を追加
   const eventLabel = isPointEvent
     ? `${event.start}年：${event.label}`
     : `${event.start}年-${event.end}年：${event.label}`;
 
-  // イベントが表示範囲内にあるかチェック
-  const isVisible = adjustedY >= -50 && adjustedY <= contentHeight + 50;
-
-  if (!isVisible) {
-    return null;
-  }
-
   return (
     <Tooltip title={eventLabel} placement="top">
       <Box
         sx={{
-          position: 'absolute',
-          left: 10,
-          top: adjustedY,
-          right: 20,
+          ...style,
           cursor: 'pointer',
-          zIndex: 5,
           '&:hover': {
             opacity: 0.8,
             transform: 'scale(1.02)',
             transition: 'all 0.2s ease'
           }
         }}
-        onClick={onClick}
+        onClick={() => onClick?.(event)}
       >
         {isPointEvent ? (
-          // 点イベント（円）
+          // ポイントイベント（開始年のみ）
           <Box
             sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-              minHeight: event.height,
-              backgroundColor: 'rgba(255,255,255,0.8)',
-              borderRadius: 0.5,
-              p: 0.25,
-              border: `1px solid ${color}`,
-              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+              width: 12,
+              height: 12,
+              borderRadius: '50%',
+              backgroundColor: '#fff',
+              border: `3px solid ${color}`,
+              position: 'absolute',
+              left: 8,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              zIndex: 10
             }}
-          >
-            <Box
-              sx={{
-                width: 12,
-                height: 12,
-                borderRadius: '50%',
-                backgroundColor: color,
-                border: '2px solid #fff',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                flexShrink: 0
-              }}
-            />
-            <Typography
-              variant="body2"
-              sx={{
-                color: '#212121',
-                fontSize: '0.875rem',
-                lineHeight: 1.3,
-                fontWeight: 500,
-                flex: 1
-              }}
-            >
-              {eventLabel}
-            </Typography>
-          </Box>
+          />
         ) : (
-          // 期間イベント（縦バー）
+          // 期間イベント（開始年-終了年）
           <Box
             sx={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 1,
-              minHeight: event.height,
-              backgroundColor: 'rgba(255,255,255,0.8)',
-              borderRadius: 0.5,
-              p: 0.25,
-              border: `1px solid ${color}`,
-              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+              width: '100%',
+              height: '100%',
+              backgroundColor: color,
+              borderRadius: 1,
+              border: '1px solid rgba(0,0,0,0.1)',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+              position: 'relative'
             }}
-          >
-            <Box
-              sx={{
-                width: 6,
-                backgroundColor: color,
-                borderRadius: 3,
-                flexShrink: 0,
-                position: 'relative',
-                alignSelf: 'stretch',
-                minHeight: Math.max(20, event.height - 8),
-                '&::before': {
-                  content: '""',
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: '100%',
-                  background: 'linear-gradient(180deg, transparent, rgba(255,255,255,0.3), transparent)',
-                  borderRadius: 3
-                }
-              }}
-            />
-            <Typography
-              variant="body2"
-              sx={{
-                color: '#212121',
-                fontSize: '0.875rem',
-                lineHeight: 1.3,
-                fontWeight: 500,
-                flex: 1,
-                alignSelf: 'center'
-              }}
-            >
-              {eventLabel}
-            </Typography>
-          </Box>
+          />
         )}
+
+        {/* イベントラベル */}
+        <Typography
+          variant="body2"
+          sx={{
+            position: 'absolute',
+            left: isPointEvent ? 24 : 8,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: isPointEvent ? '#333' : '#fff',
+            fontWeight: 'bold',
+            fontSize: '0.7rem',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            maxWidth: isPointEvent ? 'calc(100% - 32px)' : 'calc(100% - 16px)',
+            textShadow: isPointEvent ? 'none' : '1px 1px 2px rgba(0,0,0,0.5)',
+            pointerEvents: 'none'
+          }}
+        >
+          {event.label}
+        </Typography>
       </Box>
     </Tooltip>
   );

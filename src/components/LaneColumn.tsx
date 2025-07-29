@@ -45,47 +45,44 @@ export function LaneColumn({
       <Box
         data-lane-title="true"
         sx={{
-          position: 'sticky',
+          position: 'absolute', // stickyから絶対位置に変更
           top: 0,
-          zIndex: 30, // より高いz-indexに設定
-          backgroundColor: color,
-          borderBottom: '2px solid rgba(0,0,0,0.2)',
-          p: 1,
+          left: 0,
+          width: '100%',
           height: headerHeight,
+          zIndex: 30,
+          backgroundColor: 'rgba(255,255,255,0.95)',
+          borderBottom: '2px solid rgba(0,0,0,0.2)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          // スクロール時の固定を強化
-          willChange: 'transform',
-          transform: 'translateZ(0)', // ハードウェアアクセラレーション
           boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          // PDFエクスポート時にstickyを解除
-          '.pdf-export &' : {
-            position: 'relative',
-          }
         }}
       >
         <Typography
-          variant="h6"
+          variant="body1"
           sx={{
-            fontWeight: 'bold',
             color: '#212121',
-            fontSize: '1rem',
-            lineHeight: 1.2,
+            fontWeight: 'bold',
+            fontSize: '0.9rem',
             textAlign: 'center',
-            letterSpacing: '0.05em'
+            maxWidth: '90%',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
           }}
         >
           {lane.name}
         </Typography>
       </Box>
 
-      {/* グリッド線とイベントの統合エリア */}
+      {/* イベントコンテンツエリア */}
       <Box
         sx={{
           position: 'relative',
-          height: `calc(${timelineHeight}px - ${headerHeight}px)`,
-          overflow: 'visible' // hiddenからvisibleに変更してsticky要素が正しく動作するようにする
+          height: `calc(100% - ${headerHeight}px)`,
+          marginTop: `${headerHeight}px`, // ヘッダー分のマージンを追加
+          overflow: 'hidden'
         }}
       >
         {/* 10年ごとのグリッド線 - 座標系を年代軸と完全に一致させる */}
@@ -119,17 +116,29 @@ export function LaneColumn({
           );
         })}
 
-        {events.map((event, index) => (
-          <EventItem
-            key={`${event.start}-${event.end}-${index}`}
-            event={event}
-            color={color}
-            onClick={() => onEventClick?.(event)}
-            yearRange={yearRange}
-            timelineHeight={timelineHeight}
-            scrollPosition={scrollPosition}
-          />
-        ))}
+        {/* イベントの描画 */}
+        {events.map((event, index) => {
+          // スクロール位置の影響を削除
+          const eventTop = event.y;
+          const eventHeight = event.height;
+
+          return (
+            <EventItem
+              key={`${event.label}-${index}`}
+              event={event}
+              color={color}
+              onClick={onEventClick}
+              style={{
+                position: 'absolute',
+                top: `${eventTop}px`,
+                left: '4px',
+                right: '4px',
+                height: `${eventHeight}px`,
+                zIndex: 5
+              }}
+            />
+          );
+        })}
       </Box>
     </Box>
   );

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef } from 'react';
 import { Box, Typography } from '@mui/material';
 import { TimelineData, PositionedEvent, DynamicLayoutConfig } from '../lib/types';
 import { LaneColumn } from './LaneColumn';
@@ -20,7 +20,6 @@ export function Timeline({
   yearRange,
   onEventClick
 }: TimelineProps) {
-  const [scrollPosition, setScrollPosition] = useState(0);
   const timelineRef = useRef<HTMLDivElement>(null);
 
   // 動的高さを使用（レイアウト設定から取得、フォールバックあり）
@@ -30,12 +29,6 @@ export function Timeline({
   // 年軸のヘッダー高さを考慮した位置計算
   const headerHeight = 60;
   const contentHeight = timelineHeight - headerHeight;
-
-  // スクロールハンドラー
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const scrollTop = e.currentTarget.scrollTop;
-    setScrollPosition(scrollTop);
-  }, []);
 
   return (
     <Box
@@ -47,7 +40,7 @@ export function Timeline({
         backgroundColor: '#F7F7F7',
         borderRadius: 1,
         border: '1px solid rgba(0,0,0,0.1)',
-        overflow: 'auto',
+        overflow: 'hidden', // スクロールバーを削除
         position: 'relative',
         display: 'flex',
         boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
@@ -60,27 +53,24 @@ export function Timeline({
           maxHeight: 'none',
         },
       }}
-      onScroll={handleScroll}
     >
       {/* 年軸ラベル - 固定位置に変更 */}
-              <Box
-          data-year-axis="true"
-          sx={{
-            position: 'sticky',
-            left: 0,
-            top: 0,
-            width: yearAxisWidth,
-            height: timelineHeight,
-            backgroundColor: 'rgba(255,255,255,0.95)',
-            borderRight: '2px solid rgba(0,0,0,0.2)',
-            zIndex: 10,
-            display: 'flex',
-            flexDirection: 'column',
-            minWidth: '60px',
-            // NOTE: PDFエクスポート時も`sticky`を維持しておくことで、
-            // 年代ヘッダーが左上に固定されるようにする。
-          }}
-        >
+      <Box
+        data-year-axis="true"
+        sx={{
+          position: 'absolute', // stickyから絶対位置に変更
+          left: 0,
+          top: 0,
+          width: yearAxisWidth,
+          height: timelineHeight,
+          backgroundColor: 'rgba(255,255,255,0.95)',
+          borderRight: '2px solid rgba(0,0,0,0.2)',
+          zIndex: 10,
+          display: 'flex',
+          flexDirection: 'column',
+          minWidth: '60px',
+        }}
+      >
         {/* 年代軸ヘッダー */}
         <Box
           sx={{
@@ -90,19 +80,12 @@ export function Timeline({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            position: 'sticky',
+            position: 'absolute', // stickyから絶対位置に変更
             top: 0,
-            zIndex: 25, // レーンラベルより低いが、他の要素より高い
-            willChange: 'transform',
-            transform: 'translateZ(0)', // ハードウェアアクセラレーション
+            left: 0,
+            width: '100%',
+            zIndex: 25,
             boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-            // PDF エクスポート時に確実に左上へ配置
-            '.pdf-export &': {
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              transform: 'none'
-            }
           }}
         >
           <Typography
@@ -117,11 +100,11 @@ export function Timeline({
           </Typography>
         </Box>
 
-        {/* 年代軸のコンテンツエリア */}
         <Box
           sx={{
             position: 'relative',
             height: `calc(${timelineHeight}px - ${headerHeight}px)`,
+            marginTop: `${headerHeight}px`, // ヘッダー分のマージンを追加
             overflow: 'hidden',
             // PDFエクスポート時に全ラベルを表示
             '.pdf-export &' : {
@@ -138,20 +121,9 @@ export function Timeline({
             // PDFエクスポート時の判定を改善
             const isExporting = timelineRef.current?.classList.contains('pdf-export');
 
-            // エクスポート時はスクロール位置を無視し、常に見えるようにする
-            const adjustedY = isExporting ? y : y - scrollPosition;
-            // PDFエクスポート時は常に表示、通常時は可視範囲内のみ表示
-            const isVisible = isExporting ? true : (adjustedY >= -50 && adjustedY <= contentHeight + 50);
-
-            console.log('Year label visibility:', {
-              year,
-              y,
-              adjustedY,
-              isExporting,
-              isVisible,
-              scrollPosition,
-              contentHeight
-            });
+            // ラベルを固定位置に配置（スクロール位置に影響されない）
+            const adjustedY = y;
+            const isVisible = isExporting ? true : (adjustedY >= 0 && adjustedY <= contentHeight);
 
             if (!isVisible) {
               return null;
@@ -162,58 +134,38 @@ export function Timeline({
                 key={year}
                 sx={{
                   position: 'absolute',
-                  left: 0,
-                  top: adjustedY,
-                  width: '100%',
-                  height: 2,
-                  backgroundColor: 'rgba(0,0,0,0.3)',
+                  left: '8px',
+                  top: `${adjustedY}px`,
+                  width: 'calc(100% - 16px)',
+                  height: '20px',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  // PDFエクスポート時に確実に表示されるようにする
-                  '.pdf-export &': {
-                    position: 'absolute',
-                    display: 'flex',
-                    zIndex: 100
-                  }
+                  fontSize: '0.75rem',
+                  fontWeight: 'bold',
+                  color: '#666',
+                  backgroundColor: 'rgba(255,255,255,0.9)',
+                  borderRadius: '2px',
+                  paddingLeft: '4px',
+                  zIndex: 15,
                 }}
               >
-                <Typography
-                  data-year-label="true"
-                  variant="body2"
-                  sx={{
-                    color: '#212121',
-                    fontWeight: 'bold',
-                    fontSize: '0.75rem',
-                    backgroundColor: 'rgba(255,255,255,0.95)',
-                    px: 0.5,
-                    borderRadius: 1,
-                    minWidth: 'fit-content',
-                    textAlign: 'center',
-                    // PDFエクスポート時に確実に表示されるようにする
-                    '.pdf-export &': {
-                      backgroundColor: 'rgba(255,255,255,1)',
-                      color: '#000000',
-                      fontWeight: 'bold',
-                      fontSize: '0.8rem'
-                    }
-                  }}
-                >
-                  {year}
-                </Typography>
+                {year}
               </Box>
             );
           })}
         </Box>
       </Box>
 
-      {/* レーン */}
+      {/* レーンコンテンツ */}
       <Box
         sx={{
+          position: 'absolute',
+          left: yearAxisWidth,
+          top: 0,
+          width: `calc(100% - ${yearAxisWidth}px)`,
+          height: timelineHeight,
           display: 'flex',
-          flex: 1,
-          height: timelineHeight
-          // overflow: 'hidden' を削除してsticky要素が正しく動作するようにする
+          overflow: 'hidden'
         }}
       >
         {data.map((lane, index) => (
@@ -226,7 +178,7 @@ export function Timeline({
             onEventClick={onEventClick}
             yearRange={yearRange}
             timelineHeight={timelineHeight}
-            scrollPosition={scrollPosition}
+            scrollPosition={0} // スクロール位置は固定
           />
         ))}
       </Box>
