@@ -89,7 +89,9 @@ export function LaneColumn({
         {/* グリッド線の描画 */}
         {Array.from({ length: Math.floor((yearRange.max - yearRange.min) / 10) + 1 }, (_, i) => {
           const year = yearRange.min + i * 10;
-          const y = ((year - yearRange.min) / (yearRange.max - yearRange.min)) * timelineHeight;
+          // 年代ラベルと同じ計算方法を使用（contentHeightベース）
+          const contentHeight = timelineHeight - (showHeader ? 60 : 0);
+          const y = ((year - yearRange.min) / (yearRange.max - yearRange.min)) * contentHeight;
 
           return (
             <Box

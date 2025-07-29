@@ -64,7 +64,7 @@ export function Timeline({
           width: yearAxisWidth,
           minHeight: timelineHeight,
           backgroundColor: 'rgba(255,255,255,0.95)',
-          borderRight: '2px solid rgba(0,0,0,0.2)',
+          borderRight: '1px solid rgba(0,0,0,0.1)', // 1pxに統一
           zIndex: 200,
           display: 'flex',
           flexDirection: 'column',
@@ -76,7 +76,7 @@ export function Timeline({
           sx={{
             height: headerHeight,
             backgroundColor: 'rgba(255,255,255,0.95)',
-            borderBottom: '2px solid rgba(0,0,0,0.2)',
+            borderBottom: '1px solid rgba(0,0,0,0.1)', // 1pxに統一
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -108,6 +108,7 @@ export function Timeline({
         >
           {Array.from({ length: Math.floor((yearRange.max - yearRange.min) / 10) + 1 }, (_, i) => {
             const year = yearRange.min + i * 10;
+            // LaneColumnのグリッド線と同じ計算方法を使用
             const y = ((year - yearRange.min) / (yearRange.max - yearRange.min)) * contentHeight;
 
             return (

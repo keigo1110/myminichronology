@@ -17,7 +17,7 @@ export function LaneHeaderRow({ data, laneWidths, headerHeight }: LaneHeaderRowP
         top: 0,
         zIndex: 150,
         backgroundColor: 'rgba(255,255,255,0.95)',
-        borderBottom: '2px solid rgba(0,0,0,0.2)',
+        borderBottom: '1px solid rgba(0,0,0,0.1)', // 1pxに統一
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
       }}
     >
