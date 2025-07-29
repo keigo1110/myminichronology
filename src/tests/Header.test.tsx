@@ -46,7 +46,7 @@ describe('Header', () => {
 
   it('should render header with title', () => {
     render(<Header {...mockProps} />);
-    expect(screen.getByText('ミニクロ')).toBeInTheDocument();
+    expect(screen.getByAltText('ミニクロ')).toBeInTheDocument();
   });
 
   it('should render year height adjustment when data is available', () => {

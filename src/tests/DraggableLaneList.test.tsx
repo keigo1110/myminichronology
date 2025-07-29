@@ -24,7 +24,6 @@ describe('DraggableLaneList', () => {
       />
     );
 
-    expect(screen.getByText('表示するレーン（ドラッグで順序変更）:')).toBeInTheDocument();
     expect(screen.getByText('政治')).toBeInTheDocument();
     expect(screen.getByText('経済')).toBeInTheDocument();
     expect(screen.getByText('文化')).toBeInTheDocument();

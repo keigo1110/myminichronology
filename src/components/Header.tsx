@@ -219,9 +219,21 @@ export function Header({
     >
       {/* メインヘッダー */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2 }}>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 'bold' }}>
-          ミニクロ
-        </Typography>
+        <Box
+          component="img"
+          src="/minikuro-title.jpg"
+          alt="ミニクロ"
+          sx={{
+            height: { xs: 32, sm: 36, md: 40 },
+            width: 'auto',
+            objectFit: 'contain',
+            cursor: 'pointer',
+            transition: 'opacity 0.2s',
+            '&:hover': {
+              opacity: 0.8
+            }
+          }}
+        />
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {/* 年間高さ調整（データがある場合のみ表示） */}
