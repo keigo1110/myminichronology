@@ -5,34 +5,52 @@ import { ThemeProvider } from './providers';
 
 const inter = Inter({ subsets: ["latin"] });
 
+const siteName = 'ミニクロ';
+const description = 'ExcelやGoogleスプレッドシートのデータから、自動で年表・タイムラインを生成する無料のWebアプリ。複雑な設定は不要で、ファイルをアップロードするだけ。PDF形式で簡単にエクスポートも可能です。';
+const url = 'https://myminichronology.vercel.app/';
+
 export const metadata: Metadata = {
-  metadataBase: new URL('https://minikuro.app'),
-  title: "ミニクロ",
-  description: "Excel または Google Sheets のデータを読み込んで年表を可視化し、PDF にエクスポートできます",
-  icons: {
-    icon: '/favicon.ico',
+  metadataBase: new URL(url),
+  title: {
+    default: `${siteName} | Excelから年表を自動生成＆PDF出力`,
+    template: `%s | ${siteName}`,
+  },
+  description,
+  keywords: ['年表作成', 'タイムライン作成', '年表ジェネレーター', 'タイムラインジェネレーター', 'Excel', 'Googleスプレッドシート', '自動生成', '可視化', 'PDF', '無料', 'Webアプリ'],
+  alternates: {
+    canonical: url,
   },
   openGraph: {
-    title: "ミニクロ",
-    description: "Excel または Google Sheets のデータを読み込んで年表を可視化し、PDF にエクスポートできます",
-    type: "website",
-    locale: "ja_JP",
-    url: "https://minikuro.app",
-    siteName: "ミニクロ",
+    title: {
+      default: `${siteName} | Excelから年表を自動生成＆PDF出力`,
+      template: `%s | ${siteName}`,
+    },
+    description,
+    url,
+    siteName,
+    locale: 'ja_JP',
+    type: 'website',
     images: [
       {
-        url: "/og-image.jpg",
+        url: '/og-image.jpg',
         width: 1200,
         height: 630,
-        alt: "ミニクロ - タイムライン可視化ツール",
+        alt: 'ミニクロのロゴとアプリケーションのスクリーンショット',
       },
     ],
   },
   twitter: {
-    card: "summary_large_image",
-    title: "ミニクロ",
-    description: "Excel または Google Sheets のデータを読み込んで年表を可視化し、PDF にエクスポートできます",
-    images: ["/og-image.jpg"],
+    card: 'summary_large_image',
+    title: {
+      default: `${siteName} | Excelから年表を自動生成＆PDF出力`,
+      template: `%s | ${siteName}`,
+    },
+    description,
+    images: ['/og-image.jpg'],
+  },
+  icons: {
+    icon: '/icon.png',
+    apple: '/apple-icon.png',
   },
 };
 
@@ -43,10 +61,27 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
-      <body className={inter.className}>
-        <ThemeProvider>
-          {children}
-        </ThemeProvider>
+      <body className={inter.className} suppressHydrationWarning>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'SoftwareApplication',
+              name: siteName,
+              description: description,
+              url: url,
+              operatingSystem: 'Web',
+              applicationCategory: 'Productivity',
+              offers: {
+                '@type': 'Offer',
+                price: '0',
+                priceCurrency: 'JPY',
+              },
+            }),
+          }}
+        />
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );
