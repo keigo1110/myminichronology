@@ -9,7 +9,7 @@ import { useSheetLoader } from '../hooks/useSheetLoader';
 import { useTimelineData } from '../hooks/useTimelineData';
 import { useFilteredEvents } from '../hooks/useFilteredEvents';
 import { usePdfExport } from '../hooks/usePdfExport';
-import { PositionedEvent } from '../lib/types';
+import { PositionedEvent, LayoutMode } from '../lib/types';
 
 export default function Home() {
   const { data, loading, error, loadExcelFile, clearData } = useSheetLoader();
@@ -27,6 +27,9 @@ export default function Home() {
   const [yearRangeFilter, setYearRangeFilter] = useState<[number, number]>(
     yearRange.min > 0 && yearRange.max > 0 ? [yearRange.min, yearRange.max] : [1900, 2100]
   );
+
+  // レイアウトモードの管理
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('zoom');
 
   // レーン順序に基づいてデータを並び替え
   const orderedData = React.useMemo(() => {
@@ -48,11 +51,13 @@ export default function Home() {
   }, [positionedEvents, laneOrder, data]);
 
   // フィルタリング適用（年代範囲のみ）
-  const { filteredData, filteredPositionedEvents } = useFilteredEvents(
+  const { filteredData, filteredPositionedEvents, layoutConfig: filteredLayoutConfig } = useFilteredEvents(
     orderedData,
     orderedPositionedEvents,
     { yearRange: yearRangeFilter },
-    selectedLanes
+    selectedLanes,
+    layoutMode,
+    yearHeight / 24
   );
 
   // データが変更されたときにフィルターをリセット
@@ -88,13 +93,30 @@ export default function Home() {
     };
   }, []);
 
-  const handleFileDrop = (file: File) => {
+  const handleFileDrop = (file: File): string | null => {
     try {
+      // ファイル形式チェック（大文字小文字を区別しない）
+      if (!file.name.toLowerCase().endsWith('.xlsx')) {
+        const errorMsg = 'Excelファイル（.xlsx）を選択してください';
+        console.error(errorMsg);
+        return errorMsg;
+      }
+
+      // ファイルサイズチェック（10MB制限）
+      if (file.size > 10 * 1024 * 1024) {
+        const errorMsg = 'ファイルサイズが大きすぎます（10MB以下にしてください）';
+        console.error(errorMsg);
+        return errorMsg;
+      }
+
       clearData();
       loadExcelFile(file);
       setIsDragOver(false);
+      return null; // 成功
     } catch (err) {
+      const errorMsg = 'ファイルの処理中にエラーが発生しました';
       console.error('File drop error:', err);
+      return errorMsg;
     }
   };
 
@@ -125,10 +147,23 @@ export default function Home() {
       setIsDragOver(false);
 
       const files = Array.from(e.dataTransfer.files);
-      const excelFile = files.find(file => file.name.endsWith('.xlsx'));
 
-      if (excelFile) {
-        handleFileDrop(excelFile);
+      if (files.length === 0) {
+        console.error('No files found in drop');
+        return;
+      }
+
+      const excelFile = files.find(file => file.name.toLowerCase().endsWith('.xlsx'));
+
+      if (!excelFile) {
+        console.error('No Excel file (.xlsx) found in dropped files');
+        return;
+      }
+
+      // handleFileDropで統一的なサイズ・形式検証を実行
+      const error = handleFileDrop(excelFile);
+      if (error) {
+        console.error('Drop validation error:', error);
       }
     } catch (err) {
       console.error('Drop error:', err);
@@ -200,6 +235,8 @@ export default function Home() {
         onLaneOrderChange={handleLaneOrderChange}
         yearRange={yearRange.min > 0 && yearRange.max > 0 ? yearRange : { min: 1900, max: 2100 }}
         onYearRangeChange={handleYearRangeChange}
+        layoutMode={layoutMode}
+        onLayoutModeChange={setLayoutMode}
       />
 
       {/* メインコンテンツ - フルスクリーン */}
@@ -221,7 +258,7 @@ export default function Home() {
               <Timeline
                 data={filteredData || orderedData || data}
                 positionedEvents={filteredPositionedEvents.length > 0 ? filteredPositionedEvents : orderedPositionedEvents.length > 0 ? orderedPositionedEvents : positionedEvents}
-                layoutConfig={layoutConfig}
+                layoutConfig={filteredLayoutConfig || layoutConfig}
                 laneColors={laneColors}
                 yearRange={yearRange}
                 onEventClick={handleEventClick}

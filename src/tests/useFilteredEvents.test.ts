@@ -38,10 +38,11 @@ describe('useFilteredEvents', () => {
     };
     const selectedLanes = ['政治', '経済'];
     const { result } = renderHook(() =>
-      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes)
+      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter')
     );
     expect(result.current.filteredData).toEqual(mockData);
     expect(result.current.filteredPositionedEvents).toEqual(mockPositionedEvents);
+    expect(result.current.layoutConfig).toBeUndefined();
   });
 
   it('should filter events by year range', () => {
@@ -50,7 +51,7 @@ describe('useFilteredEvents', () => {
     };
     const selectedLanes = ['政治', '経済'];
     const { result } = renderHook(() =>
-      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes)
+      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter')
     );
     expect(result.current.filteredData).toHaveLength(2);
     expect(result.current.filteredData[0].events).toHaveLength(2);
@@ -63,7 +64,7 @@ describe('useFilteredEvents', () => {
     };
     const selectedLanes = ['政治'];
     const { result } = renderHook(() =>
-      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes)
+      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter')
     );
     expect(result.current.filteredData).toHaveLength(1);
     expect(result.current.filteredData[0].name).toBe('政治');
@@ -75,7 +76,7 @@ describe('useFilteredEvents', () => {
     };
     const selectedLanes = ['政治'];
     const { result } = renderHook(() =>
-      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes)
+      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter')
     );
     expect(result.current.filteredData).toHaveLength(1);
     expect(result.current.filteredData[0].name).toBe('政治');
@@ -88,7 +89,7 @@ describe('useFilteredEvents', () => {
     };
     const selectedLanes = ['政治', '経済'];
     const { result } = renderHook(() =>
-      useFilteredEvents(null, [], filters, selectedLanes)
+      useFilteredEvents(null, [], filters, selectedLanes, 'filter')
     );
     expect(result.current.filteredData).toBeNull();
     expect(result.current.filteredPositionedEvents).toEqual([]);
@@ -100,10 +101,23 @@ describe('useFilteredEvents', () => {
     };
     const selectedLanes = ['政治', '経済'];
     const { result } = renderHook(() =>
-      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes)
+      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter')
     );
     expect(result.current.filteredData).toHaveLength(1);
     expect(result.current.filteredData[0].events).toHaveLength(1);
     expect(result.current.filteredData[0].events[0].label).toBe('東日本大震災');
+  });
+
+  it('should recalculate layout in zoom mode', () => {
+    const filters: FilterState = {
+      yearRange: [1900, 2100]
+    };
+    const selectedLanes = ['政治'];
+    const { result } = renderHook(() =>
+      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'zoom')
+    );
+    expect(result.current.filteredData).toHaveLength(1);
+    expect(result.current.layoutConfig).toBeDefined();
+    expect(result.current.layoutConfig?.laneWidths).toHaveLength(1);
   });
 });

@@ -163,4 +163,29 @@ describe('Header', () => {
     render(<Header {...mockProps} hasData={false} />);
     expect(screen.getByTestId('ExpandMoreIcon')).toBeInTheDocument(); // データがない場合は展開アイコン
   });
+
+  it('should handle file size validation through onFileDrop', () => {
+    const mockOnFileDrop = vi.fn().mockReturnValue('ファイルサイズが大きすぎます（10MB以下にしてください）');
+    render(<Header {...mockProps} onFileDrop={mockOnFileDrop} />);
+
+    const fileInput = screen.getByRole('button', { name: /excel ファイルをアップロード/i });
+    const file = new File(['test content'], 'test.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+    fireEvent.change(fileInput.querySelector('input')!, { target: { files: [file] } });
+
+    expect(mockOnFileDrop).toHaveBeenCalledWith(file);
+    // エラーメッセージが表示されることを期待（実際の実装では状態更新が必要）
+  });
+
+  it('should handle successful file drop through onFileDrop', () => {
+    const mockOnFileDrop = vi.fn().mockReturnValue(null); // 成功
+    render(<Header {...mockProps} onFileDrop={mockOnFileDrop} />);
+
+    const fileInput = screen.getByRole('button', { name: /excel ファイルをアップロード/i });
+    const file = new File(['test content'], 'test.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+    fireEvent.change(fileInput.querySelector('input')!, { target: { files: [file] } });
+
+    expect(mockOnFileDrop).toHaveBeenCalledWith(file);
+  });
 });

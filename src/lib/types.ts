@@ -29,6 +29,9 @@ export interface DynamicLayoutConfig {
   timelineHeight?: number;  // 動的に計算された高さ
 }
 
+// レイアウトモードの型定義
+export type LayoutMode = 'zoom' | 'filter';
+
 // エラーハンドリング用の型
 export interface ParseError {
   type: 'file-format' | 'missing-columns' | 'invalid-year' | 'too-many-lanes';

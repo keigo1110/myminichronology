@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { TimelineData, PositionedEvent } from '../lib/types';
+import { TimelineData, PositionedEvent, LayoutMode, DynamicLayoutConfig } from '../lib/types';
+import { computeLayout } from '../lib/computeLayout';
 
 export interface FilterState {
   yearRange: [number, number];
@@ -9,7 +10,9 @@ export function useFilteredEvents(
   data: TimelineData | null,
   positionedEvents: PositionedEvent[][],
   filters: FilterState,
-  selectedLanes: string[]
+  selectedLanes: string[],
+  layoutMode: LayoutMode = 'zoom',
+  yearHeightScale: number = 1
 ) {
   return useMemo(() => {
     if (!data) return { filteredData: null, filteredPositionedEvents: [] };
@@ -51,6 +54,24 @@ export function useFilteredEvents(
       }
     });
 
-    return { filteredData, filteredPositionedEvents };
-  }, [data, positionedEvents, filters, selectedLanes]);
+    // レイアウトモードに応じた処理
+    if (layoutMode === 'zoom' && filteredData.length > 0) {
+      // ズームモード: フィルタ済みデータでレイアウトを再計算
+      const { positionedEvents: recomputedEvents, layoutConfig: recomputedLayout } =
+        computeLayout(filteredData, yearHeightScale);
+
+      return {
+        filteredData,
+        filteredPositionedEvents: recomputedEvents,
+        layoutConfig: recomputedLayout
+      };
+    } else {
+      // フィルタモード: 元のレイアウトを維持
+      return {
+        filteredData,
+        filteredPositionedEvents,
+        layoutConfig: undefined
+      };
+    }
+  }, [data, positionedEvents, filters, selectedLanes, layoutMode, yearHeightScale]);
 }

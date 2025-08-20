@@ -27,9 +27,10 @@ import {
   HelpOutline
 } from '@mui/icons-material';
 import { DraggableLaneList } from './DraggableLaneList';
+import { LayoutMode } from '../lib/types';
 
 interface HeaderProps {
-  onFileDrop: (file: File) => void;
+  onFileDrop: (file: File) => string | null;
   onPdfExport: () => void;
   onYearHeightChange?: (height: number) => void;
   yearHeight?: number;
@@ -44,6 +45,8 @@ interface HeaderProps {
   onLaneOrderChange?: (orderedLanes: string[]) => void;
   yearRange?: { min: number; max: number };
   onYearRangeChange?: (yearRange: [number, number]) => void;
+  layoutMode?: LayoutMode;
+  onLayoutModeChange?: (mode: LayoutMode) => void;
 }
 
 export function Header({
@@ -61,7 +64,9 @@ export function Header({
   onLaneSelectionChange,
   onLaneOrderChange,
   yearRange = { min: 1900, max: 2100 },
-  onYearRangeChange
+  onYearRangeChange,
+  layoutMode = 'zoom',
+  onLayoutModeChange
 }: HeaderProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [dragError, setDragError] = useState<string | null>(null);
@@ -117,20 +122,20 @@ export function Header({
         return;
       }
 
-      const excelFile = files.find(file => file.name.endsWith('.xlsx'));
+      const excelFile = files.find(file => file.name.toLowerCase().endsWith('.xlsx'));
 
       if (!excelFile) {
         setDragError('Excelファイル（.xlsx）を選択してください');
         return;
       }
 
-      // ファイルサイズチェック（10MB制限）
-      if (excelFile.size > 10 * 1024 * 1024) {
-        setDragError('ファイルサイズが大きすぎます（10MB以下にしてください）');
+      // サイズ検証は呼び出し元のhandleFileDropで統一的に実行
+      const error = onFileDrop(excelFile);
+      if (error) {
+        setDragError(error);
         return;
       }
-
-      onFileDrop(excelFile);
+      setDragError(null);
     } catch (err) {
       console.error('Drop error:', err);
     }
@@ -144,18 +149,17 @@ export function Header({
         return;
       }
 
-      if (!file.name.endsWith('.xlsx')) {
+      if (!file.name.toLowerCase().endsWith('.xlsx')) {
         setDragError('Excelファイル（.xlsx）を選択してください');
         return;
       }
 
-      // ファイルサイズチェック（10MB制限）
-      if (file.size > 10 * 1024 * 1024) {
-        setDragError('ファイルサイズが大きすぎます（10MB以下にしてください）');
+      // サイズ検証は呼び出し元のhandleFileDropで統一的に実行
+      const error = onFileDrop(file);
+      if (error) {
+        setDragError(error);
         return;
       }
-
-      onFileDrop(file);
       setDragError(null);
     } catch (err) {
       console.error('File input error:', err);
@@ -236,6 +240,24 @@ export function Header({
         />
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {/* レイアウトモード切替（データがある場合のみ表示） */}
+          {hasData && (
+            <FormControl size="small" sx={{ minWidth: 80 }}>
+              <Select
+                value={layoutMode}
+                onChange={(e) => onLayoutModeChange?.(e.target.value as LayoutMode)}
+                sx={{
+                  fontSize: '0.75rem',
+                  height: 28,
+                  '& .MuiSelect-select': { py: 0.5, px: 1 }
+                }}
+              >
+                <MenuItem value="zoom" sx={{ fontSize: '0.75rem' }}>ズーム</MenuItem>
+                <MenuItem value="filter" sx={{ fontSize: '0.75rem' }}>フィルタ</MenuItem>
+              </Select>
+            </FormControl>
+          )}
+
           {/* 年間高さ調整（データがある場合のみ表示） */}
           {hasData && (
             <Tooltip title="年間高さ調整">

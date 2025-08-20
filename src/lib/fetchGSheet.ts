@@ -1,6 +1,18 @@
 import Papa from 'papaparse';
 import { TimelineData, Lane, Event } from './types';
 
+/**
+ * Google Sheets からタイムラインデータを取得する関数
+ *
+ * 注意: 現在は未使用だが、今後の機能拡張で使用予定のため保持している
+ * - Google Sheets URLからスプレッドシートIDを抽出
+ * - 各シートを個別のレーンとして処理
+ * - CSVエクスポート機能を利用してデータを取得
+ *
+ * @param url Google Sheets の共有URL
+ * @returns Promise<TimelineData> パースされたタイムラインデータ
+ * @throws Error URLの形式が不正、データの取得に失敗、パースエラーなど
+ */
 export async function fetchGSheet(url: string): Promise<TimelineData> {
   try {
     // URL からスプレッドシート ID とシート名を抽出
