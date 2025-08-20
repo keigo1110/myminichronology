@@ -9,6 +9,7 @@ interface TimelineProps {
   positionedEvents: PositionedEvent[][];
   layoutConfig: DynamicLayoutConfig;
   laneColors: string[];
+  eventColors: string[];
   yearRange: { min: number; max: number };
   onEventClick?: (event: PositionedEvent) => void;
 }
@@ -18,6 +19,7 @@ export function Timeline({
   positionedEvents,
   layoutConfig,
   laneColors,
+  eventColors,
   yearRange,
   onEventClick
 }: TimelineProps) {
@@ -175,7 +177,8 @@ export function Timeline({
               key={lane.name}
               lane={lane}
               events={positionedEvents[index] || []}
-              color={laneColors[index]}
+              laneColor={laneColors[index]}
+              eventColor={eventColors[index]}
               laneWidth={laneWidths[index] || 300}
               onEventClick={onEventClick}
               yearRange={yearRange}

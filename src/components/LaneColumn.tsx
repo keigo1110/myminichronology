@@ -6,7 +6,8 @@ import { EventItem } from './EventItem';
 interface LaneColumnProps {
   lane: Lane;
   events: PositionedEvent[];
-  color: string;
+  laneColor: string;
+  eventColor: string;
   laneWidth: number;
   onEventClick?: (event: PositionedEvent) => void;
   yearRange: { min: number; max: number };
@@ -18,7 +19,8 @@ interface LaneColumnProps {
 export function LaneColumn({
   lane,
   events,
-  color,
+  laneColor,
+  eventColor,
   laneWidth,
   onEventClick,
   yearRange,
@@ -35,7 +37,7 @@ export function LaneColumn({
         position: 'relative',
         width: laneWidth,
         minHeight: timelineHeight, // minHeightに変更
-        backgroundColor: color,
+        backgroundColor: laneColor,
         borderRight: '1px solid rgba(0,0,0,0.1)',
         display: 'flex',
         flexDirection: 'column'
@@ -119,7 +121,7 @@ export function LaneColumn({
             <EventItem
               key={`${event.label}-${index}`}
               event={event}
-              color={color}
+              color={eventColor}
               onClick={onEventClick}
               style={{
                 position: 'absolute',

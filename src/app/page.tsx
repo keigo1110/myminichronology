@@ -13,7 +13,7 @@ import { PositionedEvent, LayoutMode } from '../lib/types';
 
 export default function Home() {
   const { data, loading, error, loadExcelFile, clearData } = useSheetLoader();
-  const { positionedEvents, layoutConfig, yearRange, laneColors, setSelectedEvent, yearHeight, setYearHeight } = useTimelineData(data);
+  const { positionedEvents, layoutConfig, yearRange, laneColors, eventColors, setSelectedEvent, yearHeight, setYearHeight } = useTimelineData(data);
   const { exporting, exportError, exportToPdf, clearExportError } = usePdfExport();
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -260,6 +260,7 @@ export default function Home() {
                 positionedEvents={filteredPositionedEvents.length > 0 ? filteredPositionedEvents : orderedPositionedEvents.length > 0 ? orderedPositionedEvents : positionedEvents}
                 layoutConfig={filteredLayoutConfig || layoutConfig}
                 laneColors={laneColors}
+                eventColors={eventColors}
                 yearRange={yearRange}
                 onEventClick={handleEventClick}
               />

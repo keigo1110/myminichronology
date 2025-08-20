@@ -59,8 +59,21 @@ export function useTimelineData(data: TimelineData | null) {
       '#E3F2FD', // 薄い青
       '#F3E5F5', // 薄い紫
       '#E8F5E8', // 薄い緑
-      '#FFF3E0', // 薄いオレンジ
+      '#FFF8E1', // 薄い茶色系
       '#FCE4EC'  // 薄いピンク
+    ];
+
+    return colors.slice(0, data?.length || 0);
+  }, [data]);
+
+  // イベント用の濃い色パレット（WCAG 4.5:1準拠）
+  const eventColors = useMemo(() => {
+    const colors = [
+      '#1565C0', // より濃い青（Blue 800）
+      '#7B1FA2', // 濃い紫（Purple 700）
+      '#2E7D32', // より濃い緑（Green 800）
+      '#5D4037', // 濃い茶色（Brown 700）
+      '#C2185B'  // 濃いピンク（Pink 700）
     ];
 
     return colors.slice(0, data?.length || 0);
@@ -73,6 +86,7 @@ export function useTimelineData(data: TimelineData | null) {
     timelineWidth,
     yearRange,
     laneColors,
+    eventColors,
     selectedEvent,
     setSelectedEvent,
     yearHeight,
