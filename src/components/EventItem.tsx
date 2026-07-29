@@ -163,17 +163,49 @@ export function EventItem({
     }
   };
 
-  const labelTextWidth =
-    isLabelStyle && useVertical
-      ? Math.max(fontSizePx, width > 0 ? width - 8 - (hasImage ? EVENT_IMAGE_MAX_WIDTH + 4 : 0) : fontSizePx + 2)
-      : useVertical
-        ? `${fontSizePx + 2}px`
-        : 'auto';
+  // 縦書きは「1文字分の幅」が必要。ボックス全幅にすると flex/% 連鎖で潰れることがある
+  const verticalTextWidthPx = fontSizePx + (isLabelStyle ? 4 : 2);
+  const labelTextWidth = useVertical ? `${verticalTextWidthPx}px` : 'auto';
 
   const showHorizontalRangeBar = isHorizontal && isRangeEvent;
   const showVerticalRangeBar = !isHorizontal && isRangeEvent;
   /** 横型期間は画像を下に、それ以外はテキスト横 */
   const imageBelow = isHorizontal && isRangeEvent && hasImage;
+  /** 画像ありのときだけ内側ラッパーを使う（label 縦書きは外側 flex に直接置く） */
+  const wrapWithImageRow = hasImage && !imageBelow && !isLabelStyle;
+  const wrapWithImageColumn = imageBelow;
+
+  const labelTypography = (
+    <Typography
+      component="span"
+      sx={{
+        // label 塗り背景上ではテーマ色継承で文字が消えることがある
+        color: isLabelStyle ? `${textColor} !important` : textColor,
+        fontWeight: 700,
+        fontSize: `${fontSizePx}px`,
+        lineHeight: 1.25,
+        letterSpacing: useVertical ? '0.1em' : '0.01em',
+        writingMode: useVertical ? 'vertical-rl' : 'horizontal-tb',
+        textOrientation: isLabelStyle ? 'upright' : 'mixed',
+        whiteSpace: useVertical || isCompact ? 'nowrap' : 'normal',
+        overflow: 'visible',
+        display: 'block',
+        wordBreak: 'break-word',
+        flex: '0 0 auto',
+        width: labelTextWidth,
+        minWidth: useVertical ? `${verticalTextWidthPx}px` : undefined,
+        maxWidth: useVertical ? `${verticalTextWidthPx}px` : '100%',
+        alignSelf: useVertical ? 'stretch' : undefined,
+        height: useVertical ? '100%' : 'auto',
+        m: 0,
+        paddingTop: useVertical ? '2px' : 0,
+        paddingLeft: showHorizontalRangeBar ? '2px' : 0,
+        pointerEvents: 'none',
+      }}
+    >
+      {event.label}
+    </Typography>
+  );
 
   return (
     <Tooltip title={eventLabel} placement="top">
@@ -258,61 +290,33 @@ export function EventItem({
           />
         )}
 
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: imageBelow ? 'column' : 'row',
-            alignItems: imageBelow ? 'flex-start' : useVertical || isLabelStyle ? 'center' : 'center',
-            gap: hasImage ? '4px' : 0,
-            // minWidth:0 だと縦書きラベルの幅が潰れて文字が見えなくなる
-            minWidth: useVertical || isLabelStyle ? 'min-content' : 0,
-            flex: imageBelow ? '1 1 auto' : undefined,
-            height: showVerticalRangeBar || isLabelStyle ? '100%' : undefined,
-            width: isLabelStyle ? '100%' : undefined,
-            justifyContent: isLabelStyle ? 'center' : undefined,
-          }}
-        >
-          {hasImage && event.imageUrl && !imageBelow && (
-            <EventImageThumb src={event.imageUrl} alt="" />
-          )}
+        {isLabelStyle && hasImage && event.imageUrl && (
+          <EventImageThumb src={event.imageUrl} alt="" />
+        )}
 
-          <Typography
-            component="span"
+        {wrapWithImageRow || wrapWithImageColumn ? (
+          <Box
             sx={{
-              color: textColor,
-              fontWeight: 700,
-              fontSize: `${fontSizePx}px`,
-              lineHeight: 1.25,
-              letterSpacing: useVertical ? '0.1em' : '0.01em',
-              writingMode: useVertical ? 'vertical-rl' : 'horizontal-tb',
-              textOrientation: 'mixed',
-              whiteSpace: useVertical || isCompact ? 'nowrap' : 'normal',
-              overflow: 'visible',
-              display: 'block',
-              wordBreak: 'break-word',
-              flex: '0 0 auto',
-              flexShrink: 0,
-              width: labelTextWidth,
-              minWidth: useVertical ? Math.ceil(fontSizePx + 2) : undefined,
-              maxWidth: isLabelStyle
-                ? '100%'
-                : useVertical
-                  ? `${fontSizePx + 2}px`
-                  : '100%',
-              height: useVertical ? '100%' : 'auto',
-              m: 0,
-              paddingTop: useVertical ? '2px' : 0,
-              paddingLeft: showHorizontalRangeBar ? '2px' : 0,
-              pointerEvents: 'none',
+              display: 'flex',
+              flexDirection: imageBelow ? 'column' : 'row',
+              alignItems: imageBelow ? 'flex-start' : useVertical ? 'flex-start' : 'center',
+              gap: hasImage ? '4px' : 0,
+              minWidth: useVertical ? 'min-content' : 0,
+              flex: imageBelow ? '1 1 auto' : undefined,
+              height: showVerticalRangeBar ? '100%' : undefined,
             }}
           >
-            {event.label}
-          </Typography>
-
-          {hasImage && event.imageUrl && imageBelow && (
-            <EventImageThumb src={event.imageUrl} alt="" />
-          )}
-        </Box>
+            {hasImage && event.imageUrl && !imageBelow && (
+              <EventImageThumb src={event.imageUrl} alt="" />
+            )}
+            {labelTypography}
+            {hasImage && event.imageUrl && imageBelow && (
+              <EventImageThumb src={event.imageUrl} alt="" />
+            )}
+          </Box>
+        ) : (
+          labelTypography
+        )}
       </Box>
     </Tooltip>
   );
