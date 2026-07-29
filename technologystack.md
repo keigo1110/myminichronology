@@ -44,7 +44,8 @@
 | タイトル画像 | `/public/minikuro-title.jpg` |
 | OGP 画像 | `/public/og-image.jpg` |
 | アプリアイコン | `/src/app/icon.png`, `/src/app/apple-icon.png`（Next.js ファイルベース） |
-| Excel テンプレート | `/public/template.xlsx` |
+| Excel 見本 | `/public/template_sample.xlsx` |
+| Excel 検証用 | `/public/template_test.xlsx` |
 
 ## SEO・ソーシャル
 

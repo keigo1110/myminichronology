@@ -10,23 +10,27 @@
 ├── public/                         # 静的ファイル
 │   ├── minikuro-title.jpg          # ヘッダーロゴ
 │   ├── og-image.jpg                # OGP 画像
-│   └── template.xlsx               # 入力テンプレート
+│   ├── template_sample.xlsx        # 利用者向け入力見本
+│   └── template_test.xlsx          # 開発・境界値検証用
 ├── src/
 │   ├── app/                        # Next.js App Router
 │   │   ├── layout.tsx              # ルートレイアウト / メタデータ
 │   │   ├── page.tsx                # メインページ（クライアント）
-│   │   ├── providers.tsx           # MUI ThemeProvider
+│   │   ├── providers.tsx           # ThemeProvider + ライト/ダーク
 │   │   ├── globals.css             # グローバル CSS
 │   │   ├── icon.png                # favicon（ファイルベース）
 │   │   └── apple-icon.png          # Apple touch icon
+│   ├── theme/
+│   │   └── createAppTheme.ts       # 紙面トーンの light/dark テーマ
 │   ├── components/
-│   │   ├── Header.tsx              # ヘッダー（アップロード / フィルタ / PDF）
+│   │   ├── Header.tsx              # ヘッダー（アップロード / フィルタ / PDF / テーマ）
 │   │   ├── Timeline.tsx            # 年表ルート
 │   │   ├── YearAxis.tsx            # 左右の年軸
 │   │   ├── LaneHeaderRow.tsx       # レーン見出し（sticky）
 │   │   ├── LaneColumn.tsx          # レーン本体（グリッド + イベント）
 │   │   ├── EventItem.tsx           # 点 / 期間イベント
 │   │   ├── DraggableLaneList.tsx   # レーン選択・並び替え（HTML5 DnD）
+│   │   ├── CopyableAlert.tsx       # 警告/エラー + エージェント用コピー
 │   │   └── ErrorBoundary.tsx       # 表示エラーのフォールバック
 │   ├── hooks/
 │   │   ├── useSheetLoader.ts       # Excel 読み込み状態

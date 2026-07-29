@@ -1,5 +1,7 @@
+'use client';
+
 import React from 'react';
-import { Box } from '@mui/material';
+import { Box, useTheme } from '@mui/material';
 import { TimelineData, PositionedEvent, DynamicLayoutConfig } from '../lib/types';
 import { LaneColumn } from './LaneColumn';
 import { LaneHeaderRow } from './LaneHeaderRow';
@@ -14,6 +16,7 @@ interface TimelineProps {
   eventColorByName: Record<string, string>;
   yearRange: { min: number; max: number };
   onEventClick?: (event: PositionedEvent) => void;
+  highlightedEventId?: string | null;
 }
 
 export function Timeline({
@@ -24,7 +27,12 @@ export function Timeline({
   eventColorByName,
   yearRange,
   onEventClick,
+  highlightedEventId = null,
 }: TimelineProps) {
+  const theme = useTheme();
+  const sheet = theme.palette.chronology.sheet;
+  const border = theme.palette.chronology.hairlineStrong;
+
   const timelineHeight =
     layoutConfig.timelineHeight || Math.max(800, (yearRange.max - yearRange.min) * 8);
   const { yearAxisWidth, totalWidth, laneWidthByName, laneWidths } = layoutConfig;
@@ -42,13 +50,16 @@ export function Timeline({
       sx={{
         width: `${totalWidth}px`,
         minHeight: timelineHeight,
-        backgroundColor: '#FFFEFA',
+        backgroundColor: sheet,
         borderRadius: 0,
-        border: '1px solid rgba(0,0,0,0.18)',
+        border: `1px solid ${border}`,
         overflow: 'visible',
         position: 'relative',
         display: 'flex',
-        boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+        boxShadow:
+          theme.palette.mode === 'dark'
+            ? '0 1px 0 rgba(255,255,255,0.04)'
+            : '0 1px 4px rgba(0,0,0,0.06)',
         margin: '0 auto',
         '&.pdf-export': {
           overflow: 'visible',
@@ -108,6 +119,7 @@ export function Timeline({
               onEventClick={onEventClick}
               yearRange={yearRange}
               timelineHeight={contentHeight}
+              highlightedEventId={highlightedEventId}
             />
           ))}
         </Box>

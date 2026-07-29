@@ -1,16 +1,18 @@
 'use client';
 
-import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { Box, Typography, Button, Alert } from '@mui/material';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { Box, Typography, Button, useTheme } from '@mui/material';
 import { HelpOutline } from '@mui/icons-material';
 import { Header } from '../components/Header';
 import { Timeline } from '../components/Timeline';
+import { CopyableAlert } from '../components/CopyableAlert';
 import { useSheetLoader } from '../hooks/useSheetLoader';
 import { useTimelineData } from '../hooks/useTimelineData';
 import { useFilteredEvents } from '../hooks/useFilteredEvents';
 import { usePdfExport } from '../hooks/usePdfExport';
 import { LayoutMode } from '../lib/types';
 import { validateExcelFile } from '../lib/fileValidation';
+import { getEventDomId } from '../lib/eventDomId';
 
 const HELP_URL = 'https://note.com/namida1110/n/nfd97132121ef';
 
@@ -31,6 +33,8 @@ export default function Home() {
   const [fileError, setFileError] = useState<string | null>(null);
   const [warningsDismissed, setWarningsDismissed] = useState(false);
   const dragDepthRef = useRef(0);
+  const chromeRef = useRef<HTMLDivElement>(null);
+  const theme = useTheme();
 
   const [selectedLanes, setSelectedLanes] = useState<string[]>(data?.map((lane) => lane.name) || []);
   const [laneOrder, setLaneOrder] = useState<string[]>(data?.map((lane) => lane.name) || []);
@@ -38,6 +42,9 @@ export default function Home() {
     yearRange.min > 0 && yearRange.max > 0 ? [yearRange.min, yearRange.max] : [1900, 2100]
   );
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('zoom');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchMatchIndex, setSearchMatchIndex] = useState(0);
+  const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null);
 
   const orderedData = useMemo(() => {
     if (!data || !laneOrder.length) return data;
@@ -49,12 +56,11 @@ export default function Home() {
   const orderedPositionedEvents = useMemo(() => {
     if (!positionedEvents.length || !laneOrder.length || !data) return positionedEvents;
 
-    return laneOrder
-      .map((laneName) => {
-        const laneIndex = data.findIndex((lane) => lane.name === laneName);
-        return laneIndex >= 0 ? positionedEvents[laneIndex] : [];
-      })
-      .filter((events) => events.length > 0);
+    // レーン順に揃え、空レーンもインデックスをずらさない
+    return laneOrder.map((laneName) => {
+      const laneIndex = data.findIndex((lane) => lane.name === laneName);
+      return laneIndex >= 0 ? positionedEvents[laneIndex] || [] : [];
+    });
   }, [positionedEvents, laneOrder, data]);
 
   const filterState = useMemo(
@@ -86,6 +92,9 @@ export default function Home() {
       }
       setFileError(null);
       setWarningsDismissed(false);
+      setSearchQuery('');
+      setSearchMatchIndex(0);
+      setHighlightedEventId(null);
       clearExportError();
     }
   }, [data, yearRange, clearExportError]);
@@ -172,6 +181,53 @@ export default function Home() {
   const effectiveYearRange =
     displayYearRange.min > 0 && displayYearRange.max > 0 ? displayYearRange : yearRange;
 
+  const searchMatches = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q || !displayData) return [] as string[];
+
+    const ids: string[] = [];
+    displayData.forEach((lane, laneIndex) => {
+      (displayEvents[laneIndex] || []).forEach((event, eventIndex) => {
+        if (event.label.toLowerCase().includes(q)) {
+          ids.push(getEventDomId(lane.name, event, eventIndex));
+        }
+      });
+    });
+    return ids;
+  }, [searchQuery, displayData, displayEvents]);
+
+  React.useEffect(() => {
+    setSearchMatchIndex(0);
+    if (searchMatches.length > 0) {
+      setHighlightedEventId(searchMatches[0]);
+    } else {
+      setHighlightedEventId(null);
+    }
+  }, [searchMatches]);
+
+  const jumpToMatch = useCallback(
+    (index: number) => {
+      if (searchMatches.length === 0) return;
+      const normalized = ((index % searchMatches.length) + searchMatches.length) % searchMatches.length;
+      const id = searchMatches[normalized];
+      setSearchMatchIndex(normalized);
+      setHighlightedEventId(id);
+      requestAnimationFrame(() => {
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      });
+    },
+    [searchMatches]
+  );
+
+  const handleSearchNext = useCallback(() => {
+    jumpToMatch(searchMatchIndex + 1);
+  }, [jumpToMatch, searchMatchIndex]);
+
+  const handleSearchPrev = useCallback(() => {
+    jumpToMatch(searchMatchIndex - 1);
+  }, [jumpToMatch, searchMatchIndex]);
+
+  const warningMessages = warnings.map((w) => w.message);
   const warningSummary =
     warnings.length > 0
       ? warnings.length <= 3
@@ -182,6 +238,32 @@ export default function Home() {
             .join(' ')} 他${warnings.length - 2}件の警告があります。`
       : null;
 
+  React.useEffect(() => {
+    if (highlightedEventId && searchMatches.includes(highlightedEventId)) {
+      requestAnimationFrame(() => {
+        document
+          .getElementById(highlightedEventId)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      });
+    }
+  }, [highlightedEventId, searchMatches]);
+
+  useEffect(() => {
+    const el = chromeRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+
+    const apply = () => {
+      document.documentElement.style.setProperty(
+        '--app-chrome-height',
+        `${el.offsetHeight + 12}px`
+      );
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [warningSummary, warningsDismissed, data]);
+
   return (
     <Box
       component="main"
@@ -190,6 +272,7 @@ export default function Home() {
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
+        backgroundColor: 'background.default',
       }}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
@@ -200,44 +283,56 @@ export default function Home() {
         ミニクロ - Excelから年表を自動生成
       </h1>
 
-      <Header
-        onFileDrop={handleFileDrop}
-        onPdfExport={handlePdfExport}
-        onYearHeightChange={setYearHeight}
-        yearHeight={yearHeight}
-        loading={loading}
-        error={error}
-        fileError={fileError}
-        onFileError={setFileError}
-        exporting={exporting}
-        exportError={exportError}
-        hasData={!!data}
-        lanes={laneOrder.length > 0 ? laneOrder : data?.map((lane) => lane.name) || []}
-        selectedLanes={selectedLanes}
-        onLaneSelectionChange={setSelectedLanes}
-        onLaneOrderChange={setLaneOrder}
-        yearRange={yearRange.min > 0 && yearRange.max > 0 ? yearRange : { min: 1900, max: 2100 }}
-        onYearRangeChange={setYearRangeFilter}
-        layoutMode={layoutMode}
-        onLayoutModeChange={setLayoutMode}
-      />
+      <Box ref={chromeRef} sx={{ flexShrink: 0 }}>
+        <Header
+          onFileDrop={handleFileDrop}
+          onPdfExport={handlePdfExport}
+          onYearHeightChange={setYearHeight}
+          yearHeight={yearHeight}
+          loading={loading}
+          error={error}
+          fileError={fileError}
+          onFileError={setFileError}
+          exporting={exporting}
+          exportError={exportError}
+          hasData={!!data}
+          lanes={laneOrder.length > 0 ? laneOrder : data?.map((lane) => lane.name) || []}
+          selectedLanes={selectedLanes}
+          onLaneSelectionChange={setSelectedLanes}
+          onLaneOrderChange={setLaneOrder}
+          yearRange={yearRange.min > 0 && yearRange.max > 0 ? yearRange : { min: 1900, max: 2100 }}
+          onYearRangeChange={setYearRangeFilter}
+          layoutMode={layoutMode}
+          onLayoutModeChange={setLayoutMode}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          searchMatchCount={searchMatches.length}
+          searchMatchIndex={searchMatchIndex}
+          onSearchNext={handleSearchNext}
+          onSearchPrev={handleSearchPrev}
+        />
 
-      {warningSummary && data && !warningsDismissed && (
-        <Box sx={{ px: 2, pt: 1 }}>
-          <Alert severity="warning" onClose={() => setWarningsDismissed(true)}>
-            {warningSummary}
-          </Alert>
-        </Box>
-      )}
+        {warningSummary && data && !warningsDismissed && (
+          <Box sx={{ px: 2, pt: 1, pb: 0.5 }}>
+            <CopyableAlert
+              severity="warning"
+              kind="warning"
+              messages={warningMessages}
+              onClose={() => setWarningsDismissed(true)}
+            >
+              {warningSummary}
+            </CopyableAlert>
+          </Box>
+        )}
+      </Box>
 
-      <Box sx={{ flex: 1, overflow: 'auto', p: 1 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1, md: 1.5 }, minHeight: 0 }}>
         {displayData ? (
           <Box
             sx={{
               display: 'flex',
               flexDirection: 'column',
-              height: '100%',
-              minHeight: 'calc(100vh - 80px)',
+              minHeight: '100%',
             }}
           >
             <Box sx={{ flex: 1, overflowX: 'auto' }}>
@@ -248,6 +343,7 @@ export default function Home() {
                 laneColorByName={laneColorByName}
                 eventColorByName={eventColorByName}
                 yearRange={effectiveYearRange}
+                highlightedEventId={highlightedEventId}
               />
             </Box>
           </Box>
@@ -259,38 +355,71 @@ export default function Home() {
               justifyContent: 'center',
               alignItems: 'center',
               height: '100%',
-              minHeight: 'calc(100vh - 80px)',
-              backgroundColor: isDragOver ? 'primary.50' : '#FFFEFA',
+              minHeight: 360,
+              backgroundColor: isDragOver
+                ? theme.palette.mode === 'dark'
+                  ? 'rgba(224,122,74,0.12)'
+                  : 'rgba(196,92,38,0.06)'
+                : 'background.paper',
               borderRadius: 0,
-              border: '2px dashed',
-              borderColor: isDragOver ? 'primary.main' : 'rgba(0,0,0,0.18)',
-              transition: 'all 0.2s',
+              border: '1px dashed',
+              borderColor: isDragOver ? 'primary.main' : 'divider',
+              backgroundImage: isDragOver
+                ? 'none'
+                : `linear-gradient(${theme.palette.chronology.grid} 1px, transparent 1px), linear-gradient(90deg, ${theme.palette.chronology.grid} 1px, transparent 1px)`,
+              backgroundSize: '48px 48px',
+              transition: 'border-color 0.2s, background-color 0.2s',
               p: 3,
             }}
           >
-            <Box sx={{ textAlign: 'center', mb: 3 }}>
-              <Typography variant="h5" color="text.secondary" gutterBottom>
-                {isDragOver ? 'ここにExcelファイルをドロップ' : 'Excelファイルをドラッグ&ドロップ'}
-              </Typography>
-              <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-                {isDragOver ? 'ファイルを離して年表を表示' : 'またはヘッダーのアップロードボタンをクリック'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                対応形式: .xlsx（最大10MB・最大5シート）／D〜F列でサイズ・色・表示スタイル（任意）
-              </Typography>
-            </Box>
-
-            <Button
-              variant="outlined"
-              startIcon={<HelpOutline />}
-              component="a"
-              href={HELP_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              sx={{ mt: 2 }}
+            <Box
+              sx={{
+                textAlign: 'center',
+                maxWidth: 440,
+                px: 2,
+                py: 3,
+                backgroundColor: 'background.paper',
+                border: '1px solid',
+                borderColor: 'divider',
+              }}
             >
-              使い方ガイドを見る
-            </Button>
+              <Typography
+                variant="h5"
+                sx={{ fontWeight: 700, color: 'text.primary', mb: 1, letterSpacing: '0.02em' }}
+              >
+                {isDragOver ? 'ここにドロップ' : '年表をつくる'}
+              </Typography>
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 1.5 }}>
+                {isDragOver
+                  ? 'ファイルを離して表示します'
+                  : 'Excel（.xlsx）をドロップするか、ヘッダーからアップロード'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                最大10MB・最大5シート／見本ファイルから始められます
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <Button
+                  variant="contained"
+                  component="a"
+                  href="/template_sample.xlsx"
+                  download
+                  size="small"
+                >
+                  見本Excel
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<HelpOutline />}
+                  component="a"
+                  href={HELP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  size="small"
+                >
+                  使い方
+                </Button>
+              </Box>
+            </Box>
           </Box>
         )}
       </Box>

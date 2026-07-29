@@ -23,9 +23,9 @@ describe('parseExcel', () => {
   it('should parse valid Excel file with point events', async () => {
     const file = createWorkbookFile({
       政治: [
-        ['年', 'いつまで', '出来事'],
-        [2020, null, 'オリンピック延期'],
-        [2011, null, '東日本大震災'],
+        ['年', '出来事', '(いつまで)'],
+        [2020, 'オリンピック延期', null],
+        [2011, '東日本大震災', null],
       ],
     });
 
@@ -45,8 +45,8 @@ describe('parseExcel', () => {
   it('should parse valid Excel file with range events', async () => {
     const file = createWorkbookFile({
       経済: [
-        ['年', 'いつまで', '出来事'],
-        [2008, 2009, 'リーマンショック'],
+        ['年', '出来事', '(いつまで)'],
+        [2008, 'リーマンショック', 2009],
       ],
     });
 
@@ -62,11 +62,11 @@ describe('parseExcel', () => {
   it('should parse display style label column', async () => {
     const file = createWorkbookFile({
       政治: [
-        ['年', 'いつまで', '出来事', 'フォントサイズ', '色', '表示スタイル'],
-        [1950, 1980, 'ラベル期間', 13, '#C45C26', 'label'],
-        [1960, null, '日本語指定', null, '#1565C0', 'ラベル'],
-        [1970, null, '通常', null, null, null],
-        [1980, null, '無効', null, null, 'box'],
+        ['年', '出来事', '(いつまで)', 'フォントサイズ', '色', '表示スタイル'],
+        [1950, 'ラベル期間', 1980, 13, '#C45C26', 'label'],
+        [1960, '日本語指定', null, null, '#1565C0', 'ラベル'],
+        [1970, '通常', null, null, null, null],
+        [1980, '無効', null, null, null, 'box'],
       ],
     });
 
@@ -89,11 +89,11 @@ describe('parseExcel', () => {
   it('should parse font size and color columns', async () => {
     const file = createWorkbookFile({
       政治: [
-        ['年', 'いつまで', '出来事', 'フォントサイズ', '色'],
-        [2020, null, '指定あり', 14, '#C45C26'],
-        [2021, null, '色のみ', null, '1565C0'],
-        [2022, null, 'サイズのみ', 12, null],
-        [2023, null, '無効スタイル', 99, 'not-a-color'],
+        ['年', '出来事', '(いつまで)', 'フォントサイズ', '色'],
+        [2020, '指定あり', null, 14, '#C45C26'],
+        [2021, '色のみ', null, null, '1565C0'],
+        [2022, 'サイズのみ', null, 12, null],
+        [2023, '無効スタイル', null, 99, 'not-a-color'],
       ],
     });
 
@@ -124,9 +124,9 @@ describe('parseExcel', () => {
   it('should warn and skip rows with missing required columns', async () => {
     const file = createWorkbookFile({
       政治: [
-        ['年', 'いつまで', '出来事'],
-        [2020, null, '有効'],
-        [null, null, 'ラベルのみ'],
+        ['年', '出来事', '(いつまで)'],
+        [2020, '有効', null],
+        [null, 'ラベルのみ', null],
         [2021, null, null],
       ],
     });
@@ -139,11 +139,11 @@ describe('parseExcel', () => {
   it('should warn and skip invalid year values', async () => {
     const file = createWorkbookFile({
       政治: [
-        ['年', 'いつまで', '出来事'],
-        ['abc', null, '無効な年'],
-        [0, null, 'ゼロ年'],
-        [10000, null, '範囲外'],
-        [2020, null, '有効'],
+        ['年', '出来事', '(いつまで)'],
+        ['abc', '無効な年', null],
+        [0, 'ゼロ年', null],
+        [10000, '範囲外', null],
+        [2020, '有効', null],
       ],
     });
 
@@ -157,8 +157,8 @@ describe('parseExcel', () => {
     const sheets: Record<string, unknown[][]> = {};
     for (let i = 1; i <= 7; i++) {
       sheets[`Sheet${i}`] = [
-        ['年', 'いつまで', '出来事'],
-        [2000 + i, null, `イベント${i}`],
+        ['年', '出来事', '(いつまで)'],
+        [2000 + i, `イベント${i}`, null],
       ];
     }
 
@@ -170,7 +170,7 @@ describe('parseExcel', () => {
 
   it('should reject files with no valid data', async () => {
     const file = createWorkbookFile({
-      空: [['年', 'いつまで', '出来事']],
+      空: [['年', '出来事', '(いつまで)']],
     });
 
     await expect(parseExcel(file)).rejects.toThrow(/有効なデータ/);

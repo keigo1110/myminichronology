@@ -1,13 +1,11 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
+import type { Metadata } from 'next';
+import './globals.css';
 import { ThemeProvider } from './providers';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 
-const inter = Inter({ subsets: ["latin"] });
-
 const siteName = 'ミニクロ';
-const description = 'Excelデータから、自動で年表・タイムラインを生成する無料のWebアプリ。複雑な設定は不要で、ファイルをアップロードするだけ。PDF形式で簡単にエクスポートも可能です。';
+const description =
+  'Excelデータから、自動で年表・タイムラインを生成する無料のWebアプリ。複雑な設定は不要で、ファイルをアップロードするだけ。PDF形式で簡単にエクスポートも可能です。';
 const url = 'https://myminichronology.vercel.app/';
 
 export const metadata: Metadata = {
@@ -17,7 +15,18 @@ export const metadata: Metadata = {
     template: `%s | ${siteName}`,
   },
   description,
-  keywords: ['年表作成', 'タイムライン作成', '年表ジェネレーター', 'タイムラインジェネレーター', 'Excel', '自動生成', '可視化', 'PDF', '無料', 'Webアプリ'],
+  keywords: [
+    '年表作成',
+    'タイムライン作成',
+    '年表ジェネレーター',
+    'タイムラインジェネレーター',
+    'Excel',
+    '自動生成',
+    '可視化',
+    'PDF',
+    '無料',
+    'Webアプリ',
+  ],
   alternates: {
     canonical: url,
   },
@@ -57,8 +66,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja">
-      <body className={inter.className} suppressHydrationWarning>
+    <html lang="ja" suppressHydrationWarning>
+      <body suppressHydrationWarning>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var m=localStorage.getItem('minikuro-color-mode');if(m!=='light'&&m!=='dark'){m=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-color-mode',m);}catch(e){}})();`,
+          }}
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

@@ -3,7 +3,6 @@ import {
   Box,
   Typography,
   TextField,
-  Alert,
   IconButton,
   Tooltip,
   Paper,
@@ -21,10 +20,17 @@ import {
   Height,
   RestartAlt,
   HelpOutline,
+  Search,
+  KeyboardArrowUp,
+  KeyboardArrowDown,
+  DarkMode,
+  LightMode,
 } from '@mui/icons-material';
 import { DraggableLaneList } from './DraggableLaneList';
+import { CopyableAlert } from './CopyableAlert';
 import { LayoutMode } from '../lib/types';
 import { isXlsxFileName } from '../lib/fileValidation';
+import { useColorMode } from '../app/providers';
 
 const HELP_URL = 'https://note.com/namida1110/n/nfd97132121ef';
 
@@ -48,6 +54,12 @@ interface HeaderProps {
   onYearRangeChange?: (yearRange: [number, number]) => void;
   layoutMode?: LayoutMode;
   onLayoutModeChange?: (mode: LayoutMode) => void;
+  searchQuery?: string;
+  onSearchQueryChange?: (query: string) => void;
+  searchMatchCount?: number;
+  searchMatchIndex?: number;
+  onSearchNext?: () => void;
+  onSearchPrev?: () => void;
 }
 
 export function Header({
@@ -70,7 +82,14 @@ export function Header({
   onYearRangeChange,
   layoutMode = 'zoom',
   onLayoutModeChange,
+  searchQuery = '',
+  onSearchQueryChange,
+  searchMatchCount = 0,
+  searchMatchIndex = 0,
+  onSearchNext,
+  onSearchPrev,
 }: HeaderProps) {
+  const { mode, toggleColorMode } = useColorMode();
   const [isDragOver, setIsDragOver] = useState(false);
   const [expanded, setExpanded] = useState(hasData);
   const [filterYearRange, setFilterYearRange] = useState<[number, number]>([
@@ -206,9 +225,9 @@ export function Header({
     <Box
       component="header"
       sx={{
-        position: 'sticky',
-        top: 0,
+        position: 'relative',
         zIndex: 100,
+        flexShrink: 0,
         backgroundColor: 'background.paper',
         borderBottom: '1px solid',
         borderColor: 'divider',
@@ -228,28 +247,6 @@ export function Header({
         />
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {hasData && (
-            <FormControl size="small" sx={{ minWidth: 80 }}>
-              <Select
-                value={layoutMode}
-                onChange={(e) => onLayoutModeChange?.(e.target.value as LayoutMode)}
-                aria-label="レイアウトモード"
-                sx={{
-                  fontSize: '0.75rem',
-                  height: 28,
-                  '& .MuiSelect-select': { py: 0.5, px: 1 },
-                }}
-              >
-                <MenuItem value="zoom" sx={{ fontSize: '0.75rem' }}>
-                  ズーム
-                </MenuItem>
-                <MenuItem value="filter" sx={{ fontSize: '0.75rem' }}>
-                  フィルタ
-                </MenuItem>
-              </Select>
-            </FormControl>
-          )}
-
           {hasData && (
             <Tooltip title="年間高さ調整">
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 140 }}>
@@ -278,12 +275,12 @@ export function Header({
                       onClick={handleResetYearHeight}
                       disabled={yearHeight === 24}
                       sx={{
-                        width: 20,
-                        height: 20,
+                        width: 28,
+                        height: 28,
                         '&:disabled': { opacity: 0.3 },
                       }}
                     >
-                      <RestartAlt sx={{ fontSize: 14 }} />
+                      <RestartAlt sx={{ fontSize: 16 }} />
                     </IconButton>
                   </span>
                 </Tooltip>
@@ -341,6 +338,16 @@ export function Header({
             </Tooltip>
           )}
 
+          <Tooltip title={mode === 'dark' ? 'ライトモードに切替' : 'ダークモードに切替'}>
+            <IconButton
+              onClick={toggleColorMode}
+              size="small"
+              aria-label={mode === 'dark' ? 'ライトモードに切替' : 'ダークモードに切替'}
+            >
+              {mode === 'dark' ? <LightMode /> : <DarkMode />}
+            </IconButton>
+          </Tooltip>
+
           <Tooltip title="使い方ガイド">
             <IconButton
               component="a"
@@ -357,7 +364,7 @@ export function Header({
           <IconButton
             onClick={() => setExpanded(!expanded)}
             size="small"
-            aria-label={expanded ? '詳細設定を閉じる' : '詳細設定を開く'}
+            aria-label={expanded ? '表示範囲の設定を閉じる' : '表示範囲の設定を開く'}
           >
             {expanded ? <ExpandLess /> : <ExpandMore />}
           </IconButton>
@@ -366,18 +373,106 @@ export function Header({
 
       <Collapse in={expanded}>
         <Box sx={{ px: 2, pb: 1 }}>
-          <Paper sx={{ p: 1.5, backgroundColor: 'grey.50' }}>
+          <Paper
+            sx={{
+              p: 1.5,
+              backgroundColor: 'background.default',
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 1,
+            }}
+          >
             {hasData && lanes.length > 0 ? (
-              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 1.5 }}>
-                <Box sx={{ flex: { xs: '1', md: '0 0 50%' } }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: { xs: 'column', md: 'row' },
+                  alignItems: { xs: 'stretch', md: 'center' },
+                  gap: 1.5,
+                }}
+              >
+                {/* 1. 検索（表示中の出来事のみ） */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    flex: { xs: '1 1 auto', md: '0 0 auto' },
+                    minWidth: { md: 220 },
+                  }}
+                >
+                  <TextField
+                    size="small"
+                    placeholder="表示中を検索"
+                    value={searchQuery}
+                    onChange={(e) => onSearchQueryChange?.(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (e.shiftKey) onSearchPrev?.();
+                        else onSearchNext?.();
+                      }
+                    }}
+                    InputProps={{
+                      startAdornment: (
+                        <Search sx={{ fontSize: 16, color: 'text.secondary', mr: 0.5 }} />
+                      ),
+                    }}
+                    sx={{
+                      width: { xs: '100%', md: 160 },
+                      '& .MuiInputBase-root': { height: 32, fontSize: '0.75rem' },
+                      '& .MuiInputBase-input': { py: 0.5, px: 0.5 },
+                    }}
+                    inputProps={{ 'aria-label': '表示中の出来事を検索' }}
+                  />
+                  <Typography
+                    variant="caption"
+                    component="span"
+                    aria-live="polite"
+                    sx={{ minWidth: 36, textAlign: 'center', color: 'text.secondary' }}
+                  >
+                    {searchQuery.trim()
+                      ? searchMatchCount === 0
+                        ? '0/0'
+                        : `${searchMatchIndex + 1}/${searchMatchCount}`
+                      : ''}
+                  </Typography>
+                  <Tooltip title="前の一致（Shift+Enter）">
+                    <span>
+                      <IconButton
+                        size="small"
+                        onClick={onSearchPrev}
+                        disabled={!searchQuery.trim() || searchMatchCount === 0}
+                        aria-label="前の検索結果へ"
+                      >
+                        <KeyboardArrowUp fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title="次の一致（Enter）">
+                    <span>
+                      <IconButton
+                        size="small"
+                        onClick={onSearchNext}
+                        disabled={!searchQuery.trim() || searchMatchCount === 0}
+                        aria-label="次の検索結果へ"
+                      >
+                        <KeyboardArrowDown fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </Box>
+
+                {/* 2. 年代範囲 + 見せ方 */}
+                <Box sx={{ flex: { xs: '1 1 auto', md: '1 1 0' }, minWidth: 0 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                     <Typography
                       variant="body2"
                       sx={{ minWidth: 'fit-content', fontSize: '0.875rem' }}
                     >
                       年代範囲:
                     </Typography>
-                    <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flex: 1 }}>
+                    <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
                       <TextField
                         size="small"
                         type="number"
@@ -436,28 +531,63 @@ export function Header({
                             onClick={handleResetYearRange}
                             disabled={!isYearRangeActive}
                             sx={{
-                              width: 14,
-                              height: 14,
+                              width: 28,
+                              height: 28,
                               '&:disabled': { opacity: 0.3 },
                             }}
                           >
-                            <RestartAlt sx={{ fontSize: 10 }} />
+                            <RestartAlt sx={{ fontSize: 16 }} />
                           </IconButton>
                         </span>
                       </Tooltip>
                     </Box>
+                    <FormControl size="small" sx={{ minWidth: 128 }}>
+                      <Select
+                        value={layoutMode}
+                        onChange={(e) => onLayoutModeChange?.(e.target.value as LayoutMode)}
+                        aria-label="年代範囲の見せ方"
+                        sx={{
+                          fontSize: '0.75rem',
+                          height: 32,
+                          '& .MuiSelect-select': { py: 0.5, px: 1 },
+                        }}
+                      >
+                        <MenuItem value="zoom" sx={{ fontSize: '0.75rem' }}>
+                          拡大して再配置
+                        </MenuItem>
+                        <MenuItem value="filter" sx={{ fontSize: '0.75rem' }}>
+                          位置はそのまま
+                        </MenuItem>
+                      </Select>
+                    </FormControl>
+                    <Tooltip
+                      title={
+                        layoutMode === 'zoom'
+                          ? '選んだ年代を画面いっぱいに広げて再配置します'
+                          : '全体の位置関係はそのまま、範囲外の出来事だけ隠します'
+                      }
+                    >
+                      <IconButton
+                        size="small"
+                        aria-label="年代範囲の見せ方の説明"
+                        sx={{ width: 28, height: 28 }}
+                      >
+                        <HelpOutline sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </Tooltip>
                   </Box>
                 </Box>
 
-                <Box sx={{ flex: { xs: '1', md: '0 0 50%' } }}>
+                {/* 3. レーン */}
+                <Box sx={{ flex: { xs: '1 1 auto', md: '1 1 0' }, minWidth: 0 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Typography
                       variant="body2"
                       sx={{ minWidth: 'fit-content', fontSize: '0.875rem' }}
                     >
-                      表示するレーン:
+                      レーン:
                     </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1, minWidth: 0 }}>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.25, flex: 1 }}>
                         <DraggableLaneList
                           lanes={lanes}
@@ -473,12 +603,12 @@ export function Header({
                             onClick={handleResetLaneSelection}
                             disabled={isLaneSelectionDefault}
                             sx={{
-                              width: 14,
-                              height: 14,
+                              width: 28,
+                              height: 28,
                               '&:disabled': { opacity: 0.3 },
                             }}
                           >
-                            <RestartAlt sx={{ fontSize: 10 }} />
+                            <RestartAlt sx={{ fontSize: 16 }} />
                           </IconButton>
                         </span>
                       </Tooltip>
@@ -488,7 +618,7 @@ export function Header({
               </Box>
             ) : (
               <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
-                Excelファイルを読み込むと、年代範囲やレーンの詳細設定が表示されます。
+                Excelファイルを読み込むと、検索・年代範囲・レーンの設定が表示されます。
               </Typography>
             )}
           </Paper>
@@ -496,10 +626,27 @@ export function Header({
       </Collapse>
 
       {(error || exportError || fileError) && (
-        <Box sx={{ px: 2, pb: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
-          {exportError && <Alert severity="error">{exportError}</Alert>}
-          {fileError && <Alert severity="error">{fileError}</Alert>}
+        <Box sx={{ px: 2, pb: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {error && (
+            <CopyableAlert severity="error" kind="error" messages={[error]}>
+              {error}
+            </CopyableAlert>
+          )}
+          {exportError && (
+            <CopyableAlert severity="error" kind="error" messages={[exportError]}>
+              {exportError}
+            </CopyableAlert>
+          )}
+          {fileError && (
+            <CopyableAlert
+              severity="error"
+              kind="error"
+              messages={[fileError]}
+              onClose={() => onFileError?.(null)}
+            >
+              {fileError}
+            </CopyableAlert>
+          )}
         </Box>
       )}
     </Box>

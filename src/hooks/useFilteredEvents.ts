@@ -15,7 +15,7 @@ export interface FilteredEventsResult {
 
 export function useFilteredEvents(
   data: TimelineData | null,
-  positionedEvents: PositionedEvent[][],
+  _positionedEvents: PositionedEvent[][],
   filters: FilterState,
   selectedLanes: string[],
   layoutMode: LayoutMode = 'zoom',
@@ -35,9 +35,8 @@ export function useFilteredEvents(
     }
 
     const filteredData: TimelineData = [];
-    const filteredPositionedEvents: PositionedEvent[][] = [];
 
-    data.forEach((lane, laneIndex) => {
+    data.forEach((lane) => {
       if (!selectedLanes.includes(lane.name)) {
         return;
       }
@@ -53,44 +52,41 @@ export function useFilteredEvents(
           name: lane.name,
           events: filteredLaneEvents,
         });
-
-        const filteredPositioned =
-          positionedEvents[laneIndex]?.filter((pe) =>
-            filteredLaneEvents.some(
-              (e) => e.start === pe.start && e.end === pe.end && e.label === pe.label
-            )
-          ) || [];
-        filteredPositionedEvents.push(filteredPositioned);
       }
     });
 
-    if (layoutMode === 'zoom' && filteredData.length > 0) {
-      const overrideRange = {
-        min: Math.floor(filters.yearRange[0] / 10) * 10,
-        max: Math.ceil(filters.yearRange[1] / 10) * 10,
-      };
-
-      const {
-        positionedEvents: recomputedEvents,
-        layoutConfig: recomputedLayout,
-        yearRange: recomputedYearRange,
-      } = computeLayout(filteredData, yearHeightScale, overrideRange);
-
+    if (filteredData.length === 0) {
       return {
         filteredData,
-        filteredPositionedEvents: recomputedEvents,
-        layoutConfig: recomputedLayout,
-        yearRange: recomputedYearRange,
+        filteredPositionedEvents: [],
+        yearRange: baseYearRange,
       };
     }
 
+    // zoom: 選択年レンジで再レイアウト
+    // filter: 全体年レンジを維持しつつ可視イベントだけで再配置（隙間・重なりを解消）
+    const overrideRange =
+      layoutMode === 'zoom'
+        ? {
+            min: Math.floor(filters.yearRange[0] / 10) * 10,
+            max: Math.ceil(filters.yearRange[1] / 10) * 10,
+          }
+        : baseYearRange.min > 0 && baseYearRange.max > 0
+          ? baseYearRange
+          : undefined;
+
+    const {
+      positionedEvents: recomputedEvents,
+      layoutConfig: recomputedLayout,
+      yearRange: recomputedYearRange,
+    } = computeLayout(filteredData, yearHeightScale, overrideRange);
+
     return {
       filteredData,
-      filteredPositionedEvents,
-      layoutConfig: undefined,
-      yearRange: baseYearRange,
+      filteredPositionedEvents: recomputedEvents,
+      layoutConfig: recomputedLayout,
+      yearRange: layoutMode === 'zoom' ? recomputedYearRange : (baseYearRange.min > 0 ? baseYearRange : recomputedYearRange),
     };
-    // yearRangeKey / selectedLanesKey で filters・配列の参照変化を安定化
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, positionedEvents, yearRangeKey, selectedLanesKey, layoutMode, yearHeightScale, baseYearRange.min, baseYearRange.max]);
+  }, [data, yearRangeKey, selectedLanesKey, layoutMode, yearHeightScale, baseYearRange.min, baseYearRange.max]);
 }

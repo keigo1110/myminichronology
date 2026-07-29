@@ -1,11 +1,13 @@
+'use client';
+
 import React from 'react';
-import { Box, Typography, Tooltip } from '@mui/material';
+import { Box, Typography, Tooltip, useTheme } from '@mui/material';
 import { PositionedEvent } from '../lib/types';
 import { DEFAULT_EVENT_COLOR } from '../lib/parseExcel';
 import { pickReadableTextColor } from '../lib/colorPalette';
 import {
   RANGE_BAR_WIDTH_PX,
-  RANGE_BAR_WIDTH_VERTICAL_PX,
+  VERTICAL_RANGE_HEIGHT_THRESHOLD,
 } from '../lib/computeLayout';
 
 /** 1行テキストが収まる最小表示高さ */
@@ -21,6 +23,8 @@ interface EventItemProps {
   color?: string;
   onClick?: (event: PositionedEvent) => void;
   style?: React.CSSProperties;
+  eventId?: string;
+  highlighted?: boolean;
 }
 
 function parseStyleHeight(style?: React.CSSProperties): number {
@@ -29,29 +33,49 @@ function parseStyleHeight(style?: React.CSSProperties): number {
   return parseFloat(String(style.height)) || 0;
 }
 
-export function EventItem({ event, color, onClick, style }: EventItemProps) {
+function parseStyleWidth(style?: React.CSSProperties): number {
+  if (!style?.width) return 0;
+  if (typeof style.width === 'number') return style.width;
+  return parseFloat(String(style.width)) || 0;
+}
+
+export function EventItem({
+  event,
+  color,
+  onClick,
+  style,
+  eventId,
+  highlighted = false,
+}: EventItemProps) {
+  const theme = useTheme();
   const isPointEvent = !event.end;
-  const isRangeEvent = !isPointEvent;
+  const isRangeEvent = !isPointEvent && event.displayStyle !== 'label';
   const isLabelStyle = event.displayStyle === 'label';
   const isInteractive = Boolean(onClick);
-  const height = Math.max(parseStyleHeight(style), EVENT_ITEM_MIN_HEIGHT);
-  const useVertical =
-    isLabelStyle
-      ? height >= 40
-      : isRangeEvent && height >= 72;
+
+  const layoutHeight = Math.max(parseStyleHeight(style), EVENT_ITEM_MIN_HEIGHT);
+  const width = Math.max(parseStyleWidth(style), isLabelStyle ? EVENT_ITEM_MIN_HEIGHT : 0);
+
+  const fontSizePx =
+    event.fontSize ??
+    (isLabelStyle || layoutHeight >= VERTICAL_RANGE_HEIGHT_THRESHOLD
+      ? DEFAULT_VERTICAL_FONT_SIZE_PX
+      : DEFAULT_FONT_SIZE_PX);
+
+  const height = Math.max(layoutHeight, Math.ceil(fontSizePx * 1.25) + 6);
+  const useVertical = isLabelStyle || (isRangeEvent && height >= VERTICAL_RANGE_HEIGHT_THRESHOLD);
   const isCompact = !useVertical && height < 40;
 
   const accentColor = event.color || color || DEFAULT_EVENT_COLOR;
-  const fontSizePx =
-    event.fontSize ??
-    (useVertical || isLabelStyle ? DEFAULT_VERTICAL_FONT_SIZE_PX : DEFAULT_FONT_SIZE_PX);
-
   const fillColor = isLabelStyle ? accentColor : 'transparent';
   const textColor = isLabelStyle ? pickReadableTextColor(accentColor) : accentColor;
+  const highlight = theme.palette.chronology.highlight;
+  const highlightRing = theme.palette.chronology.highlightRing;
 
-  const eventLabel = isPointEvent
-    ? `${event.start}年：${event.label}`
-    : `${event.start}年-${event.end}年：${event.label}`;
+  const eventLabel =
+    isPointEvent || isLabelStyle
+      ? `${event.start}年：${event.label}`
+      : `${event.start}年-${event.end}年：${event.label}`;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!onClick) return;
@@ -61,34 +85,48 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
     }
   };
 
+  const labelTextWidth =
+    isLabelStyle && useVertical
+      ? Math.max(fontSizePx, width > 0 ? width - 8 : fontSizePx + 2)
+      : useVertical
+        ? `${fontSizePx + 2}px`
+        : 'auto';
+
   return (
     <Tooltip title={eventLabel} placement="top">
       <Box
+        id={eventId}
         role={isInteractive ? 'button' : undefined}
         tabIndex={isInteractive ? 0 : undefined}
         aria-label={eventLabel}
+        aria-current={highlighted ? 'true' : undefined}
+        data-event-label={event.label}
         sx={{
           ...style,
+          width: width > 0 ? `${width}px` : style?.width,
           height: `${height}px`,
           boxSizing: 'border-box',
           backgroundColor: fillColor,
-          border: isLabelStyle ? '1px solid rgba(0,0,0,0.12)' : 'none',
-          borderRadius: isLabelStyle ? '2px' : 0,
-          boxShadow: 'none',
+          border: highlighted
+            ? `2px solid ${highlight}`
+            : isLabelStyle
+              ? `1px solid ${theme.palette.chronology.hairline}`
+              : 'none',
+          borderRadius: isLabelStyle || highlighted ? '2px' : 0,
+          boxShadow: highlighted ? `0 0 0 3px ${highlightRing}` : 'none',
           display: 'flex',
           flexDirection: 'row',
-          alignItems: isLabelStyle
-            ? 'center'
-            : useVertical
-              ? 'flex-start'
-              : 'center',
+          alignItems: isLabelStyle ? 'center' : useVertical ? 'flex-start' : 'center',
           justifyContent: isLabelStyle ? 'center' : 'flex-start',
           gap: !isLabelStyle && isRangeEvent ? '4px' : 0,
-          px: isLabelStyle ? (useVertical ? 0.4 : 0.6) : 0,
-          py: isLabelStyle && useVertical ? 0.75 : 0,
-          overflow: 'hidden',
+          px: isLabelStyle ? 0.4 : 0,
+          py: isLabelStyle ? 0.5 : 0,
+          overflow: isLabelStyle ? 'hidden' : 'visible',
           cursor: isInteractive ? 'pointer' : 'default',
           outline: 'none',
+          zIndex: highlighted ? 20 : undefined,
+          scrollMarginTop: 'var(--app-chrome-height, 120px)',
+          transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
           '&:hover': isInteractive
             ? {
                 opacity: 0.85,
@@ -96,7 +134,7 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
               }
             : undefined,
           '&:focus-visible': {
-            boxShadow: '0 0 0 2px #1976d2',
+            boxShadow: `0 0 0 2px ${highlight}`,
             borderRadius: '2px',
           },
         }}
@@ -107,12 +145,12 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
           <Box
             aria-hidden
             sx={{
-              width: useVertical ? RANGE_BAR_WIDTH_VERTICAL_PX : RANGE_BAR_WIDTH_PX,
+              width: RANGE_BAR_WIDTH_PX,
               flexShrink: 0,
+              alignSelf: 'stretch',
               height: '100%',
               backgroundColor: accentColor,
-              borderRadius: '2px',
-              boxShadow: `inset 0 2px 0 rgba(255,255,255,0.25), inset 0 -2px 0 rgba(0,0,0,0.15)`,
+              borderRadius: '1px',
             }}
           />
         )}
@@ -123,22 +161,20 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
             color: textColor,
             fontWeight: 700,
             fontSize: `${fontSizePx}px`,
-            lineHeight: isCompact ? '1.2' : 1.25,
+            lineHeight: 1.25,
             letterSpacing: useVertical ? '0.1em' : '0.01em',
             writingMode: useVertical ? 'vertical-rl' : 'horizontal-tb',
             textOrientation: 'mixed',
             whiteSpace: useVertical || isCompact ? 'nowrap' : 'normal',
-            overflow: 'hidden',
-            textOverflow: useVertical || isCompact ? 'ellipsis' : undefined,
+            overflow: 'visible',
             display: 'block',
             wordBreak: 'break-word',
-            flex: '0 0 auto',
-            width: useVertical ? `${fontSizePx + (isLabelStyle ? 4 : 2)}px` : 'auto',
-            maxWidth: useVertical ? `${fontSizePx + (isLabelStyle ? 4 : 2)}px` : '100%',
+            flex: isLabelStyle && useVertical ? '1 1 auto' : '0 0 auto',
+            width: labelTextWidth,
+            maxWidth: isLabelStyle ? '100%' : useVertical ? `${fontSizePx + 2}px` : '100%',
             height: useVertical ? '100%' : 'auto',
             m: 0,
-            paddingTop: useVertical ? '2px' : isCompact ? '1px' : 0,
-            paddingBottom: isCompact ? '2px' : 0,
+            paddingTop: useVertical ? '2px' : 0,
             pointerEvents: 'none',
           }}
         >

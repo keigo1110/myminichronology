@@ -1,7 +1,25 @@
-:root {
+:root,
+html[data-color-mode='light'] {
   --foreground-rgb: 33, 33, 33;
   --background-start-rgb: 247, 244, 238;
   --background-end-rgb: 247, 244, 238;
+  --paper-sheet: #fffefa;
+  --hairline: rgba(0, 0, 0, 0.12);
+  --scrollbar-track: rgba(0, 0, 0, 0.04);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.22);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.36);
+  --app-chrome-height: 120px;
+}
+
+html[data-color-mode='dark'] {
+  --foreground-rgb: 245, 242, 235;
+  --background-start-rgb: 28, 26, 23;
+  --background-end-rgb: 28, 26, 23;
+  --paper-sheet: #25221e;
+  --hairline: rgba(255, 255, 255, 0.12);
+  --scrollbar-track: rgba(255, 255, 255, 0.04);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.22);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.36);
 }
 
 * {
@@ -26,24 +44,23 @@ a {
   text-decoration: none;
 }
 
-/* スクロールバーのスタイル */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
+  background: var(--scrollbar-track);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--scrollbar-thumb-hover);
 }
 
 .timeline-container {

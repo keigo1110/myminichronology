@@ -231,7 +231,7 @@ export async function parseExcel(file: File): Promise<ParseResult> {
         const row = jsonData[i];
         const rowNumber = i + 1;
 
-        if (!row || row.length < 3) {
+        if (!row || row.length < 2) {
           if (row && row.some((cell) => cell !== null && cell !== undefined && cell !== '')) {
             pushWarning(
               warnings,
@@ -245,8 +245,8 @@ export async function parseExcel(file: File): Promise<ParseResult> {
         }
 
         const startYearRaw = row[0];
-        const endYearRaw = row[1];
-        const labelRaw = row[2];
+        const labelRaw = row[1];
+        const endYearRaw = row[2];
         const fontSizeRaw = row[3];
         const colorRaw = row[4];
         const displayStyleRaw = row[5];
@@ -340,7 +340,7 @@ export async function parseExcel(file: File): Promise<ParseResult> {
           pushWarning(
             warnings,
             'invalid-style',
-            `シート「${sheetName}」${rowNumber}行目: 表示スタイル「${String(displayStyleRaw)}」が無効です（label または空欄）。`,
+            `シート「${sheetName}」${rowNumber}行目: 表示スタイル「${String(displayStyleRaw)}」は未対応のため通常表示にします（使える値: 空欄 または label）。`,
             sheetName,
             rowNumber
           );

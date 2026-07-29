@@ -50,7 +50,12 @@ npm run typecheck && npm run lint && npm run test:ci && npm run build
 
 ### 年軸の単一ソース
 
-フィルタ（zoom モード）時は `useFilteredEvents` が返す `yearRange` を `Timeline` に渡します。  
+年代範囲を絞ったときの見せ方:
+
+- **拡大して再配置**（`zoom`）: 選んだ年代を画面いっぱいに広げ、配置をやり直す
+- **位置はそのまま**（`filter`）: 全体の年スケールは変えず、範囲外の出来事だけ隠す
+
+`zoom` 時は `useFilteredEvents` が返す `yearRange` を `Timeline` に渡します。
 イベント座標と年ラベル／グリッドが同じ範囲を共有しないと、見た目上ずれます。
 
 ### レーン識別子
@@ -85,18 +90,20 @@ npm run typecheck && npm run lint && npm run test:ci && npm run build
 
 ## Excel 入力仕様
 
-列役割の正本: [`docs/excel-template-columns.md`](./docs/excel-template-columns.md)
+列役割の正本: [`docs/excel-template-columns.md`](./docs/excel-template-columns.md)  
+入力ファイル作成 Skill: [`.cursor/skills/minikuro-excel-input/`](./.cursor/skills/minikuro-excel-input/)
 
 | 列 | 内容 | 必須 |
 | --- | --- | --- |
 | A | 開始年 | ✔ |
-| B | 終了年 | 任意 |
-| C | 出来事 | ✔ |
+| B | 出来事 | ✔ |
+| C | 終了年 | 任意 |
 | D | フォントサイズ（px） | 任意 |
 | E | 色 | 任意 |
 | F | 表示スタイル（`label` / 空欄） | 任意 |
 
-- テンプレート: [`/public/template.xlsx`](./public/template.xlsx)
+- 見本テンプレート: [`/public/template_sample.xlsx`](./public/template_sample.xlsx)
+- 検証用テンプレート: [`/public/template_test.xlsx`](./public/template_test.xlsx)
 
 ## テスト方針
 
@@ -134,6 +141,7 @@ npm run typecheck && npm run lint && npm run test:ci && npm run build
 | `technologystack.md` | 技術選定の記録 |
 | `directorystructure.md` | ディレクトリ地図 |
 | `docs/excel-template-columns.md` | Excel 列役割の正本 |
+| `.cursor/skills/minikuro-excel-input/` | 年表入力 Excel 作成用 Agent Skill |
 | `docs/goal_design.png` | 年表 UI の見た目目標 |
 
 バージョンや構成を変えたら、上記ファイル（stack / structure / 本ファイル）を同じ PR で更新してください。
@@ -149,6 +157,9 @@ npm run typecheck && npm run lint && npm run test:ci && npm run build
 - イベントは背景ボックスなしのテキスト（色・フォントサイズは Excel で指定）
 - 期間イベント（いつまであり）は縦の期間バーで長さを示す
 - 長い期間イベントは縦書き
+- F列 `label` は塗りボックス。寸法は文字数（期間は使わない）
+- 重なるイベントは横に詰め、レーン幅に収まらなければ下へ退避
+- ヘッダーから出来事文字列を検索し、一致へジャンプできる
 - 密集した情報量・紙面的なトーン（角丸・影は控えめ）
 
 機能追加時も、このトーンから外れる UI 変更は事前に方針を確認してください。

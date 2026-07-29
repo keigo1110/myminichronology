@@ -1,5 +1,7 @@
+'use client';
+
 import React from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box, Typography, useTheme } from '@mui/material';
 import { formatYearLabel, getYearTickInterval, getYearTicks } from '../lib/yearTicks';
 
 interface YearAxisProps {
@@ -19,6 +21,12 @@ export function YearAxis({
   width,
   side,
 }: YearAxisProps) {
+  const theme = useTheme();
+  const sheet = theme.palette.chronology.sheet;
+  const border = theme.palette.chronology.hairlineStrong;
+  const ink = theme.palette.text.primary;
+  const muted = theme.palette.chronology.axisMuted;
+
   const yearSpan = Math.max(1, yearRange.max - yearRange.min);
   const interval = getYearTickInterval(yearRange.min, yearRange.max);
   const ticks = getYearTicks(yearRange.min, yearRange.max);
@@ -33,9 +41,9 @@ export function YearAxis({
         top: 0,
         width,
         minHeight: timelineHeight,
-        backgroundColor: '#FFFEFA',
-        borderRight: side === 'left' ? '1px solid rgba(0,0,0,0.18)' : undefined,
-        borderLeft: side === 'right' ? '1px solid rgba(0,0,0,0.18)' : undefined,
+        backgroundColor: sheet,
+        borderRight: side === 'left' ? `1px solid ${border}` : undefined,
+        borderLeft: side === 'right' ? `1px solid ${border}` : undefined,
         zIndex: 200,
         display: 'flex',
         flexDirection: 'column',
@@ -45,8 +53,8 @@ export function YearAxis({
       <Box
         sx={{
           height: headerHeight,
-          backgroundColor: '#FFFEFA',
-          borderBottom: '1px solid rgba(0,0,0,0.18)',
+          backgroundColor: sheet,
+          borderBottom: `1px solid ${border}`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -57,7 +65,7 @@ export function YearAxis({
       >
         <Typography
           sx={{
-            color: '#212121',
+            color: ink,
             fontWeight: 700,
             fontSize: '0.8rem',
             letterSpacing: '0.04em',
@@ -94,7 +102,7 @@ export function YearAxis({
                 justifyContent: side === 'left' ? 'flex-end' : 'flex-start',
                 fontSize: isEmphasized ? '0.72rem' : '0.62rem',
                 fontWeight: isEmphasized ? 700 : 500,
-                color: isEmphasized ? '#212121' : '#666',
+                color: isEmphasized ? ink : muted,
                 zIndex: 15,
                 fontVariantNumeric: 'tabular-nums',
               }}

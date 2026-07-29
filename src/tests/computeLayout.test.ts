@@ -143,6 +143,161 @@ describe('computeLayout', () => {
     // 期間が重なる点イベントは期間バーの右側へ
     expect(point.x).toBeGreaterThanOrEqual(range.x + range.width);
   });
+
+  it('should pack overlapping range events side by side without rectangle overlap', () => {
+    const data: TimelineData = [
+      {
+        name: 'Ranges',
+        events: [
+          { start: 1960, end: 1990, label: '期間A', color: '#1565C0' },
+          { start: 1970, end: 2000, label: '期間B', color: '#C45C26' },
+          { start: 1980, label: '点C', color: '#2E7D32' },
+        ],
+      },
+    ];
+
+    const result = computeLayout(data);
+    const events = result.positionedEvents[0];
+    const a = events.find((e) => e.label === '期間A')!;
+    const b = events.find((e) => e.label === '期間B')!;
+    const c = events.find((e) => e.label === '点C')!;
+
+    expect(a.height).toBeGreaterThan(c.height);
+    expect(b.height).toBeGreaterThan(c.height);
+
+    const rects = [a, b, c];
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const x = rects[i];
+        const y = rects[j];
+        const overlap = !(
+          x.x + x.width <= y.x ||
+          y.x + y.width <= x.x ||
+          x.y + x.height <= y.y ||
+          y.y + y.height <= x.y
+        );
+        expect(overlap, `${x.label} overlaps ${y.label}`).toBe(false);
+      }
+    }
+  });
+
+  it('should size label boxes by text, ignoring period span', () => {
+    const data: TimelineData = [
+      {
+        name: 'Labels',
+        events: [
+          {
+            start: 1910,
+            end: 1980,
+            label: '短',
+            displayStyle: 'label',
+            fontSize: 12,
+            color: '#C45C26',
+          },
+          {
+            start: 1920,
+            end: 1922,
+            label: 'とても長いラベル文言',
+            displayStyle: 'label',
+            fontSize: 12,
+            color: '#1565C0',
+          },
+        ],
+      },
+    ];
+
+    const result = computeLayout(data);
+    const events = result.positionedEvents[0];
+    const shortLabel = events.find((e) => e.label === '短')!;
+    const longLabel = events.find((e) => e.label.startsWith('とても長い'))!;
+
+    // 長い期間でも短い文言なら高さは小さい／長い文言は文字数で高くなる
+    expect(longLabel.height).toBeGreaterThan(shortLabel.height);
+    // 縦書き1列なので幅はほぼ同じ（文字幅）
+    expect(Math.abs(longLabel.width - shortLabel.width)).toBeLessThan(4);
+    // 期間 1910–1980 を高さに使っていない（文字1字分程度）
+    expect(shortLabel.height).toBeLessThan(80);
+  });
+
+  it('should give point events enough height for large font sizes', () => {
+    const data: TimelineData = [
+      {
+        name: 'Fonts',
+        events: [
+          { start: 1910, label: '最小フォント', fontSize: 8 },
+          { start: 1920, label: '最大フォント', fontSize: 48 },
+        ],
+      },
+    ];
+
+    const result = computeLayout(data);
+    const events = result.positionedEvents[0];
+    const small = events.find((e) => e.label === '最小フォント')!;
+    const large = events.find((e) => e.label === '最大フォント')!;
+
+    expect(large.height).toBeGreaterThanOrEqual(Math.ceil(48 * 1.25) + 6);
+    expect(large.height).toBeGreaterThan(small.height);
+  });
+
+  it('should ignore label end year for visual height and pack without overlapping tall ranges', () => {
+    const data: TimelineData = [
+      {
+        name: 'Mixed',
+        events: [
+          {
+            start: 1950,
+            end: 1980,
+            label: '長期間バー',
+            color: '#1565C0',
+          },
+          {
+            start: 1955,
+            end: 1975,
+            label: 'ラベル短',
+            displayStyle: 'label',
+            fontSize: 12,
+            color: '#C45C26',
+          },
+          { start: 1960, label: '点A', fontSize: 14 },
+          { start: 1960, label: '点B', fontSize: 14 },
+          { start: 1960, label: '最大フォント混在', fontSize: 48 },
+        ],
+      },
+    ];
+
+    const result = computeLayout(data);
+    const events = result.positionedEvents[0];
+    const label = events.find((e) => e.label === 'ラベル短')!;
+    const range = events.find((e) => e.label === '長期間バー')!;
+    const largeFont = events.find((e) => e.label === '最大フォント混在')!;
+
+    // label は期間があっても文字高さ程度
+    expect(label.height).toBeLessThan(80);
+    expect(range.height).toBeGreaterThan(label.height * 2);
+    expect(largeFont.height).toBeGreaterThanOrEqual(Math.ceil(48 * 1.25) + 6);
+
+    // 矩形同士が重ならない
+    const rects = events.map((e) => ({
+      x: e.x,
+      y: e.y,
+      width: e.width,
+      height: e.height,
+      label: e.label,
+    }));
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i];
+        const b = rects[j];
+        const overlap = !(
+          a.x + a.width <= b.x ||
+          b.x + b.width <= a.x ||
+          a.y + a.height <= b.y ||
+          b.y + b.height <= a.y
+        );
+        expect(overlap, `${a.label} overlaps ${b.label}`).toBe(false);
+      }
+    }
+  });
 });
 
 describe('calculateTimelineHeight', () => {
@@ -292,18 +447,21 @@ describe('Integration: Filter and Layout Recalculation', () => {
   const originalLayout = computeLayout(testData);
   const originalPositioned: PositionedEvent[][] = originalLayout.positionedEvents;
 
-  it('should maintain layout consistency in filter mode', () => {
+  it('should repack layout in filter mode for visible events', () => {
     const filters: FilterState = { yearRange: [2000, 2020] };
     const selectedLanes = ['政治', '経済']; // 社会レーンを除外
 
     const { result } = renderHook(() =>
-      useFilteredEvents(testData, originalPositioned, filters, selectedLanes, 'filter')
+      useFilteredEvents(testData, originalPositioned, filters, selectedLanes, 'filter', 1, {
+        min: 1990,
+        max: 2020,
+      })
     );
 
-    // フィルタモードでは元のlayoutConfigは使われない（undefined）
-    expect(result.current.layoutConfig).toBeUndefined();
+    expect(result.current.layoutConfig).toBeDefined();
     expect(result.current.filteredData).toHaveLength(2);
     expect(result.current.filteredPositionedEvents).toHaveLength(2);
+    expect(result.current.yearRange).toEqual({ min: 1990, max: 2020 });
   });
 
   it('should recalculate layout correctly in zoom mode', () => {
@@ -320,9 +478,9 @@ describe('Integration: Filter and Layout Recalculation', () => {
     expect(result.current.filteredData).toHaveLength(2);
     expect(result.current.filteredPositionedEvents).toHaveLength(2);
 
-    // フィルタ済みデータのレイアウトは元より幅が狭いはず
-    const filteredTotalWidth = result.current.layoutConfig?.totalWidth || 0;
-    expect(filteredTotalWidth).toBeLessThan(originalLayout.layoutConfig.totalWidth);
+    // フィルタ済みデータのレーン数は元より少ない
+    expect(result.current.layoutConfig?.laneWidths).toHaveLength(2);
+    expect(originalLayout.layoutConfig.laneWidths.length).toBeGreaterThan(2);
   });
 
   it('should handle year range filtering correctly', () => {

@@ -1,5 +1,7 @@
+'use client';
+
 import React from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box, Typography, useTheme } from '@mui/material';
 import { TimelineData } from '../lib/types';
 
 interface LaneHeaderRowProps {
@@ -15,6 +17,11 @@ export function LaneHeaderRow({
   headerHeight,
   laneColors = [],
 }: LaneHeaderRowProps) {
+  const theme = useTheme();
+  const sheet = theme.palette.chronology.sheet;
+  const border = theme.palette.chronology.hairlineStrong;
+  const laneBorder = theme.palette.chronology.hairline;
+
   return (
     <Box
       sx={{
@@ -22,8 +29,8 @@ export function LaneHeaderRow({
         position: 'sticky',
         top: 0,
         zIndex: 150,
-        backgroundColor: '#FFFEFA',
-        borderBottom: '1px solid rgba(0,0,0,0.18)',
+        backgroundColor: sheet,
+        borderBottom: `1px solid ${border}`,
       }}
     >
       {data.map((lane, index) => (
@@ -35,14 +42,14 @@ export function LaneHeaderRow({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            borderRight: '1px solid rgba(0,0,0,0.12)',
-            backgroundColor: laneColors[index] || '#FFFEFA',
+            borderRight: `1px solid ${laneBorder}`,
+            backgroundColor: laneColors[index] || sheet,
             px: 1,
           }}
         >
           <Typography
             sx={{
-              color: '#212121',
+              color: theme.palette.text.primary,
               fontWeight: 700,
               fontSize: '0.85rem',
               textAlign: 'center',

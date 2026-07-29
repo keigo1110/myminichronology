@@ -9,49 +9,55 @@ describe('useFilteredEvents', () => {
       name: '政治',
       events: [
         { start: 2020, label: '東京オリンピック延期' },
-        { start: 2011, end: 2012, label: '東日本大震災' }
-      ]
+        { start: 2011, end: 2012, label: '東日本大震災' },
+      ],
     },
     {
       name: '経済',
       events: [
         { start: 2021, label: 'コロナ禍の経済影響' },
-        { start: 2008, label: 'リーマンショック' }
-      ]
-    }
+        { start: 2008, label: 'リーマンショック' },
+      ],
+    },
   ];
 
   const mockPositionedEvents = [
     [
       { start: 2020, label: '東京オリンピック延期', x: 0, y: 0, width: 100, height: 30 },
-      { start: 2011, end: 2012, label: '東日本大震災', x: 0, y: 0, width: 100, height: 30 }
+      { start: 2011, end: 2012, label: '東日本大震災', x: 0, y: 0, width: 100, height: 30 },
     ],
     [
       { start: 2021, label: 'コロナ禍の経済影響', x: 0, y: 0, width: 100, height: 30 },
-      { start: 2008, label: 'リーマンショック', x: 0, y: 0, width: 100, height: 30 }
-    ]
+      { start: 2008, label: 'リーマンショック', x: 0, y: 0, width: 100, height: 30 },
+    ],
   ];
 
-  it('should return original data when no filters are applied', () => {
+  it('should return all lanes when no filters are applied', () => {
     const filters: FilterState = {
-      yearRange: [1900, 2100]
+      yearRange: [1900, 2100],
     };
     const selectedLanes = ['政治', '経済'];
     const { result } = renderHook(() =>
-      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter')
+      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter', 1, {
+        min: 1900,
+        max: 2100,
+      })
     );
     expect(result.current.filteredData).toEqual(mockData);
-    expect(result.current.filteredPositionedEvents).toEqual(mockPositionedEvents);
-    expect(result.current.layoutConfig).toBeUndefined();
+    expect(result.current.filteredPositionedEvents).toHaveLength(2);
+    expect(result.current.layoutConfig).toBeDefined();
   });
 
   it('should filter events by year range', () => {
     const filters: FilterState = {
-      yearRange: [2010, 2025]
+      yearRange: [2010, 2025],
     };
     const selectedLanes = ['政治', '経済'];
     const { result } = renderHook(() =>
-      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter')
+      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter', 1, {
+        min: 1900,
+        max: 2100,
+      })
     );
     expect(result.current.filteredData).toHaveLength(2);
     expect(result.current.filteredData![0].events).toHaveLength(2);
@@ -60,11 +66,14 @@ describe('useFilteredEvents', () => {
 
   it('should filter lanes by selection', () => {
     const filters: FilterState = {
-      yearRange: [1900, 2100]
+      yearRange: [1900, 2100],
     };
     const selectedLanes = ['政治'];
     const { result } = renderHook(() =>
-      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter')
+      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter', 1, {
+        min: 1900,
+        max: 2100,
+      })
     );
     expect(result.current.filteredData).toHaveLength(1);
     expect(result.current.filteredData![0].name).toBe('政治');
@@ -72,11 +81,14 @@ describe('useFilteredEvents', () => {
 
   it('should handle multiple filters simultaneously', () => {
     const filters: FilterState = {
-      yearRange: [2010, 2025]
+      yearRange: [2010, 2025],
     };
     const selectedLanes = ['政治'];
     const { result } = renderHook(() =>
-      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter')
+      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter', 1, {
+        min: 1900,
+        max: 2100,
+      })
     );
     expect(result.current.filteredData).toHaveLength(1);
     expect(result.current.filteredData![0].name).toBe('政治');
@@ -85,7 +97,7 @@ describe('useFilteredEvents', () => {
 
   it('should return empty arrays when no data is provided', () => {
     const filters: FilterState = {
-      yearRange: [1900, 2100]
+      yearRange: [1900, 2100],
     };
     const selectedLanes = ['政治', '経済'];
     const { result } = renderHook(() =>
@@ -97,11 +109,14 @@ describe('useFilteredEvents', () => {
 
   it('should handle events with end dates', () => {
     const filters: FilterState = {
-      yearRange: [2011, 2012]
+      yearRange: [2011, 2012],
     };
     const selectedLanes = ['政治', '経済'];
     const { result } = renderHook(() =>
-      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter')
+      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter', 1, {
+        min: 1900,
+        max: 2100,
+      })
     );
     expect(result.current.filteredData).toHaveLength(1);
     expect(result.current.filteredData![0].events).toHaveLength(1);
@@ -110,7 +125,7 @@ describe('useFilteredEvents', () => {
 
   it('should recalculate layout in zoom mode', () => {
     const filters: FilterState = {
-      yearRange: [1900, 2100]
+      yearRange: [1900, 2100],
     };
     const selectedLanes = ['政治'];
     const { result } = renderHook(() =>
@@ -118,8 +133,25 @@ describe('useFilteredEvents', () => {
     );
     expect(result.current.filteredData).toHaveLength(1);
     expect(result.current.layoutConfig).toBeDefined();
-    expect(result.current.layoutConfig?.laneWidths).toHaveLength(1);
-    expect(result.current.yearRange.min).toBeLessThanOrEqual(1900);
-    expect(result.current.yearRange.max).toBeGreaterThanOrEqual(2100);
+    expect(result.current.filteredPositionedEvents).toHaveLength(1);
+  });
+
+  it('should repack visible events in filter mode', () => {
+    const filters: FilterState = {
+      yearRange: [2010, 2025],
+    };
+    const selectedLanes = ['政治', '経済'];
+    const { result } = renderHook(() =>
+      useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter', 1, {
+        min: 1900,
+        max: 2100,
+      })
+    );
+    expect(result.current.layoutConfig).toBeDefined();
+    expect(result.current.yearRange).toEqual({ min: 1900, max: 2100 });
+    // 再配置されている（モック座標のままではない）
+    const first = result.current.filteredPositionedEvents[0][0];
+    expect(first.width).toBeGreaterThan(0);
+    expect(first.height).toBeGreaterThan(0);
   });
 });

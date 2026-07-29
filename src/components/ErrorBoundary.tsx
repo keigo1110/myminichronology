@@ -1,7 +1,8 @@
 'use client';
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { Box, Typography, Button, Alert } from '@mui/material';
+import { Box, Typography, Button } from '@mui/material';
+import { CopyableAlert } from './CopyableAlert';
 
 interface Props {
   children: ReactNode;
@@ -45,12 +46,18 @@ export class ErrorBoundary extends Component<Props, State> {
             alignItems: 'center',
             justifyContent: 'center',
             p: 3,
+            backgroundColor: 'background.default',
           }}
         >
           <Box sx={{ maxWidth: 480, width: '100%' }}>
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <CopyableAlert
+              severity="error"
+              kind="error"
+              messages={[this.state.message || '表示中にエラーが発生しました']}
+              sx={{ mb: 2 }}
+            >
               表示中にエラーが発生しました。ページを再読み込みしてください。
-            </Alert>
+            </CopyableAlert>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               {this.state.message}
             </Typography>
