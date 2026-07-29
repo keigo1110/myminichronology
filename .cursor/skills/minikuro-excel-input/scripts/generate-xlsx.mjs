@@ -31,7 +31,7 @@ function resolveXlsx() {
 
 const XLSX = resolveXlsx();
 
-const HEADER = ['年', '出来事', '(いつまで)', 'フォントサイズ', '色', '表示スタイル'];
+const HEADER = ['年', '出来事', '(いつまで)', 'フォントサイズ', '色', '表示スタイル', '画像リンク'];
 
 function parseArgs(argv) {
   const out = { out: null, input: null };
@@ -121,6 +121,7 @@ function rowToAoa(row) {
     row.fontSize ?? null,
     row.color ?? null,
     row.style ?? null,
+    row.imageUrl ?? row.image ?? null,
   ];
 }
 
@@ -146,6 +147,7 @@ function main() {
       { wch: 14 },
       { wch: 14 },
       { wch: 14 },
+      { wch: 40 },
     ];
     const safeName = String(sheet.name).slice(0, 31);
     XLSX.utils.book_append_sheet(wb, ws, safeName);

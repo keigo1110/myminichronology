@@ -21,6 +21,9 @@ export const DEFAULT_EVENT_COLOR = '#000000';
 export const MIN_FONT_SIZE_PX = 8;
 export const MAX_FONT_SIZE_PX = 48;
 
+/** 画像 URL の最大長 */
+export const MAX_IMAGE_URL_LENGTH = 2048;
+
 function parseYearValue(value: unknown): number | null {
   if (value === undefined || value === null || value === '') {
     return null;
@@ -152,6 +155,38 @@ export function parseDisplayStyleValue(
   return 'invalid';
 }
 
+/**
+ * G列の画像リンク。http/https のみ許可（XSS・巨大 data URI を避ける）。
+ * 空欄は undefined。
+ */
+export function parseImageUrlValue(value: unknown): string | undefined | 'invalid' {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  const raw = String(value).trim();
+  if (!raw) {
+    return undefined;
+  }
+
+  if (raw.length > MAX_IMAGE_URL_LENGTH) {
+    return 'invalid';
+  }
+
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return 'invalid';
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return 'invalid';
+  }
+
+  return url.href;
+}
+
 async function readFileAsArrayBuffer(file: Blob): Promise<ArrayBuffer> {
   if (typeof file.arrayBuffer === 'function') {
     return file.arrayBuffer();
@@ -250,6 +285,7 @@ export async function parseExcel(file: File): Promise<ParseResult> {
         const fontSizeRaw = row[3];
         const colorRaw = row[4];
         const displayStyleRaw = row[5];
+        const imageUrlRaw = row[6];
 
         if (
           startYearRaw === undefined ||
@@ -348,6 +384,20 @@ export async function parseExcel(file: File): Promise<ParseResult> {
           displayStyle = styleParsed;
         }
 
+        const imageParsed = parseImageUrlValue(imageUrlRaw);
+        let imageUrl: string | undefined;
+        if (imageParsed === 'invalid') {
+          pushWarning(
+            warnings,
+            'invalid-style',
+            `シート「${sheetName}」${rowNumber}行目: 画像リンク「${String(imageUrlRaw).slice(0, 80)}」が無効です（http/https の URL のみ）。画像なしで表示します。`,
+            sheetName,
+            rowNumber
+          );
+        } else {
+          imageUrl = imageParsed;
+        }
+
         events.push({
           start,
           end,
@@ -355,6 +405,7 @@ export async function parseExcel(file: File): Promise<ParseResult> {
           fontSize,
           color,
           displayStyle,
+          imageUrl,
         });
       }
 

@@ -175,4 +175,25 @@ describe('parseExcel', () => {
 
     await expect(parseExcel(file)).rejects.toThrow(/有効なデータ/);
   });
+
+  it('should parse image URL column (G)', async () => {
+    const file = createWorkbookFile({
+      文化: [
+        ['年', '出来事', '(いつまで)', 'フォントサイズ', '色', '表示スタイル', '画像リンク'],
+        [1964, '五輪', null, null, '#1565C0', null, 'https://placehold.co/96x72/png'],
+        [1970, '万博', null, null, null, null, null],
+        [1980, '無効', null, null, null, null, 'javascript:alert(1)'],
+        [1990, 'data拒否', null, null, null, null, 'data:image/png;base64,AAAA'],
+      ],
+    });
+
+    const result = await parseExcel(file);
+    expect(result.lanes[0].events[0].imageUrl).toBe('https://placehold.co/96x72/png');
+    expect(result.lanes[0].events[1].imageUrl).toBeUndefined();
+    expect(result.lanes[0].events[2].imageUrl).toBeUndefined();
+    expect(result.lanes[0].events[3].imageUrl).toBeUndefined();
+    expect(
+      result.warnings.filter((w) => w.message.includes('画像リンク')).length
+    ).toBeGreaterThanOrEqual(2);
+  });
 });

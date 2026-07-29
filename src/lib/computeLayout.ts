@@ -21,7 +21,34 @@ export const RANGE_BAR_WIDTH_VERTICAL_PX = 2;
 /** この高さ以上で縦書き（layout / EventItem 共通） */
 export const VERTICAL_RANGE_HEIGHT_THRESHOLD = 72;
 
+/** G列画像の固定表示枠（実寸に依存せずレイアウトを安定させる） */
+export const EVENT_IMAGE_MAX_WIDTH = 72;
+export const EVENT_IMAGE_MAX_HEIGHT = 54;
+export const EVENT_IMAGE_GAP = 4;
+
 type Rect = { x: number; y: number; width: number; height: number };
+
+/**
+ * 画像スロットをサイズに足す。
+ * beside: 横に並べる（縦型年表向き） / below: 下に積む（横型の期間向き）
+ */
+export function applyImageSlot(
+  size: { width: number; height: number },
+  hasImage: boolean,
+  placement: 'beside' | 'below' = 'beside'
+): { width: number; height: number } {
+  if (!hasImage) return size;
+  if (placement === 'below') {
+    return {
+      width: Math.max(size.width, EVENT_IMAGE_MAX_WIDTH),
+      height: size.height + EVENT_IMAGE_GAP + EVENT_IMAGE_MAX_HEIGHT,
+    };
+  }
+  return {
+    width: size.width + EVENT_IMAGE_GAP + EVENT_IMAGE_MAX_WIDTH,
+    height: Math.max(size.height, EVENT_IMAGE_MAX_HEIGHT),
+  };
+}
 
 /** label は表示上ポイント扱い（C列の期間はサイズ・密度に使わない） */
 export function layoutOccupancyEnd(event: Event): number {
@@ -73,12 +100,16 @@ export function measureEventSize(
     yearPxPerYear?: number;
     yearHeightScale?: number;
     provisionalRangeHeight?: number;
+    /** 画像を下に積む（横型の期間イベント向け） */
+    imagePlacement?: 'beside' | 'below';
   } = {}
 ): { width: number; height: number } {
   const yearHeightScale = options.yearHeightScale ?? 1;
+  const hasImage = Boolean(event.imageUrl);
+  const imagePlacement = options.imagePlacement ?? 'beside';
 
   if (event.displayStyle === 'label') {
-    return estimateLabelBoxDimensions(event);
+    return applyImageSlot(estimateLabelBoxDimensions(event), hasImage, 'beside');
   }
 
   const fontSize = defaultFontSize(event);
@@ -94,13 +125,17 @@ export function measureEventSize(
     const height = Math.max(minH, rangeHeight);
     // 期間は常に細い線＋テキスト幅（縦でも線のまま）
     const width = RANGE_BAR_WIDTH_PX + 6 + estimateTextWidth(event.label, fontSize) + 8;
-    return { width, height };
+    return applyImageSlot({ width, height }, hasImage, imagePlacement);
   }
 
-  return {
-    width: estimateTextWidth(event.label, fontSize) + 12,
-    height: minH,
-  };
+  return applyImageSlot(
+    {
+      width: estimateTextWidth(event.label, fontSize) + 12,
+      height: minH,
+    },
+    hasImage,
+    imagePlacement
+  );
 }
 
 function estimateMaxSimultaneousColumns(events: Event[]): number {
@@ -422,7 +457,7 @@ function computeLayoutVertical(
       let size: { width: number; height: number };
 
       if (event.displayStyle === 'label') {
-        size = estimateLabelBoxDimensions(event);
+        size = measureEventSize(event, { yearHeightScale });
       } else if (event.end != null) {
         const endY = yScale(event.end);
         const rangeHeight = Math.max(
@@ -433,7 +468,10 @@ function computeLayoutVertical(
           yearHeightScale,
           provisionalRangeHeight: rangeHeight,
         });
-        size = { ...size, height: rangeHeight };
+        // 期間の高さは年スケール優先。画像がある場合は applyImageSlot 済みの height を使う
+        if (!event.imageUrl) {
+          size = { ...size, height: rangeHeight };
+        }
       } else {
         size = measureEventSize(event, { yearHeightScale });
       }
@@ -525,10 +563,9 @@ function computeLayoutHorizontal(
       let height: number;
 
       if (event.displayStyle === 'label') {
-        const box = estimateLabelBoxDimensions(event);
-        // 横型でも label は縦書きボックス（点イベント相当）
-        width = box.width;
-        height = box.height;
+        const size = measureEventSize(event, { yearHeightScale, imagePlacement: 'beside' });
+        width = size.width;
+        height = size.height;
       } else if (event.end != null) {
         const endX = xScale(event.end);
         const fontSize = defaultFontSize(event);
@@ -536,10 +573,19 @@ function computeLayoutHorizontal(
           minHeightForFont(fontSize, yearHeightScale),
           Math.max(endX - x, yearPxPerYear * Math.max(0.5, event.end - event.start))
         );
-        height = minHeightForFont(fontSize, yearHeightScale) + 6;
-        width = rangeWidth;
+        const textHeight = minHeightForFont(fontSize, yearHeightScale) + 6;
+        const sized = applyImageSlot(
+          { width: rangeWidth, height: textHeight },
+          Boolean(event.imageUrl),
+          'below'
+        );
+        width = sized.width;
+        height = sized.height;
       } else {
-        const size = measureEventSize(event, { yearHeightScale });
+        const size = measureEventSize(event, {
+          yearHeightScale,
+          imagePlacement: 'beside',
+        });
         width = size.width;
         height = size.height;
       }

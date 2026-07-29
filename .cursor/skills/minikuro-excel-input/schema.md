@@ -12,7 +12,8 @@
           "end": 1973,
           "fontSize": 13,
           "color": "#1565C0",
-          "style": "label"
+          "style": "label",
+          "imageUrl": "https://placehold.co/96x72/png"
         }
       ]
     }
@@ -29,3 +30,4 @@
 | `rows[].fontSize` | | 8〜48 |
 | `rows[].color` | | `#RRGGBB` など |
 | `rows[].style` | | `label` / `ラベル` / 空 / `default` / `テキスト` |
+| `rows[].imageUrl` | | 画像 URL（`http`/`https`）。別名 `image` も可 |

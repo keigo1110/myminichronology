@@ -17,6 +17,8 @@ export interface Event {
   color?: string;
   /** 表示スタイル。label = goal_design 風の縦書きボックス */
   displayStyle?: EventDisplayStyle;
+  /** G列: 埋め込み画像の URL（http/https） */
+  imageUrl?: string;
 }
 
 export interface Lane {

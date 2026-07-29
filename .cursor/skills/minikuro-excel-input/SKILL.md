@@ -23,6 +23,7 @@ description: >-
 | D | フォントサイズ px（8〜48） | 任意 |
 | E | 色 `#RRGGBB` | 任意（省略時黒） |
 | F | 表示スタイル | 任意 |
+| G | 画像リンク（http/https URL） | 任意 |
 
 詳細の正本: `docs/excel-template-columns.md`
 
@@ -44,6 +45,12 @@ description: >-
 - 通常表示 → **文字色**
 - `label` → **ボックスの塗り色**（文字色は自動）
 
+### G列（画像）
+
+- `https://...` / `http://...` のみ。固定サムネ枠で埋め込み
+- PDF では CORS 許可が必要
+- 無効 URL は警告のうえ画像なし
+
 ## ワークフロー
 
 1. ユーザー意図を整理する（レーン＝シート、点/期間、label の要否）
@@ -55,7 +62,7 @@ description: >-
 ### ヘッダー行（必ずこれ）
 
 ```
-年, 出来事, (いつまで), フォントサイズ, 色, 表示スタイル
+年, 出来事, (いつまで), フォントサイズ, 色, 表示スタイル, 画像リンク
 ```
 
 ## 生成スクリプト
@@ -78,7 +85,7 @@ node .cursor/skills/minikuro-excel-input/scripts/generate-xlsx.mjs --out chronol
       "name": "政治",
       "rows": [
         { "start": 1960, "label": "高度成長", "end": 1973, "style": "label", "color": "#1565C0", "fontSize": 13 },
-        { "start": 1989, "label": "平成" }
+        { "start": 1989, "label": "平成", "imageUrl": "https://placehold.co/96x72/png" }
       ]
     }
   ]
@@ -106,6 +113,7 @@ JSON スキーマは [schema.md](schema.md) を参照。
 - [ ] D は空または 8〜48
 - [ ] E は空または `#RRGGBB` / `RRGGBB` / `rgb()`
 - [ ] F は空 / `label` / `ラベル` / `default` / `テキスト` のみ
+- [ ] G は空または http(s) URL
 - [ ] シート数 ≤ 5
 - [ ] ファイル全体の年幅 ≤ 2000
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Typography, Tooltip, useTheme } from '@mui/material';
 import { PositionedEvent, TimelineOrientation } from '../lib/types';
 import { DEFAULT_EVENT_COLOR } from '../lib/parseExcel';
@@ -8,6 +8,8 @@ import { pickReadableTextColor } from '../lib/colorPalette';
 import {
   RANGE_BAR_WIDTH_PX,
   VERTICAL_RANGE_HEIGHT_THRESHOLD,
+  EVENT_IMAGE_MAX_WIDTH,
+  EVENT_IMAGE_MAX_HEIGHT,
 } from '../lib/computeLayout';
 
 /** 1行テキストが収まる最小表示高さ */
@@ -40,6 +42,71 @@ function parseStyleWidth(style?: React.CSSProperties): number {
   return parseFloat(String(style.width)) || 0;
 }
 
+function EventImageThumb({
+  src,
+  alt,
+}: {
+  src: string;
+  alt: string;
+}) {
+  const theme = useTheme();
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
+  return (
+    <Box
+      aria-hidden={failed}
+      sx={{
+        width: EVENT_IMAGE_MAX_WIDTH,
+        height: EVENT_IMAGE_MAX_HEIGHT,
+        flexShrink: 0,
+        overflow: 'hidden',
+        border: `1px solid ${theme.palette.chronology.hairline}`,
+        backgroundColor:
+          theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: '2px',
+      }}
+    >
+      {!failed ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={alt}
+          crossOrigin="anonymous"
+          referrerPolicy="no-referrer"
+          loading="lazy"
+          onError={() => setFailed(true)}
+          style={{
+            maxWidth: '100%',
+            maxHeight: '100%',
+            objectFit: 'contain',
+            display: 'block',
+          }}
+        />
+      ) : (
+        <Typography
+          component="span"
+          sx={{
+            fontSize: '0.65rem',
+            color: 'text.disabled',
+            px: 0.5,
+            textAlign: 'center',
+            lineHeight: 1.2,
+          }}
+        >
+          画像なし
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
 export function EventItem({
   event,
   color,
@@ -55,6 +122,7 @@ export function EventItem({
   const isRangeEvent = !isPointEvent && event.displayStyle !== 'label';
   const isLabelStyle = event.displayStyle === 'label';
   const isInteractive = Boolean(onClick);
+  const hasImage = Boolean(event.imageUrl);
 
   const layoutHeight = Math.max(parseStyleHeight(style), EVENT_ITEM_MIN_HEIGHT);
   const width = Math.max(parseStyleWidth(style), isLabelStyle ? EVENT_ITEM_MIN_HEIGHT : 0);
@@ -66,7 +134,6 @@ export function EventItem({
       : DEFAULT_FONT_SIZE_PX);
 
   const height = Math.max(layoutHeight, Math.ceil(fontSizePx * 1.25) + 6);
-  // 横型の期間は横書き。label のみ縦書きボックス
   const useVertical =
     isLabelStyle ||
     (!isHorizontal && isRangeEvent && height >= VERTICAL_RANGE_HEIGHT_THRESHOLD);
@@ -93,13 +160,15 @@ export function EventItem({
 
   const labelTextWidth =
     isLabelStyle && useVertical
-      ? Math.max(fontSizePx, width > 0 ? width - 8 : fontSizePx + 2)
+      ? Math.max(fontSizePx, width > 0 ? width - 8 - (hasImage ? EVENT_IMAGE_MAX_WIDTH + 4 : 0) : fontSizePx + 2)
       : useVertical
         ? `${fontSizePx + 2}px`
         : 'auto';
 
   const showHorizontalRangeBar = isHorizontal && isRangeEvent;
   const showVerticalRangeBar = !isHorizontal && isRangeEvent;
+  /** 横型期間は画像を下に、それ以外はテキスト横 */
+  const imageBelow = isHorizontal && isRangeEvent && hasImage;
 
   return (
     <Tooltip title={eventLabel} placement="top">
@@ -124,16 +193,16 @@ export function EventItem({
           borderRadius: isLabelStyle || highlighted ? '2px' : 0,
           boxShadow: highlighted ? `0 0 0 3px ${highlightRing}` : 'none',
           display: 'flex',
-          flexDirection: showHorizontalRangeBar ? 'column' : 'row',
+          flexDirection: showHorizontalRangeBar || imageBelow ? 'column' : 'row',
           alignItems: isLabelStyle
             ? 'center'
-            : showHorizontalRangeBar
+            : showHorizontalRangeBar || imageBelow
               ? 'stretch'
               : useVertical
                 ? 'flex-start'
                 : 'center',
           justifyContent: isLabelStyle ? 'center' : 'flex-start',
-          gap: !isLabelStyle && isRangeEvent ? (showHorizontalRangeBar ? '2px' : '4px') : 0,
+          gap: !isLabelStyle && isRangeEvent ? (showHorizontalRangeBar ? '2px' : '4px') : hasImage ? '4px' : 0,
           px: isLabelStyle ? 0.4 : 0,
           py: isLabelStyle ? 0.5 : 0,
           overflow: isLabelStyle ? 'hidden' : 'visible',
@@ -184,38 +253,56 @@ export function EventItem({
           />
         )}
 
-        <Typography
-          component="span"
+        <Box
           sx={{
-            color: textColor,
-            fontWeight: 700,
-            fontSize: `${fontSizePx}px`,
-            lineHeight: 1.25,
-            letterSpacing: useVertical ? '0.1em' : '0.01em',
-            writingMode: useVertical ? 'vertical-rl' : 'horizontal-tb',
-            textOrientation: 'mixed',
-            whiteSpace: useVertical || isCompact ? 'nowrap' : 'normal',
-            overflow: 'visible',
-            display: 'block',
-            wordBreak: 'break-word',
-            flex: isLabelStyle && useVertical ? '1 1 auto' : '0 0 auto',
-            width: labelTextWidth,
-            maxWidth: isLabelStyle
-              ? '100%'
-              : useVertical
-                ? `${fontSizePx + 2}px`
-                : showHorizontalRangeBar
-                  ? '100%'
-                  : '100%',
-            height: useVertical ? '100%' : 'auto',
-            m: 0,
-            paddingTop: useVertical ? '2px' : 0,
-            paddingLeft: showHorizontalRangeBar ? '2px' : 0,
-            pointerEvents: 'none',
+            display: 'flex',
+            flexDirection: imageBelow ? 'column' : 'row',
+            alignItems: imageBelow ? 'flex-start' : useVertical || isLabelStyle ? 'center' : 'center',
+            gap: hasImage ? '4px' : 0,
+            minWidth: 0,
+            flex: imageBelow ? '1 1 auto' : undefined,
+            height: showVerticalRangeBar ? '100%' : undefined,
           }}
         >
-          {event.label}
-        </Typography>
+          {hasImage && event.imageUrl && !imageBelow && (
+            <EventImageThumb src={event.imageUrl} alt="" />
+          )}
+
+          <Typography
+            component="span"
+            sx={{
+              color: textColor,
+              fontWeight: 700,
+              fontSize: `${fontSizePx}px`,
+              lineHeight: 1.25,
+              letterSpacing: useVertical ? '0.1em' : '0.01em',
+              writingMode: useVertical ? 'vertical-rl' : 'horizontal-tb',
+              textOrientation: 'mixed',
+              whiteSpace: useVertical || isCompact ? 'nowrap' : 'normal',
+              overflow: 'visible',
+              display: 'block',
+              wordBreak: 'break-word',
+              flex: isLabelStyle && useVertical ? '1 1 auto' : '0 0 auto',
+              width: labelTextWidth,
+              maxWidth: isLabelStyle
+                ? '100%'
+                : useVertical
+                  ? `${fontSizePx + 2}px`
+                  : '100%',
+              height: useVertical ? '100%' : 'auto',
+              m: 0,
+              paddingTop: useVertical ? '2px' : 0,
+              paddingLeft: showHorizontalRangeBar ? '2px' : 0,
+              pointerEvents: 'none',
+            }}
+          >
+            {event.label}
+          </Typography>
+
+          {hasImage && event.imageUrl && imageBelow && (
+            <EventImageThumb src={event.imageUrl} alt="" />
+          )}
+        </Box>
       </Box>
     </Tooltip>
   );

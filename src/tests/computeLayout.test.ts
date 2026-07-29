@@ -630,3 +630,54 @@ describe('computeLayout horizontal', () => {
     expect(wide.layoutConfig.totalWidth).toBeGreaterThan(normal.layoutConfig.totalWidth);
   });
 });
+
+describe('computeLayout with images', () => {
+  it('reserves image slot width for events with imageUrl', () => {
+    const without: TimelineData = [
+      { name: 'A', events: [{ start: 2000, label: '文字だけ' }] },
+    ];
+    const withImg: TimelineData = [
+      {
+        name: 'A',
+        events: [
+          {
+            start: 2000,
+            label: '文字だけ',
+            imageUrl: 'https://placehold.co/96x72/png',
+          },
+        ],
+      },
+    ];
+
+    const a = computeLayout(without);
+    const b = computeLayout(withImg);
+    expect(b.positionedEvents[0][0].width).toBeGreaterThan(a.positionedEvents[0][0].width);
+    expect(b.positionedEvents[0][0].height).toBeGreaterThanOrEqual(a.positionedEvents[0][0].height);
+  });
+
+  it('stacks image below range events in horizontal layout', () => {
+    const data: TimelineData = [
+      {
+        name: '期間',
+        events: [
+          {
+            start: 2000,
+            end: 2020,
+            label: '長期',
+            imageUrl: 'https://placehold.co/96x72/png',
+          },
+        ],
+      },
+    ];
+    const plain = computeLayout(
+      [{ name: '期間', events: [{ start: 2000, end: 2020, label: '長期' }] }],
+      1,
+      undefined,
+      'horizontal'
+    );
+    const withImg = computeLayout(data, 1, undefined, 'horizontal');
+    expect(withImg.positionedEvents[0][0].height).toBeGreaterThan(
+      plain.positionedEvents[0][0].height
+    );
+  });
+});
