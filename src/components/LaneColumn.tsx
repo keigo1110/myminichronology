@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box } from '@mui/material';
 import { Lane, PositionedEvent } from '../lib/types';
-import { EventItem } from './EventItem';
+import { EventItem, EVENT_ITEM_MIN_HEIGHT } from './EventItem';
 import { getYearTicks } from '../lib/yearTicks';
 import { pickChronologyEventColor } from '../lib/colorPalette';
 
@@ -85,7 +85,7 @@ export function LaneColumn({
                 top: `${event.y}px`,
                 left: '3px',
                 right: '3px',
-                height: `${Math.max(event.height, 18)}px`,
+                height: `${Math.max(event.height, EVENT_ITEM_MIN_HEIGHT)}px`,
                 zIndex: 5,
               }}
             />
