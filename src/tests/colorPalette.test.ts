@@ -2,9 +2,34 @@ import { describe, expect, it } from 'vitest';
 import {
   accessibleColorPalettes,
   calculateContrastRatio,
+  chronologyLaneBackgrounds,
+  laneOverlayColors,
   validatePaletteAccessibility,
   materialDesignColors
 } from '../lib/colorPalette';
+
+describe('laneOverlayColors', () => {
+  it('paints dark lines on light lane backgrounds', () => {
+    chronologyLaneBackgrounds.forEach((background) => {
+      const overlay = laneOverlayColors(background);
+      expect(overlay.grid).toContain('rgba(0,0,0');
+      expect(overlay.gridDecade).toContain('rgba(0,0,0');
+      expect(overlay.hairline).toContain('rgba(0,0,0');
+    });
+  });
+
+  it('paints light lines on dark lane backgrounds', () => {
+    const overlay = laneOverlayColors('#1C1A17');
+    expect(overlay.grid).toContain('rgba(255,255,255');
+    expect(overlay.gridDecade).toContain('rgba(255,255,255');
+    expect(overlay.hairline).toContain('rgba(255,255,255');
+  });
+
+  it('makes decade lines stronger than regular grid lines', () => {
+    const light = laneOverlayColors('#E3EEF7');
+    expect(light.gridDecade).not.toBe(light.grid);
+  });
+});
 
 describe('Color Palette Accessibility', () => {
   describe('calculateContrastRatio', () => {

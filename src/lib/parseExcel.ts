@@ -158,6 +158,7 @@ export function parseDisplayStyleValue(
 
 /**
  * G列の画像リンク。http/https のみ許可（XSS・巨大 data URI を避ける）。
+ * http は混在コンテンツでブロックされるため https に格上げする。
  * 空欄は undefined。
  */
 export function parseImageUrlValue(value: unknown): string | undefined | 'invalid' {
@@ -181,7 +182,12 @@ export function parseImageUrlValue(value: unknown): string | undefined | 'invali
     return 'invalid';
   }
 
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+  if (url.protocol === 'http:') {
+    url.protocol = 'https:';
+    return url.href;
+  }
+
+  if (url.protocol !== 'https:') {
     return 'invalid';
   }
 
@@ -196,7 +202,7 @@ async function readFileAsArrayBuffer(file: Blob): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as ArrayBuffer);
-    reader.onerror = () => reject(reader.error ?? new Error('ファイルの読み込みに失敗しました。'));
+    reader.onerror = () => reject(new AppMessageError('parse.failedGeneric'));
     reader.readAsArrayBuffer(file);
   });
 }

@@ -208,3 +208,32 @@ export function pickReadableTextColor(background: string): '#FFFFFF' | '#212121'
   const darkRatio = calculateContrastRatio(background, '#212121');
   return whiteRatio >= darkRatio ? '#FFFFFF' : '#212121';
 }
+
+export interface LaneOverlayColors {
+  grid: string;
+  gridDecade: string;
+  hairline: string;
+}
+
+/**
+ * レーン背景の上に直接描く線色。
+ * テーマの chronology トークンはページ背景基準（ダークでは白系）なので、
+ * 淡色レーン背景の上では見えなくなる。背景の明るさから選ぶ。
+ */
+export function laneOverlayColors(background: string): LaneOverlayColors {
+  const isLightBackground = pickReadableTextColor(background) === '#212121';
+
+  if (isLightBackground) {
+    return {
+      grid: 'rgba(0,0,0,0.08)',
+      gridDecade: 'rgba(0,0,0,0.20)',
+      hairline: 'rgba(0,0,0,0.18)',
+    };
+  }
+
+  return {
+    grid: 'rgba(255,255,255,0.10)',
+    gridDecade: 'rgba(255,255,255,0.24)',
+    hairline: 'rgba(255,255,255,0.24)',
+  };
+}

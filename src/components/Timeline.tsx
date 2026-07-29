@@ -6,7 +6,12 @@ import { TimelineData, PositionedEvent, DynamicLayoutConfig, TimelineOrientation
 import { LaneColumn } from './LaneColumn';
 import { LaneHeaderRow } from './LaneHeaderRow';
 import { YearAxis } from './YearAxis';
-import { TIMELINE_HEADER_HEIGHT, YEAR_AXIS_HEIGHT_HORIZONTAL, LANE_LABEL_WIDTH_HORIZONTAL } from '../lib/computeLayout';
+import {
+  TIMELINE_HEADER_HEIGHT,
+  YEAR_AXIS_HEIGHT_HORIZONTAL,
+  LANE_LABEL_WIDTH_HORIZONTAL,
+  MIN_LANE_ROW_HEIGHT,
+} from '../lib/computeLayout';
 
 interface TimelineProps {
   data: TimelineData;
@@ -57,7 +62,8 @@ export function Timeline({
     (lane, index) => laneWidthByName[lane.name] ?? laneWidths[index] ?? 300
   );
   const resolvedLaneHeights = data.map(
-    (lane, index) => laneHeightByName?.[lane.name] ?? laneHeights?.[index] ?? 88
+    (lane, index) =>
+      laneHeightByName?.[lane.name] ?? laneHeights?.[index] ?? MIN_LANE_ROW_HEIGHT
   );
   const laneColors = data.map((lane) => laneColorByName[lane.name] || '#E3EEF7');
   const contentWidth = resolvedLaneWidths[0] ?? Math.max(640, totalWidth - laneLabelWidth);

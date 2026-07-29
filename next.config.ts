@@ -11,6 +11,15 @@ const nextConfig: NextConfig = {
     };
     return config;
   },
+  async rewrites() {
+    // 旧来の /favicon.ico リクエストは public/favicon.jpg で応答する
+    return [
+      {
+        source: '/favicon.ico',
+        destination: '/favicon.jpg',
+      },
+    ];
+  },
   async headers() {
     return [
       {

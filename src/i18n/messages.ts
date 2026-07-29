@@ -54,6 +54,8 @@ export const jaMessages = {
   'empty.limits': '最大10MB・最大5シート／見本ファイルから始められます',
   'empty.sample': '見本Excel',
   'empty.help': '使い方',
+  'empty.filterNoResults':
+    '表示できる出来事がありません。年代範囲やレーンの選択を確認してください。',
 
   'axis.years': '年代',
   'event.noImage': '画像なし',
@@ -73,7 +75,6 @@ export const jaMessages = {
   'error.noFile': 'ファイルが選択されていません',
   'error.loadFailed': 'Excelファイルの読み込みに失敗しました。',
   'error.pdfFailed': 'PDFのエクスポートに失敗しました。',
-  'error.unknown': 'エラーが発生しました。',
 
   'file.notXlsx': 'Excelファイル（.xlsx）を選択してください',
   'file.notXlsxPeriod': 'Excelファイル（.xlsx）を選択してください。',
@@ -117,8 +118,6 @@ export const jaMessages = {
     'シート「{sheet}」{row}行目: 画像リンク「{value}」が無効です（http/https の URL のみ）。画像なしで表示します。',
 
   'warning.moreCount': '他{count}件の警告があります。',
-  'agent.kindError': 'エラー',
-  'agent.kindWarning': '警告',
 } as const;
 
 export type MessageKey = keyof typeof jaMessages;
@@ -176,6 +175,8 @@ export const enMessages: Record<MessageKey, string> = {
   'empty.limits': 'Max 10MB · up to 5 sheets · start from the sample file',
   'empty.sample': 'Sample Excel',
   'empty.help': 'Help',
+  'empty.filterNoResults':
+    'No events match the current filters. Check the year range and lanes.',
 
   'axis.years': 'Year',
   'event.noImage': 'No image',
@@ -195,7 +196,6 @@ export const enMessages: Record<MessageKey, string> = {
   'error.noFile': 'No file selected',
   'error.loadFailed': 'Failed to load the Excel file.',
   'error.pdfFailed': 'Failed to export PDF.',
-  'error.unknown': 'An error occurred.',
 
   'file.notXlsx': 'Please choose an Excel file (.xlsx)',
   'file.notXlsxPeriod': 'Please choose an Excel file (.xlsx).',
@@ -237,8 +237,6 @@ export const enMessages: Record<MessageKey, string> = {
     'Sheet “{sheet}” row {row}: invalid image URL “{value}” (http/https only). Showing without image.',
 
   'warning.moreCount': 'and {count} more warning(s).',
-  'agent.kindError': 'Error',
-  'agent.kindWarning': 'Warning',
 };
 
 export const catalogs: Record<Locale, Record<MessageKey, string>> = {

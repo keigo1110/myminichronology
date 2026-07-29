@@ -12,6 +12,7 @@ import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { createAppTheme } from '../theme/createAppTheme';
 import { LocaleProvider } from '../i18n/LocaleProvider';
+import { useIsomorphicLayoutEffect } from '../hooks/useIsomorphicLayoutEffect';
 
 type ColorMode = 'light' | 'dark';
 
@@ -33,8 +34,17 @@ export function useColorMode() {
 
 const STORAGE_KEY = 'minikuro-color-mode';
 
+/** layout.tsx のプリペイントスクリプトが決めた値 */
+function readPrepaintMode(): ColorMode | null {
+  if (typeof document === 'undefined') return null;
+  const attr = document.documentElement.getAttribute('data-color-mode');
+  return attr === 'light' || attr === 'dark' ? attr : null;
+}
+
 function readInitialMode(): ColorMode {
   if (typeof window === 'undefined') return 'light';
+  const prepainted = readPrepaintMode();
+  if (prepainted) return prepainted;
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored === 'light' || stored === 'dark') return stored;
@@ -46,10 +56,11 @@ function readInitialMode(): ColorMode {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setMode] = useState<ColorMode>('light');
+  const [mode, setMode] = useState<ColorMode>(() => readPrepaintMode() ?? 'light');
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
+  // ハイドレーション直後・描画前に確定させ、誤った配色を一度も見せない
+  useIsomorphicLayoutEffect(() => {
     setMode(readInitialMode());
     setReady(true);
   }, []);

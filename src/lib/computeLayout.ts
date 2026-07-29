@@ -30,23 +30,26 @@ type Rect = { x: number; y: number; width: number; height: number };
 
 /**
  * 画像スロットをサイズに足す。
- * beside: 横に並べる（縦型年表向き） / below: 下に積む（横型の期間向き）
+ * beside: 横に並べる / below: 下に積む
+ * expandPrimary: true なら主軸も画像枠に合わせて広げる（点イベント向け）。
+ * false なら期間バー寸法を保ち、画像分だけ副軸を伸ばす。
  */
 export function applyImageSlot(
   size: { width: number; height: number },
   hasImage: boolean,
-  placement: 'beside' | 'below' = 'beside'
+  placement: 'beside' | 'below' = 'beside',
+  expandPrimary = true
 ): { width: number; height: number } {
   if (!hasImage) return size;
   if (placement === 'below') {
     return {
-      width: Math.max(size.width, EVENT_IMAGE_MAX_WIDTH),
+      width: expandPrimary ? Math.max(size.width, EVENT_IMAGE_MAX_WIDTH) : size.width,
       height: size.height + EVENT_IMAGE_GAP + EVENT_IMAGE_MAX_HEIGHT,
     };
   }
   return {
     width: size.width + EVENT_IMAGE_GAP + EVENT_IMAGE_MAX_WIDTH,
-    height: Math.max(size.height, EVENT_IMAGE_MAX_HEIGHT),
+    height: expandPrimary ? Math.max(size.height, EVENT_IMAGE_MAX_HEIGHT) : size.height,
   };
 }
 
@@ -102,6 +105,8 @@ export function measureEventSize(
     provisionalRangeHeight?: number;
     /** 画像を下に積む（横型の期間イベント向け） */
     imagePlacement?: 'beside' | 'below';
+    /** 期間ラベルを縦書きとして幅を狭く測る */
+    preferVerticalLabel?: boolean;
   } = {}
 ): { width: number; height: number } {
   const yearHeightScale = options.yearHeightScale ?? 1;
@@ -123,9 +128,14 @@ export function measureEventSize(
         ? Math.max(minH, spanYears * options.yearPxPerYear)
         : minH);
     const height = Math.max(minH, rangeHeight);
-    // 期間は常に細い線＋テキスト幅（縦でも線のまま）
-    const width = RANGE_BAR_WIDTH_PX + 6 + estimateTextWidth(event.label, fontSize) + 8;
-    return applyImageSlot({ width, height }, hasImage, imagePlacement);
+    const useVertical =
+      options.preferVerticalLabel ?? height >= VERTICAL_RANGE_HEIGHT_THRESHOLD;
+    const textWidth = useVertical
+      ? fontSize + 2
+      : estimateTextWidth(event.label, fontSize);
+    const width = RANGE_BAR_WIDTH_PX + 6 + textWidth + 8;
+    // 期間バーの見た目寸法は崩さない
+    return applyImageSlot({ width, height }, hasImage, imagePlacement, false);
   }
 
   return applyImageSlot(
@@ -134,7 +144,8 @@ export function measureEventSize(
       height: minH,
     },
     hasImage,
-    imagePlacement
+    imagePlacement,
+    true
   );
 }
 
@@ -467,11 +478,10 @@ function computeLayoutVertical(
         size = measureEventSize(event, {
           yearHeightScale,
           provisionalRangeHeight: rangeHeight,
+          preferVerticalLabel: rangeHeight >= VERTICAL_RANGE_HEIGHT_THRESHOLD,
         });
-        // 期間の高さは年スケール優先。画像がある場合は applyImageSlot 済みの height を使う
-        if (!event.imageUrl) {
-          size = { ...size, height: rangeHeight };
-        }
+        // 期間の高さは年スケール優先。画像は副軸方向にのみ加算済み
+        size = { ...size, height: Math.max(size.height, rangeHeight) };
       } else {
         size = measureEventSize(event, { yearHeightScale });
       }
@@ -503,15 +513,32 @@ function computeLayoutVertical(
 }
 
 const MIN_LANE_ROW_HEIGHT = 88;
+export { MIN_LANE_ROW_HEIGHT };
 /** 横型のテーマ名レール（縦書き1列分） */
 export const LANE_LABEL_WIDTH_HORIZONTAL = 44;
 const LANE_LABEL_FONT_PX = 13;
+/** 縦書きテーマ名が行高を押し上げる上限（超えたら2列幅にする） */
+const MAX_VERTICAL_LABEL_ROW_HEIGHT = 200;
 export const YEAR_AXIS_HEIGHT_HORIZONTAL = 44;
 
-/** 縦書きテーマ名が切れない最低行高 */
-export function minHeightForVerticalLaneLabel(name: string): number {
+/** 縦書きテーマ名が切れない最低行高（columns 列に折り返す想定） */
+export function minHeightForVerticalLaneLabel(name: string, columns = 1): number {
   const charCount = Math.max(1, name.length);
-  return Math.ceil(charCount * LANE_LABEL_FONT_PX * 1.28) + 20;
+  const charsPerCol = Math.ceil(charCount / Math.max(1, columns));
+  return Math.ceil(charsPerCol * LANE_LABEL_FONT_PX * 1.28) + 20;
+}
+
+function resolveHorizontalLaneLabelWidth(data: TimelineData): {
+  laneLabelWidth: number;
+  labelColumns: number;
+} {
+  const singleColHeights = data.map((lane) => minHeightForVerticalLaneLabel(lane.name, 1));
+  const needsTwoCols = singleColHeights.some((h) => h > MAX_VERTICAL_LABEL_ROW_HEIGHT);
+  const labelColumns = needsTwoCols ? 2 : 1;
+  return {
+    laneLabelWidth: LANE_LABEL_WIDTH_HORIZONTAL * labelColumns,
+    labelColumns,
+  };
 }
 
 /**
@@ -547,10 +574,11 @@ function computeLayoutHorizontal(
 
   const yearRange = yearRangeOverride ?? deriveYearRange(data);
   const yearSpan = Math.max(1, yearRange.max - yearRange.min);
+  // 横型のスライダーは「年あたりの幅」のみ。イベント高さには使わない
   const yearPxPerYear = Math.max(8, 24 * yearHeightScale);
   const contentWidth = Math.max(640, yearSpan * yearPxPerYear);
   const yearAxisHeight = YEAR_AXIS_HEIGHT_HORIZONTAL;
-  const laneLabelWidth = LANE_LABEL_WIDTH_HORIZONTAL;
+  const { laneLabelWidth, labelColumns } = resolveHorizontalLaneLabelWidth(data);
 
   const xScale = scaleLinear()
     .domain([yearRange.min, yearRange.max])
@@ -571,27 +599,31 @@ function computeLayoutHorizontal(
       let height: number;
 
       if (event.displayStyle === 'label') {
-        const size = measureEventSize(event, { yearHeightScale, imagePlacement: 'beside' });
+        const size = measureEventSize(event, {
+          yearHeightScale: 1,
+          imagePlacement: 'beside',
+        });
         width = size.width;
         height = size.height;
       } else if (event.end != null) {
         const endX = xScale(event.end);
         const fontSize = defaultFontSize(event);
         const rangeWidth = Math.max(
-          minHeightForFont(fontSize, yearHeightScale),
+          minHeightForFont(fontSize, 1),
           Math.max(endX - x, yearPxPerYear * Math.max(0.5, event.end - event.start))
         );
-        const textHeight = minHeightForFont(fontSize, yearHeightScale) + 6;
-        const sized = applyImageSlot(
-          { width: rangeWidth, height: textHeight },
-          Boolean(event.imageUrl),
-          'below'
-        );
+        const textHeight = minHeightForFont(fontSize, 1) + 6;
+        const textWidth = estimateTextWidth(event.label, fontSize) + 12;
+        const contentBox = {
+          width: Math.max(rangeWidth, textWidth),
+          height: textHeight,
+        };
+        const sized = applyImageSlot(contentBox, Boolean(event.imageUrl), 'below', false);
         width = sized.width;
         height = sized.height;
       } else {
         const size = measureEventSize(event, {
-          yearHeightScale,
+          yearHeightScale: 1,
           imagePlacement: 'beside',
         });
         width = size.width;
@@ -612,10 +644,14 @@ function computeLayoutHorizontal(
       (max, e) => Math.max(max, e.y + e.height),
       TIMELINE_PADDING
     );
+    const labelMin = Math.min(
+      MAX_VERTICAL_LABEL_ROW_HEIGHT * labelColumns,
+      minHeightForVerticalLaneLabel(lane.name, labelColumns)
+    );
     const laneHeight = Math.max(
       MIN_LANE_ROW_HEIGHT,
       maxBottom + TIMELINE_PADDING + 8,
-      minHeightForVerticalLaneLabel(lane.name)
+      labelMin
     );
     laneHeights.push(laneHeight);
     laneHeightByName[lane.name] = laneHeight;

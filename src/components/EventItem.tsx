@@ -80,7 +80,6 @@ function EventImageThumb({
         <img
           src={src}
           alt={alt}
-          crossOrigin="anonymous"
           referrerPolicy="no-referrer"
           loading="lazy"
           onError={() => setFailed(true)}

@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { computeLayout, calculateTimelineHeight, calculateTimelineWidth, LANE_LABEL_WIDTH_HORIZONTAL } from '../lib/computeLayout';
+import {
+  computeLayout,
+  calculateTimelineHeight,
+  calculateTimelineWidth,
+  LANE_LABEL_WIDTH_HORIZONTAL,
+  MIN_LANE_ROW_HEIGHT,
+} from '../lib/computeLayout';
 import { useFilteredEvents, FilterState } from '../hooks/useFilteredEvents';
 import { TimelineData, PositionedEvent } from '../lib/types';
 
@@ -614,6 +620,36 @@ describe('computeLayout horizontal', () => {
     expect(point.y).toBeGreaterThanOrEqual(range.y + range.height - 1);
   });
 
+  it('widens range events so long labels are not clipped', () => {
+    const spanYears = 2;
+    const build = (label: string): TimelineData => [
+      {
+        name: '期間',
+        events: [
+          { start: 2000, end: 2000 + spanYears, label },
+          { start: 2100, label: '端' },
+        ],
+      },
+    ];
+
+    const short = computeLayout(build('短'), 1, undefined, 'horizontal');
+    const long = computeLayout(
+      build('とても長い期間ラベルの説明文がここに入ります'),
+      1,
+      undefined,
+      'horizontal'
+    );
+
+    const shortRange = short.positionedEvents[0].find((e) => e.label === '短')!;
+    const longRange = long.positionedEvents[0].find((e) =>
+      e.label.startsWith('とても長い')
+    )!;
+
+    expect(longRange.width).toBeGreaterThan(shortRange.width);
+    // 期間の年スケール幅だけでなく、テキスト幅も確保されている
+    expect(longRange.width).toBeGreaterThan(spanYears * 24);
+  });
+
   it('scales content width with yearHeightScale', () => {
     const data: TimelineData = [
       {
@@ -702,5 +738,30 @@ describe('horizontal lane label height', () => {
       short.layoutConfig.laneHeights?.[0] ?? 0
     );
     expect(long.layoutConfig.laneLabelWidth).toBe(LANE_LABEL_WIDTH_HORIZONTAL);
+  });
+
+  it('uses a two-column label rail for very long theme names', () => {
+    const veryLongName = 'とてもとても長いテーマ名の例です';
+    const result = computeLayout(
+      [{ name: veryLongName, events: [{ start: 2000, label: 'A' }] }],
+      1,
+      undefined,
+      'horizontal'
+    );
+
+    expect(result.layoutConfig.laneLabelWidth).toBe(LANE_LABEL_WIDTH_HORIZONTAL * 2);
+  });
+
+  it('keeps lane rows at least MIN_LANE_ROW_HEIGHT tall', () => {
+    const result = computeLayout(
+      [{ name: '短', events: [{ start: 2000, label: 'A' }] }],
+      1,
+      undefined,
+      'horizontal'
+    );
+
+    expect(result.layoutConfig.laneHeights?.[0] ?? 0).toBeGreaterThanOrEqual(
+      MIN_LANE_ROW_HEIGHT
+    );
   });
 });

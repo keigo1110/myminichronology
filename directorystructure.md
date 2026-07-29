@@ -14,9 +14,11 @@
 │   └── template_test.xlsx          # 開発・境界値検証用
 ├── src/
 │   ├── app/                        # Next.js App Router
-│   │   ├── layout.tsx              # ルートレイアウト / メタデータ
+│   │   ├── layout.tsx              # ルートレイアウト / メタデータ / JSON-LD
 │   │   ├── page.tsx                # メインページ（クライアント）
 │   │   ├── providers.tsx           # ThemeProvider + LocaleProvider + ライト/ダーク
+│   │   ├── robots.ts               # /robots.txt 生成
+│   │   ├── sitemap.ts              # /sitemap.xml 生成
 │   │   ├── globals.css             # グローバル CSS
 │   │   ├── icon.png                # favicon（ファイルベース）
 │   │   └── apple-icon.png          # Apple touch icon
@@ -41,15 +43,20 @@
 │   │   ├── useSheetLoader.ts       # Excel 読み込み状態
 │   │   ├── useTimelineData.ts      # レイアウト・色・年範囲
 │   │   ├── useFilteredEvents.ts    # レーン / 年フィルタ・ズーム再計算
-│   │   └── usePdfExport.ts         # PDF エクスポート状態
+│   │   ├── usePdfExport.ts         # PDF エクスポート状態
+│   │   └── useIsomorphicLayoutEffect.ts # 描画前に同期する副作用（SSR 安全）
 │   ├── lib/
 │   │   ├── types.ts                # 共有型
+│   │   ├── site.ts                 # 公開 URL / サイト文言（metadata・robots・sitemap 共有）
 │   │   ├── fileValidation.ts       # .xlsx / サイズ / 年定数
 │   │   ├── parseExcel.ts           # Excel → TimelineData + warnings
+│   │   ├── parseWarnings.ts        # 警告の積み上げ
 │   │   ├── computeLayout.ts        # 配置計算
 │   │   ├── yearTicks.ts            # 年目盛り間隔
+│   │   ├── eventDomId.ts           # イベントの DOM id
+│   │   ├── agentPrompt.ts          # 警告修正プロンプト生成
 │   │   ├── exportPdf.ts            # html2canvas + jsPDF
-│   │   └── colorPalette.ts         # WCAG 準拠パレット / 年表配色
+│   │   └── colorPalette.ts         # WCAG 準拠パレット / 年表配色 / レーン上の線色
 │   └── tests/                      # Vitest
 ├── package.json
 ├── tsconfig.json
@@ -71,7 +78,8 @@
    - **zoom**: フィルタ後データで `computeLayout` を再実行（年軸も同期）
    - **filter**: 元レイアウトを維持し、表示だけ絞る
 5. `Timeline` がレーン名・色・幅マップで描画（左右年軸）
-6. PDF は `#timelineRoot` をキャプチャ
+   - 該当イベントが 0 件なら年表ではなく案内文（`empty.filterNoResults`）を表示
+6. PDF は `#timelineRoot` をキャプチャ（`[data-timeline-scroll]` のスクロールを先頭に戻す）
 
 ## コンポーネント役割
 

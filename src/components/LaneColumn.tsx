@@ -1,13 +1,14 @@
 'use client';
 
 import React from 'react';
-import { Box, Typography, useTheme } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { Lane, PositionedEvent, TimelineOrientation } from '../lib/types';
 import { EventItem, EVENT_ITEM_MIN_HEIGHT } from './EventItem';
 import { getYearTicks } from '../lib/yearTicks';
 import { DEFAULT_EVENT_COLOR } from '../lib/parseExcel';
 import { getEventDomId } from '../lib/eventDomId';
-import { pickReadableTextColor } from '../lib/colorPalette';
+import { laneOverlayColors, pickReadableTextColor } from '../lib/colorPalette';
+import { LANE_LABEL_WIDTH_HORIZONTAL } from '../lib/computeLayout';
 
 interface LaneColumnProps {
   lane: Lane;
@@ -38,13 +39,15 @@ export function LaneColumn({
   highlightedEventId = null,
   orientation = 'vertical',
   showLaneLabel = false,
-  laneLabelWidth = 44,
+  laneLabelWidth = LANE_LABEL_WIDTH_HORIZONTAL,
 }: LaneColumnProps) {
-  const theme = useTheme();
   const yearSpan = Math.max(1, yearRange.max - yearRange.min);
   const ticks = getYearTicks(yearRange.min, yearRange.max);
   const isHorizontal = orientation === 'horizontal';
   const rowHeight = isHorizontal ? laneHeight ?? timelineHeight : timelineHeight;
+  const overlay = laneOverlayColors(laneColor);
+  /** テーマ名レールが2列幅なら縦書きでも折り返してよい */
+  const laneLabelWraps = laneLabelWidth >= LANE_LABEL_WIDTH_HORIZONTAL * 2;
 
   return (
     <Box
@@ -55,8 +58,8 @@ export function LaneColumn({
         width: isHorizontal ? laneLabelWidth + laneWidth : laneWidth,
         minHeight: rowHeight,
         height: isHorizontal ? rowHeight : undefined,
-        borderRight: isHorizontal ? undefined : `1px solid ${theme.palette.chronology.hairline}`,
-        borderBottom: isHorizontal ? `1px solid ${theme.palette.chronology.hairline}` : undefined,
+        borderRight: isHorizontal ? undefined : `1px solid ${overlay.hairline}`,
+        borderBottom: isHorizontal ? `1px solid ${overlay.hairline}` : undefined,
       }}
     >
       {showLaneLabel && (
@@ -70,7 +73,7 @@ export function LaneColumn({
             px: 0.5,
             py: 1,
             backgroundColor: laneColor,
-            borderRight: `1px solid ${theme.palette.chronology.hairlineStrong}`,
+            borderRight: `1px solid ${overlay.hairline}`,
             position: 'sticky',
             left: 0,
             zIndex: 120,
@@ -90,7 +93,7 @@ export function LaneColumn({
               lineHeight: 1.2,
               maxHeight: '100%',
               overflow: 'visible',
-              whiteSpace: 'nowrap',
+              whiteSpace: laneLabelWraps ? 'normal' : 'nowrap',
             }}
           >
             {lane.name}
@@ -130,9 +133,7 @@ export function LaneColumn({
                       width: '100%',
                       height: '1px',
                     }),
-                backgroundColor: isDecade
-                  ? theme.palette.chronology.gridDecade
-                  : theme.palette.chronology.grid,
+                backgroundColor: isDecade ? overlay.gridDecade : overlay.grid,
                 zIndex: 1,
               }}
             />

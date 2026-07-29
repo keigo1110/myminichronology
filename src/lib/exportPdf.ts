@@ -108,6 +108,25 @@ function buildPdfPages(
   }
 }
 
+/**
+ * 年表のスクロール位置を先頭に戻す。
+ * 対象は年表要素の祖先スクロールコンテナ（`[data-timeline-scroll]`）。
+ */
+function resetTimelineScroll(element: HTMLElement): void {
+  const targets = new Set<Element>();
+
+  const closest = element.closest('[data-timeline-scroll]');
+  if (closest) targets.add(closest);
+  document
+    .querySelectorAll('[data-timeline-scroll]')
+    .forEach((target) => targets.add(target));
+
+  targets.forEach((target) => {
+    target.scrollTop = 0;
+    target.scrollLeft = 0;
+  });
+}
+
 export async function exportPdf(elementId: string): Promise<void> {
   const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
     import('html2canvas'),
@@ -122,18 +141,15 @@ export async function exportPdf(elementId: string): Promise<void> {
 
     element.classList.add('pdf-export');
 
-    const timelineContainer = element.querySelector('.timeline-container');
-    if (timelineContainer) {
-      timelineContainer.scrollTop = 0;
-      timelineContainer.scrollLeft = 0;
-    }
+    resetTimelineScroll(element);
 
     const scale = computeSafeScale(element.scrollWidth, element.scrollHeight, 3);
 
     const canvas = await html2canvas(element, {
       scale,
       useCORS: true,
-      allowTaint: true,
+      // taint されたキャンバスは toDataURL が失敗するため許可しない
+      allowTaint: false,
       backgroundColor: '#ffffff',
       logging: false,
       ignoreElements: (el) => el.classList.contains('pdf-export-ignore'),

@@ -184,6 +184,7 @@ describe('parseExcel', () => {
         [1970, '万博', null, null, null, null, null],
         [1980, '無効', null, null, null, null, 'javascript:alert(1)'],
         [1990, 'data拒否', null, null, null, null, 'data:image/png;base64,AAAA'],
+        [1995, 'http格上げ', null, null, null, null, 'http://placehold.co/96x72/png'],
       ],
     });
 
@@ -192,6 +193,8 @@ describe('parseExcel', () => {
     expect(result.lanes[0].events[1].imageUrl).toBeUndefined();
     expect(result.lanes[0].events[2].imageUrl).toBeUndefined();
     expect(result.lanes[0].events[3].imageUrl).toBeUndefined();
+    // http は混在コンテンツを避けるため https に格上げして受け入れる
+    expect(result.lanes[0].events[4].imageUrl).toBe('https://placehold.co/96x72/png');
     expect(
       result.warnings.filter((w) => w.code === 'parse.invalidImageUrl').length
     ).toBeGreaterThanOrEqual(2);

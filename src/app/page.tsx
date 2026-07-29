@@ -14,9 +14,12 @@ import { LayoutMode, TimelineOrientation } from '../lib/types';
 import { validateExcelFile } from '../lib/fileValidation';
 import { getEventDomId } from '../lib/eventDomId';
 import { useT } from '../i18n/LocaleProvider';
+import { useIsomorphicLayoutEffect } from '../hooks/useIsomorphicLayoutEffect';
 import type { MessageKey } from '../i18n/messages';
 
 const HELP_URL = 'https://note.com/namida1110/n/nfd97132121ef';
+
+const DEFAULT_YEAR_RANGE: [number, number] = [1900, 2100];
 
 export default function Home() {
   const t = useT();
@@ -43,7 +46,7 @@ export default function Home() {
   const [selectedLanes, setSelectedLanes] = useState<string[]>(data?.map((lane) => lane.name) || []);
   const [laneOrder, setLaneOrder] = useState<string[]>(data?.map((lane) => lane.name) || []);
   const [yearRangeFilter, setYearRangeFilter] = useState<[number, number]>(
-    yearRange.min > 0 && yearRange.max > 0 ? [yearRange.min, yearRange.max] : [1900, 2100]
+    yearRange.min > 0 && yearRange.max > 0 ? [yearRange.min, yearRange.max] : DEFAULT_YEAR_RANGE
   );
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('zoom');
   const [searchQuery, setSearchQuery] = useState('');
@@ -88,13 +91,16 @@ export default function Home() {
     orientation
   );
 
-  React.useEffect(() => {
+  // 前ファイルのフィルタが残ったまま新データを描画しないよう、同期的に反映する
+  useIsomorphicLayoutEffect(() => {
     if (data) {
       setSelectedLanes(data.map((lane) => lane.name));
       setLaneOrder(data.map((lane) => lane.name));
-      if (yearRange.min > 0 && yearRange.max > 0) {
-        setYearRangeFilter([yearRange.min, yearRange.max]);
-      }
+      setYearRangeFilter(
+        yearRange.min > 0 && yearRange.max > 0
+          ? [yearRange.min, yearRange.max]
+          : DEFAULT_YEAR_RANGE
+      );
       setFileError(null);
       setWarningsDismissed(false);
       setSearchQuery('');
@@ -103,6 +109,15 @@ export default function Home() {
       clearExportError();
     }
   }, [data, yearRange, clearExportError]);
+
+  const resetFilters = useCallback(() => {
+    setSelectedLanes([]);
+    setLaneOrder([]);
+    setYearRangeFilter(DEFAULT_YEAR_RANGE);
+    setSearchQuery('');
+    setSearchMatchIndex(0);
+    setHighlightedEventId(null);
+  }, []);
 
   const handleFileDrop = useCallback(
     (file: File): string | null => {
@@ -115,6 +130,7 @@ export default function Home() {
         }
 
         clearData();
+        resetFilters();
         setFileError(null);
         loadExcelFile(file);
         setIsDragOver(false);
@@ -127,7 +143,7 @@ export default function Home() {
         return errorMsg;
       }
     },
-    [clearData, loadExcelFile, t]
+    [clearData, loadExcelFile, resetFilters, t]
   );
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -176,7 +192,13 @@ export default function Home() {
     exportToPdf('timelineRoot');
   };
 
-  const displayData = filteredData || orderedData || data;
+  const displayData = filteredData ?? orderedData ?? data;
+  const hasLoadedData = Boolean(data && data.length > 0);
+  const hasVisibleEvents = Boolean(
+    displayData &&
+      displayData.length > 0 &&
+      displayData.some((lane) => lane.events.length > 0)
+  );
   const displayEvents =
     filteredPositionedEvents.length > 0
       ? filteredPositionedEvents
@@ -342,8 +364,11 @@ export default function Home() {
         )}
       </Box>
 
-      <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1, md: 1.5 }, minHeight: 0 }}>
-        {displayData ? (
+      <Box
+        data-timeline-scroll=""
+        sx={{ flex: 1, overflow: 'auto', p: { xs: 1, md: 1.5 }, minHeight: 0 }}
+      >
+        {hasLoadedData && hasVisibleEvents && displayData ? (
           <Box
             sx={{
               display: 'flex',
@@ -351,7 +376,7 @@ export default function Home() {
               minHeight: '100%',
             }}
           >
-            <Box sx={{ flex: 1, overflowX: 'auto' }}>
+            <Box data-timeline-scroll="" sx={{ flex: 1, overflowX: 'auto' }}>
               <Timeline
                 data={displayData}
                 positionedEvents={displayEvents}
@@ -363,6 +388,29 @@ export default function Home() {
                 orientation={orientation}
               />
             </Box>
+          </Box>
+        ) : hasLoadedData ? (
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              height: '100%',
+              minHeight: 360,
+              backgroundColor: 'background.paper',
+              border: '1px dashed',
+              borderColor: 'divider',
+              p: 3,
+            }}
+          >
+            <Typography
+              variant="body1"
+              color="text.secondary"
+              sx={{ textAlign: 'center', maxWidth: 440 }}
+            >
+              {t('empty.filterNoResults')}
+            </Typography>
           </Box>
         ) : (
           <Box
