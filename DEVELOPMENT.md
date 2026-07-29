@@ -93,7 +93,8 @@ npm run typecheck && npm run lint && npm run test:ci && npm run build
 | B | 終了年 | 任意 |
 | C | 出来事 | ✔ |
 | D | フォントサイズ（px） | 任意 |
-| E | 色（文字色） | 任意 |
+| E | 色 | 任意 |
+| F | 表示スタイル（`label` / 空欄） | 任意 |
 
 - テンプレート: [`/public/template.xlsx`](./public/template.xlsx)
 

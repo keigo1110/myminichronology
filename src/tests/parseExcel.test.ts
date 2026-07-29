@@ -59,6 +59,33 @@ describe('parseExcel', () => {
     });
   });
 
+  it('should parse display style label column', async () => {
+    const file = createWorkbookFile({
+      政治: [
+        ['年', 'いつまで', '出来事', 'フォントサイズ', '色', '表示スタイル'],
+        [1950, 1980, 'ラベル期間', 13, '#C45C26', 'label'],
+        [1960, null, '日本語指定', null, '#1565C0', 'ラベル'],
+        [1970, null, '通常', null, null, null],
+        [1980, null, '無効', null, null, 'box'],
+      ],
+    });
+
+    const result = await parseExcel(file);
+    expect(result.lanes[0].events[0]).toMatchObject({
+      label: 'ラベル期間',
+      displayStyle: 'label',
+      fontSize: 13,
+      color: '#C45C26',
+    });
+    expect(result.lanes[0].events[1]).toMatchObject({
+      label: '日本語指定',
+      displayStyle: 'label',
+    });
+    expect(result.lanes[0].events[2].displayStyle).toBeUndefined();
+    expect(result.lanes[0].events[3].displayStyle).toBeUndefined();
+    expect(result.warnings.some((w) => w.message.includes('表示スタイル'))).toBe(true);
+  });
+
   it('should parse font size and color columns', async () => {
     const file = createWorkbookFile({
       政治: [

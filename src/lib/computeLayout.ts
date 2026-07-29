@@ -106,12 +106,19 @@ function boxesOverlap(
 }
 
 function estimateEventVisualWidth(event: PositionedEvent, laneWidth: number): number {
-  const fontSize = event.fontSize ?? 11;
+  const fontSize = event.fontSize ?? (event.displayStyle === 'label' ? 12 : 11);
   const maxWidth = Math.max(40, laneWidth - TIMELINE_PADDING * 2);
+
+  if (event.displayStyle === 'label') {
+    if (event.end && event.height >= 40) {
+      // 塗りボックス + 縦書き1列
+      return Math.min(maxWidth, fontSize + 18);
+    }
+    return Math.min(maxWidth, estimateTextWidth(event.label, fontSize) + 16);
+  }
 
   if (event.end) {
     if (event.height >= VERTICAL_RANGE_HEIGHT_THRESHOLD) {
-      // バー + 縦書き1列
       return Math.min(maxWidth, RANGE_BAR_WIDTH_VERTICAL_PX + 4 + fontSize + 8);
     }
     return Math.min(

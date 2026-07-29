@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Typography, Tooltip } from '@mui/material';
 import { PositionedEvent } from '../lib/types';
 import { DEFAULT_EVENT_COLOR } from '../lib/parseExcel';
+import { pickReadableTextColor } from '../lib/colorPalette';
 import {
   RANGE_BAR_WIDTH_PX,
   RANGE_BAR_WIDTH_VERTICAL_PX,
@@ -31,15 +32,22 @@ function parseStyleHeight(style?: React.CSSProperties): number {
 export function EventItem({ event, color, onClick, style }: EventItemProps) {
   const isPointEvent = !event.end;
   const isRangeEvent = !isPointEvent;
+  const isLabelStyle = event.displayStyle === 'label';
   const isInteractive = Boolean(onClick);
   const height = Math.max(parseStyleHeight(style), EVENT_ITEM_MIN_HEIGHT);
-  const useVertical = isRangeEvent && height >= 72;
+  const useVertical =
+    isLabelStyle
+      ? height >= 40
+      : isRangeEvent && height >= 72;
   const isCompact = !useVertical && height < 40;
 
   const accentColor = event.color || color || DEFAULT_EVENT_COLOR;
   const fontSizePx =
     event.fontSize ??
-    (useVertical ? DEFAULT_VERTICAL_FONT_SIZE_PX : DEFAULT_FONT_SIZE_PX);
+    (useVertical || isLabelStyle ? DEFAULT_VERTICAL_FONT_SIZE_PX : DEFAULT_FONT_SIZE_PX);
+
+  const fillColor = isLabelStyle ? accentColor : 'transparent';
+  const textColor = isLabelStyle ? pickReadableTextColor(accentColor) : accentColor;
 
   const eventLabel = isPointEvent
     ? `${event.start}年：${event.label}`
@@ -63,22 +71,28 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
           ...style,
           height: `${height}px`,
           boxSizing: 'border-box',
-          backgroundColor: 'transparent',
-          border: 'none',
+          backgroundColor: fillColor,
+          border: isLabelStyle ? '1px solid rgba(0,0,0,0.12)' : 'none',
+          borderRadius: isLabelStyle ? '2px' : 0,
           boxShadow: 'none',
           display: 'flex',
           flexDirection: 'row',
-          alignItems: useVertical ? 'flex-start' : 'center',
-          justifyContent: 'flex-start',
-          gap: isRangeEvent ? '4px' : 0,
-          px: 0,
-          py: 0,
+          alignItems: isLabelStyle
+            ? 'center'
+            : useVertical
+              ? 'flex-start'
+              : 'center',
+          justifyContent: isLabelStyle ? 'center' : 'flex-start',
+          gap: !isLabelStyle && isRangeEvent ? '4px' : 0,
+          px: isLabelStyle ? (useVertical ? 0.4 : 0.6) : 0,
+          py: isLabelStyle && useVertical ? 0.75 : 0,
           overflow: 'hidden',
           cursor: isInteractive ? 'pointer' : 'default',
           outline: 'none',
           '&:hover': isInteractive
             ? {
-                opacity: 0.75,
+                opacity: 0.85,
+                filter: isLabelStyle ? 'brightness(0.97)' : undefined,
               }
             : undefined,
           '&:focus-visible': {
@@ -89,7 +103,7 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
         onClick={() => onClick?.(event)}
         onKeyDown={handleKeyDown}
       >
-        {isRangeEvent && (
+        {!isLabelStyle && isRangeEvent && (
           <Box
             aria-hidden
             sx={{
@@ -106,11 +120,11 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
         <Typography
           component="span"
           sx={{
-            color: accentColor,
+            color: textColor,
             fontWeight: 700,
             fontSize: `${fontSizePx}px`,
             lineHeight: isCompact ? '1.2' : 1.25,
-            letterSpacing: useVertical ? '0.08em' : '0.01em',
+            letterSpacing: useVertical ? '0.1em' : '0.01em',
             writingMode: useVertical ? 'vertical-rl' : 'horizontal-tb',
             textOrientation: 'mixed',
             whiteSpace: useVertical || isCompact ? 'nowrap' : 'normal',
@@ -118,10 +132,9 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
             textOverflow: useVertical || isCompact ? 'ellipsis' : undefined,
             display: 'block',
             wordBreak: 'break-word',
-            // 縦書きをバー直後に密着（flex:1 禁止 = 右端への離れを防ぐ）
             flex: '0 0 auto',
-            width: useVertical ? `${fontSizePx + 2}px` : 'auto',
-            maxWidth: useVertical ? `${fontSizePx + 2}px` : '100%',
+            width: useVertical ? `${fontSizePx + (isLabelStyle ? 4 : 2)}px` : 'auto',
+            maxWidth: useVertical ? `${fontSizePx + (isLabelStyle ? 4 : 2)}px` : '100%',
             height: useVertical ? '100%' : 'auto',
             m: 0,
             paddingTop: useVertical ? '2px' : isCompact ? '1px' : 0,

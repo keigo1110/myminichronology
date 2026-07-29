@@ -1,11 +1,19 @@
+export type EventDisplayStyle = 'default' | 'label';
+
 export interface Event {
   start: number;
   end?: number; // undefined → 点イベント
   label: string;
   /** フォントサイズ（px）。未指定時は UI デフォルト */
   fontSize?: number;
-  /** 文字色（#RRGGBB）。未指定時は黒 */
+  /**
+   * 色（#RRGGBB）。
+   * default 表示: 文字色 / label 表示: ボックス塗り色。
+   * 未指定時は黒。
+   */
   color?: string;
+  /** 表示スタイル。label = goal_design 風の縦書きボックス */
+  displayStyle?: EventDisplayStyle;
 }
 
 export interface Lane {

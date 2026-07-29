@@ -1,4 +1,12 @@
-import type { TimelineData, Event, Lane, ParseResult, ParseWarning, ParseErrorType } from './types';
+import type {
+  TimelineData,
+  Event,
+  Lane,
+  ParseResult,
+  ParseWarning,
+  ParseErrorType,
+  EventDisplayStyle,
+} from './types';
 import {
   MAX_SHEETS,
   MAX_YEAR,
@@ -6,7 +14,7 @@ import {
   MIN_YEAR,
 } from './fileValidation';
 
-/** 未指定時のイベント文字色（黒） */
+/** 未指定時のイベント色（黒） */
 export const DEFAULT_EVENT_COLOR = '#000000';
 
 /** フォントサイズの許容範囲（px） */
@@ -112,6 +120,38 @@ export function parseColorValue(value: unknown): string | undefined | 'invalid' 
   return 'invalid';
 }
 
+/**
+ * F列の表示スタイル。
+ * `label` / `ラベル` → ボックス縦ラベル。空欄は default。
+ */
+export function parseDisplayStyleValue(
+  value: unknown
+): EventDisplayStyle | undefined | 'invalid' {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (normalized === 'label' || normalized === 'ラベル') {
+    return 'label';
+  }
+
+  if (
+    normalized === 'default' ||
+    normalized === 'デフォルト' ||
+    normalized === 'text' ||
+    normalized === 'テキスト'
+  ) {
+    return 'default';
+  }
+
+  return 'invalid';
+}
+
 async function readFileAsArrayBuffer(file: Blob): Promise<ArrayBuffer> {
   if (typeof file.arrayBuffer === 'function') {
     return file.arrayBuffer();
@@ -209,6 +249,7 @@ export async function parseExcel(file: File): Promise<ParseResult> {
         const labelRaw = row[2];
         const fontSizeRaw = row[3];
         const colorRaw = row[4];
+        const displayStyleRaw = row[5];
 
         if (
           startYearRaw === undefined ||
@@ -284,7 +325,7 @@ export async function parseExcel(file: File): Promise<ParseResult> {
           pushWarning(
             warnings,
             'invalid-style',
-            `シート「${sheetName}」${rowNumber}行目: 色「${String(colorRaw)}」が無効です（例: #C45C26）。文字色は黒を使います。`,
+            `シート「${sheetName}」${rowNumber}行目: 色「${String(colorRaw)}」が無効です（例: #C45C26）。黒を使います。`,
             sheetName,
             rowNumber
           );
@@ -293,12 +334,27 @@ export async function parseExcel(file: File): Promise<ParseResult> {
           color = colorParsed ?? DEFAULT_EVENT_COLOR;
         }
 
+        const styleParsed = parseDisplayStyleValue(displayStyleRaw);
+        let displayStyle: EventDisplayStyle | undefined;
+        if (styleParsed === 'invalid') {
+          pushWarning(
+            warnings,
+            'invalid-style',
+            `シート「${sheetName}」${rowNumber}行目: 表示スタイル「${String(displayStyleRaw)}」が無効です（label または空欄）。`,
+            sheetName,
+            rowNumber
+          );
+        } else if (styleParsed && styleParsed !== 'default') {
+          displayStyle = styleParsed;
+        }
+
         events.push({
           start,
           end,
           label: String(labelRaw).trim(),
           fontSize,
           color,
+          displayStyle,
         });
       }
 
