@@ -54,8 +54,8 @@ describe('useFilteredEvents', () => {
       useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter')
     );
     expect(result.current.filteredData).toHaveLength(2);
-    expect(result.current.filteredData[0].events).toHaveLength(2);
-    expect(result.current.filteredData[1].events).toHaveLength(1);
+    expect(result.current.filteredData![0].events).toHaveLength(2);
+    expect(result.current.filteredData![1].events).toHaveLength(1);
   });
 
   it('should filter lanes by selection', () => {
@@ -67,7 +67,7 @@ describe('useFilteredEvents', () => {
       useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter')
     );
     expect(result.current.filteredData).toHaveLength(1);
-    expect(result.current.filteredData[0].name).toBe('政治');
+    expect(result.current.filteredData![0].name).toBe('政治');
   });
 
   it('should handle multiple filters simultaneously', () => {
@@ -79,8 +79,8 @@ describe('useFilteredEvents', () => {
       useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter')
     );
     expect(result.current.filteredData).toHaveLength(1);
-    expect(result.current.filteredData[0].name).toBe('政治');
-    expect(result.current.filteredData[0].events).toHaveLength(2);
+    expect(result.current.filteredData![0].name).toBe('政治');
+    expect(result.current.filteredData![0].events).toHaveLength(2);
   });
 
   it('should return empty arrays when no data is provided', () => {
@@ -104,8 +104,8 @@ describe('useFilteredEvents', () => {
       useFilteredEvents(mockData, mockPositionedEvents, filters, selectedLanes, 'filter')
     );
     expect(result.current.filteredData).toHaveLength(1);
-    expect(result.current.filteredData[0].events).toHaveLength(1);
-    expect(result.current.filteredData[0].events[0].label).toBe('東日本大震災');
+    expect(result.current.filteredData![0].events).toHaveLength(1);
+    expect(result.current.filteredData![0].events[0].label).toBe('東日本大震災');
   });
 
   it('should recalculate layout in zoom mode', () => {
@@ -119,5 +119,7 @@ describe('useFilteredEvents', () => {
     expect(result.current.filteredData).toHaveLength(1);
     expect(result.current.layoutConfig).toBeDefined();
     expect(result.current.layoutConfig?.laneWidths).toHaveLength(1);
+    expect(result.current.yearRange.min).toBeLessThanOrEqual(1900);
+    expect(result.current.yearRange.max).toBeGreaterThanOrEqual(2100);
   });
 });

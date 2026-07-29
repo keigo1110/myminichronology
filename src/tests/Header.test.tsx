@@ -5,7 +5,16 @@ import { Header } from '../components/Header';
 
 // DraggableLaneListのモック
 vi.mock('../components/DraggableLaneList', () => ({
-  DraggableLaneList: ({ lanes, selectedLanes, onLaneSelectionChange, onLaneOrderChange }: any) => (
+  DraggableLaneList: ({
+    lanes,
+    selectedLanes,
+    onLaneSelectionChange,
+  }: {
+    lanes: string[];
+    selectedLanes: string[];
+    onLaneSelectionChange: (lanes: string[]) => void;
+    onLaneOrderChange?: (lanes: string[]) => void;
+  }) => (
     <div data-testid="draggable-lane-list">
       {lanes.map((lane: string) => (
         <button
@@ -168,7 +177,7 @@ describe('Header', () => {
     const mockOnFileDrop = vi.fn().mockReturnValue('ファイルサイズが大きすぎます（10MB以下にしてください）');
     render(<Header {...mockProps} onFileDrop={mockOnFileDrop} />);
 
-    const fileInput = screen.getByRole('button', { name: /excel ファイルをアップロード/i });
+    const fileInput = screen.getByRole('button', { name: /Excelファイルをアップロード/i });
     const file = new File(['test content'], 'test.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
     fireEvent.change(fileInput.querySelector('input')!, { target: { files: [file] } });
@@ -181,7 +190,7 @@ describe('Header', () => {
     const mockOnFileDrop = vi.fn().mockReturnValue(null); // 成功
     render(<Header {...mockProps} onFileDrop={mockOnFileDrop} />);
 
-    const fileInput = screen.getByRole('button', { name: /excel ファイルをアップロード/i });
+    const fileInput = screen.getByRole('button', { name: /Excelファイルをアップロード/i });
     const file = new File(['test content'], 'test.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
     fireEvent.change(fileInput.querySelector('input')!, { target: { files: [file] } });

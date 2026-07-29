@@ -1,7 +1,8 @@
 import React from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box } from '@mui/material';
 import { Lane, PositionedEvent } from '../lib/types';
 import { EventItem } from './EventItem';
+import { getYearTicks } from '../lib/yearTicks';
 
 interface LaneColumnProps {
   lane: Lane;
@@ -12,8 +13,6 @@ interface LaneColumnProps {
   onEventClick?: (event: PositionedEvent) => void;
   yearRange: { min: number; max: number };
   timelineHeight: number;
-  scrollPosition: number;
-  showHeader?: boolean; // ヘッダー表示制御
 }
 
 export function LaneColumn({
@@ -25,79 +24,35 @@ export function LaneColumn({
   onEventClick,
   yearRange,
   timelineHeight,
-  scrollPosition,
-  showHeader = true // デフォルトはヘッダー表示
 }: LaneColumnProps) {
-  // 年軸のヘッダー高さを考慮した位置計算
-  const headerHeight = 60;
+  const yearSpan = Math.max(1, yearRange.max - yearRange.min);
+  const ticks = getYearTicks(yearRange.min, yearRange.max);
 
   return (
     <Box
       sx={{
         position: 'relative',
         width: laneWidth,
-        minHeight: timelineHeight, // minHeightに変更
+        minHeight: timelineHeight,
         backgroundColor: laneColor,
         borderRight: '1px solid rgba(0,0,0,0.1)',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
       }}
     >
-      {/* レーンタイトル（条件付き表示） */}
-      {showHeader && (
-        <Box
-          data-lane-title="true"
-          sx={{
-            position: 'sticky', // stickyで固定
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: headerHeight,
-            zIndex: 99, // 年代軸より少し低く
-            backgroundColor: 'rgba(255,255,255,0.95)',
-            borderBottom: '2px solid rgba(0,0,0,0.2)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          }}
-        >
-          <Typography
-            variant="body1"
-            sx={{
-              color: '#212121',
-              fontWeight: 'bold',
-              fontSize: '0.9rem',
-              textAlign: 'center',
-              maxWidth: '90%',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            {lane.name}
-          </Typography>
-        </Box>
-      )}
-
-      {/* イベントコンテンツエリア */}
       <Box
         sx={{
           position: 'relative',
-          flex: 1, // flexで残り全体を占有
-          minHeight: timelineHeight, // 最小高さを保証
+          flex: 1,
+          minHeight: timelineHeight,
         }}
       >
-        {/* グリッド線の描画 */}
-        {Array.from({ length: Math.floor((yearRange.max - yearRange.min) / 10) + 1 }, (_, i) => {
-          const year = yearRange.min + i * 10;
-          // 年代ラベルと同じ計算方法を使用（contentHeightベース）
-          const contentHeight = timelineHeight - (showHeader ? 60 : 0);
-          const y = ((year - yearRange.min) / (yearRange.max - yearRange.min)) * contentHeight;
+        {ticks.map((year) => {
+          const y = ((year - yearRange.min) / yearSpan) * timelineHeight;
 
           return (
             <Box
-              key={`grid-${year}`}
+              key={`grid-${lane.name}-${year}`}
               sx={{
                 position: 'absolute',
                 left: 0,
@@ -105,35 +60,28 @@ export function LaneColumn({
                 width: '100%',
                 height: '1px',
                 backgroundColor: 'rgba(0,0,0,0.1)',
-                zIndex: 1
+                zIndex: 1,
               }}
             />
           );
         })}
 
-        {/* イベントの描画 */}
-        {events.map((event, index) => {
-          // スクロール位置の影響を削除（固定位置で表示）
-          const eventTop = event.y;
-          const eventHeight = event.height;
-
-          return (
-            <EventItem
-              key={`${event.label}-${index}`}
-              event={event}
-              color={eventColor}
-              onClick={onEventClick}
-              style={{
-                position: 'absolute',
-                top: `${eventTop}px`,
-                left: '4px',
-                right: '4px',
-                height: `${eventHeight}px`,
-                zIndex: 5
-              }}
-            />
-          );
-        })}
+        {events.map((event, index) => (
+          <EventItem
+            key={`${lane.name}-${event.label}-${event.start}-${index}`}
+            event={event}
+            color={eventColor}
+            onClick={onEventClick}
+            style={{
+              position: 'absolute',
+              top: `${event.y}px`,
+              left: '4px',
+              right: '4px',
+              height: `${event.height}px`,
+              zIndex: 5,
+            }}
+          />
+        ))}
       </Box>
     </Box>
   );

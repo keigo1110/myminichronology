@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Box, Typography, Button } from '@mui/material';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
+import { Box, Typography, Button, Alert } from '@mui/material';
 import { HelpOutline } from '@mui/icons-material';
 import { Header } from '../components/Header';
 import { Timeline } from '../components/Timeline';
@@ -9,260 +9,245 @@ import { useSheetLoader } from '../hooks/useSheetLoader';
 import { useTimelineData } from '../hooks/useTimelineData';
 import { useFilteredEvents } from '../hooks/useFilteredEvents';
 import { usePdfExport } from '../hooks/usePdfExport';
-import { PositionedEvent, LayoutMode } from '../lib/types';
+import { LayoutMode } from '../lib/types';
+import { validateExcelFile } from '../lib/fileValidation';
+
+const HELP_URL = 'https://note.com/namida1110/n/nfd97132121ef';
 
 export default function Home() {
-  const { data, loading, error, loadExcelFile, clearData } = useSheetLoader();
-  const { positionedEvents, layoutConfig, yearRange, laneColors, eventColors, setSelectedEvent, yearHeight, setYearHeight } = useTimelineData(data);
+  const { data, loading, error, warnings, loadExcelFile, clearData } = useSheetLoader();
+  const {
+    positionedEvents,
+    layoutConfig,
+    yearRange,
+    laneColorByName,
+    eventColorByName,
+    yearHeight,
+    setYearHeight,
+  } = useTimelineData(data);
   const { exporting, exportError, exportToPdf, clearExportError } = usePdfExport();
+
   const [isDragOver, setIsDragOver] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [warningsDismissed, setWarningsDismissed] = useState(false);
+  const dragDepthRef = useRef(0);
 
-  // レーン選択状態の管理
-  const [selectedLanes, setSelectedLanes] = useState<string[]>(data?.map(lane => lane.name) || []);
-
-  // レーン順序状態の管理
-  const [laneOrder, setLaneOrder] = useState<string[]>(data?.map(lane => lane.name) || []);
-
-  // 年代範囲フィルター状態の管理（yearRangeが有効な場合のみ初期化）
+  const [selectedLanes, setSelectedLanes] = useState<string[]>(data?.map((lane) => lane.name) || []);
+  const [laneOrder, setLaneOrder] = useState<string[]>(data?.map((lane) => lane.name) || []);
   const [yearRangeFilter, setYearRangeFilter] = useState<[number, number]>(
     yearRange.min > 0 && yearRange.max > 0 ? [yearRange.min, yearRange.max] : [1900, 2100]
   );
-
-  // レイアウトモードの管理
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('zoom');
 
-  // レーン順序に基づいてデータを並び替え
-  const orderedData = React.useMemo(() => {
+  const orderedData = useMemo(() => {
     if (!data || !laneOrder.length) return data;
-
-    return laneOrder.map(laneName =>
-      data.find(lane => lane.name === laneName)
-    ).filter(Boolean) as typeof data;
+    return laneOrder
+      .map((laneName) => data.find((lane) => lane.name === laneName))
+      .filter(Boolean) as typeof data;
   }, [data, laneOrder]);
 
-  // レーン順序に基づいてpositionedEventsを並び替え
-  const orderedPositionedEvents = React.useMemo(() => {
-    if (!positionedEvents.length || !laneOrder.length) return positionedEvents;
+  const orderedPositionedEvents = useMemo(() => {
+    if (!positionedEvents.length || !laneOrder.length || !data) return positionedEvents;
 
-    return laneOrder.map(laneName => {
-      const laneIndex = data?.findIndex(lane => lane.name === laneName);
-      return laneIndex !== undefined && laneIndex >= 0 ? positionedEvents[laneIndex] : [];
-    }).filter(events => events.length > 0);
+    return laneOrder
+      .map((laneName) => {
+        const laneIndex = data.findIndex((lane) => lane.name === laneName);
+        return laneIndex >= 0 ? positionedEvents[laneIndex] : [];
+      })
+      .filter((events) => events.length > 0);
   }, [positionedEvents, laneOrder, data]);
 
-  // フィルタリング適用（年代範囲のみ）
-  const { filteredData, filteredPositionedEvents, layoutConfig: filteredLayoutConfig } = useFilteredEvents(
-    orderedData,
-    orderedPositionedEvents,
-    { yearRange: yearRangeFilter },
-    selectedLanes,
-    layoutMode,
-    yearHeight / 24
+  const filterState = useMemo(
+    () => ({ yearRange: yearRangeFilter }),
+    [yearRangeFilter]
   );
 
-  // データが変更されたときにフィルターをリセット
+  const {
+    filteredData,
+    filteredPositionedEvents,
+    layoutConfig: filteredLayoutConfig,
+    yearRange: displayYearRange,
+  } = useFilteredEvents(
+    orderedData,
+    orderedPositionedEvents,
+    filterState,
+    selectedLanes,
+    layoutMode,
+    yearHeight / 24,
+    yearRange
+  );
+
   React.useEffect(() => {
     if (data) {
-      setSelectedLanes(data.map(lane => lane.name));
-      setLaneOrder(data.map(lane => lane.name));
-      // yearRangeが有効な場合のみ更新
+      setSelectedLanes(data.map((lane) => lane.name));
+      setLaneOrder(data.map((lane) => lane.name));
       if (yearRange.min > 0 && yearRange.max > 0) {
         setYearRangeFilter([yearRange.min, yearRange.max]);
       }
+      setFileError(null);
+      setWarningsDismissed(false);
+      clearExportError();
     }
-  }, [data, yearRange]);
+  }, [data, yearRange, clearExportError]);
 
-  // グローバルエラーハンドラー
-  React.useEffect(() => {
-    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      console.error('Unhandled promise rejection:', event.reason);
-      event.preventDefault();
-    };
+  const handleFileDrop = useCallback(
+    (file: File): string | null => {
+      try {
+        const validationError = validateExcelFile(file);
+        if (validationError) {
+          setFileError(validationError);
+          return validationError;
+        }
 
-    const handleError = (event: ErrorEvent) => {
-      console.error('Global error:', event.error);
-      event.preventDefault();
-    };
-
-    window.addEventListener('unhandledrejection', handleUnhandledRejection);
-    window.addEventListener('error', handleError);
-
-    return () => {
-      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
-      window.removeEventListener('error', handleError);
-    };
-  }, []);
-
-  const handleFileDrop = (file: File): string | null => {
-    try {
-      // ファイル形式チェック（大文字小文字を区別しない）
-      if (!file.name.toLowerCase().endsWith('.xlsx')) {
-        const errorMsg = 'Excelファイル（.xlsx）を選択してください';
-        console.error(errorMsg);
+        clearData();
+        setFileError(null);
+        loadExcelFile(file);
+        setIsDragOver(false);
+        dragDepthRef.current = 0;
+        return null;
+      } catch (err) {
+        const errorMsg = 'ファイルの処理中にエラーが発生しました';
+        console.error('File drop error:', err);
+        setFileError(errorMsg);
         return errorMsg;
       }
+    },
+    [clearData, loadExcelFile]
+  );
 
-      // ファイルサイズチェック（10MB制限）
-      if (file.size > 10 * 1024 * 1024) {
-        const errorMsg = 'ファイルサイズが大きすぎます（10MB以下にしてください）';
-        console.error(errorMsg);
-        return errorMsg;
-      }
-
-      clearData();
-      loadExcelFile(file);
-      setIsDragOver(false);
-      return null; // 成功
-    } catch (err) {
-      const errorMsg = 'ファイルの処理中にエラーが発生しました';
-      console.error('File drop error:', err);
-      return errorMsg;
-    }
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragDepthRef.current += 1;
+    setIsDragOver(true);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
-    try {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragOver(true);
-    } catch (err) {
-      console.error('Drag over error:', err);
-    }
+    e.preventDefault();
+    e.stopPropagation();
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
-    try {
-      e.preventDefault();
-      e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) {
       setIsDragOver(false);
-    } catch (err) {
-      console.error('Drag leave error:', err);
     }
   };
 
   const handleDrop = (e: React.DragEvent) => {
-    try {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragOver(false);
+    e.preventDefault();
+    e.stopPropagation();
+    dragDepthRef.current = 0;
+    setIsDragOver(false);
 
-      const files = Array.from(e.dataTransfer.files);
-
-      if (files.length === 0) {
-        console.error('No files found in drop');
-        return;
-      }
-
-      const excelFile = files.find(file => file.name.toLowerCase().endsWith('.xlsx'));
-
-      if (!excelFile) {
-        console.error('No Excel file (.xlsx) found in dropped files');
-        return;
-      }
-
-      // handleFileDropで統一的なサイズ・形式検証を実行
-      const error = handleFileDrop(excelFile);
-      if (error) {
-        console.error('Drop validation error:', error);
-      }
-    } catch (err) {
-      console.error('Drop error:', err);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) {
+      setFileError('ファイルが選択されていません');
+      return;
     }
+
+    const excelFile = files.find((file) => file.name.toLowerCase().endsWith('.xlsx'));
+    if (!excelFile) {
+      setFileError('Excelファイル（.xlsx）を選択してください');
+      return;
+    }
+
+    handleFileDrop(excelFile);
   };
 
   const handlePdfExport = () => {
-    try {
-      exportToPdf('timelineRoot');
-    } catch (err) {
-      console.error('PDF export error:', err);
-    }
+    exportToPdf('timelineRoot');
   };
 
-  const handleEventClick = (event: PositionedEvent) => {
-    try {
-      setSelectedEvent(event);
-    } catch (err) {
-      console.error('Event click error:', err);
-    }
-  };
+  const displayData = filteredData || orderedData || data;
+  const displayEvents =
+    filteredPositionedEvents.length > 0
+      ? filteredPositionedEvents
+      : orderedPositionedEvents.length > 0
+        ? orderedPositionedEvents
+        : positionedEvents;
+  const displayLayout = filteredLayoutConfig || layoutConfig;
+  const effectiveYearRange =
+    displayYearRange.min > 0 && displayYearRange.max > 0 ? displayYearRange : yearRange;
 
-  const handleYearHeightChange = (height: number) => {
-    try {
-      setYearHeight(height);
-    } catch (err) {
-      console.error('Year height change error:', err);
-    }
-  };
-
-  const handleLaneSelectionChange = (newSelectedLanes: string[]) => {
-    setSelectedLanes(newSelectedLanes);
-  };
-
-  const handleLaneOrderChange = (newLaneOrder: string[]) => {
-    setLaneOrder(newLaneOrder);
-  };
-
-  const handleYearRangeChange = (newYearRange: [number, number]) => {
-    setYearRangeFilter(newYearRange);
-  };
+  const warningSummary =
+    warnings.length > 0
+      ? warnings.length <= 3
+        ? warnings.map((w) => w.message).join(' ')
+        : `${warnings
+            .slice(0, 2)
+            .map((w) => w.message)
+            .join(' ')} 他${warnings.length - 2}件の警告があります。`
+      : null;
 
   return (
     <Box
+      component="main"
       sx={{
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        position: 'relative'
+        position: 'relative',
       }}
+      onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* ヘッダー */}
+      <h1 style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>
+        ミニクロ - Excelから年表を自動生成
+      </h1>
+
       <Header
         onFileDrop={handleFileDrop}
         onPdfExport={handlePdfExport}
-        onYearHeightChange={handleYearHeightChange}
+        onYearHeightChange={setYearHeight}
         yearHeight={yearHeight}
         loading={loading}
         error={error}
+        fileError={fileError}
+        onFileError={setFileError}
         exporting={exporting}
         exportError={exportError}
         hasData={!!data}
-        lanes={laneOrder.length > 0 ? laneOrder : data?.map(lane => lane.name) || []}
+        lanes={laneOrder.length > 0 ? laneOrder : data?.map((lane) => lane.name) || []}
         selectedLanes={selectedLanes}
-        onLaneSelectionChange={handleLaneSelectionChange}
-        onLaneOrderChange={handleLaneOrderChange}
+        onLaneSelectionChange={setSelectedLanes}
+        onLaneOrderChange={setLaneOrder}
         yearRange={yearRange.min > 0 && yearRange.max > 0 ? yearRange : { min: 1900, max: 2100 }}
-        onYearRangeChange={handleYearRangeChange}
+        onYearRangeChange={setYearRangeFilter}
         layoutMode={layoutMode}
         onLayoutModeChange={setLayoutMode}
       />
 
-      {/* メインコンテンツ - フルスクリーン */}
+      {warningSummary && data && !warningsDismissed && (
+        <Box sx={{ px: 2, pt: 1 }}>
+          <Alert severity="warning" onClose={() => setWarningsDismissed(true)}>
+            {warningSummary}
+          </Alert>
+        </Box>
+      )}
+
       <Box sx={{ flex: 1, overflow: 'auto', p: 1 }}>
-        {data ? (
-          <Box sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%',
-            minHeight: 'calc(100vh - 80px)' // ヘッダーの高さを引く
-          }}>
-            {/* タイムライン */}
-            <Box sx={{
+        {displayData ? (
+          <Box
+            sx={{
               display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              flex: 1
-            }}>
+              flexDirection: 'column',
+              height: '100%',
+              minHeight: 'calc(100vh - 80px)',
+            }}
+          >
+            <Box sx={{ flex: 1, overflowX: 'auto' }}>
               <Timeline
-                data={filteredData || orderedData || data}
-                positionedEvents={filteredPositionedEvents.length > 0 ? filteredPositionedEvents : orderedPositionedEvents.length > 0 ? orderedPositionedEvents : positionedEvents}
-                layoutConfig={filteredLayoutConfig || layoutConfig}
-                laneColors={laneColors}
-                eventColors={eventColors}
-                yearRange={yearRange}
-                onEventClick={handleEventClick}
+                data={displayData}
+                positionedEvents={displayEvents}
+                layoutConfig={displayLayout}
+                laneColorByName={laneColorByName}
+                eventColorByName={eventColorByName}
+                yearRange={effectiveYearRange}
               />
             </Box>
           </Box>
@@ -280,7 +265,7 @@ export default function Home() {
               border: '2px dashed',
               borderColor: isDragOver ? 'primary.main' : 'rgba(0,0,0,0.1)',
               transition: 'all 0.2s',
-              p: 3
+              p: 3,
             }}
           >
             <Box sx={{ textAlign: 'center', mb: 3 }}>
@@ -291,14 +276,17 @@ export default function Home() {
                 {isDragOver ? 'ファイルを離して年表を表示' : 'またはヘッダーのアップロードボタンをクリック'}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                対応形式: .xlsx（最大10MB）
+                対応形式: .xlsx（最大10MB・最大5シート）
               </Typography>
             </Box>
 
             <Button
               variant="outlined"
               startIcon={<HelpOutline />}
-              onClick={() => window.open('https://note.com/namida1110/n/nfd97132121ef', '_blank')}
+              component="a"
+              href={HELP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
               sx={{ mt: 2 }}
             >
               使い方ガイドを見る

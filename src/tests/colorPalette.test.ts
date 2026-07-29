@@ -54,16 +54,16 @@ describe('Color Palette Accessibility', () => {
   describe('Material Design Colors', () => {
     it('should have consistent color structure', () => {
       const colorKeys = ['blue', 'purple', 'green', 'brown', 'pink'];
-      const shadeKeys = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
+      const shadeKeys = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
 
       colorKeys.forEach(colorKey => {
         const colorSet = materialDesignColors[colorKey as keyof typeof materialDesignColors];
         expect(colorSet).toBeDefined();
 
         shadeKeys.forEach(shade => {
-          expect(colorSet[shade as keyof typeof colorSet]).toBeDefined();
-          expect(typeof colorSet[shade as keyof typeof colorSet]).toBe('string');
-          expect(colorSet[shade as keyof typeof colorSet]).toMatch(/^#[0-9A-F]{6}$/i);
+          expect(colorSet[shade]).toBeDefined();
+          expect(typeof colorSet[shade]).toBe('string');
+          expect(colorSet[shade]).toMatch(/^#[0-9A-F]{6}$/i);
         });
       });
     });

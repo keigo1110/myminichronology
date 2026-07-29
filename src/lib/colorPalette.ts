@@ -163,13 +163,3 @@ export function validatePaletteAccessibility(palette: ColorPalette): {
     wcagLevel
   };
 }
-
-// 使用例とテスト
-if (typeof window !== 'undefined') {
-  // ブラウザ環境でのみ実行
-  console.log('=== カラーパレット アクセシビリティ検証 ===');
-  accessibleColorPalettes.forEach(palette => {
-    const validation = validatePaletteAccessibility(palette);
-    console.log(`${palette.name}: ${validation.contrastRatio}:1 (${validation.wcagLevel})`);
-  });
-}

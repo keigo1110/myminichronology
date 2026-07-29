@@ -1,57 +1,55 @@
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-
 // A4 landscape dimensions in mm
 const A4_LANDSCAPE_WIDTH_MM = 297;
 const A4_LANDSCAPE_HEIGHT_MM = 210;
 
+/** ブラウザのキャンバス上限を考慮した目標ピクセル予算 */
+const MAX_CANVAS_DIMENSION = 8192;
+const MAX_CANVAS_PIXELS = 16_777_216; // ~16MP
+
+function computeSafeScale(width: number, height: number, preferredScale = 3): number {
+  if (width <= 0 || height <= 0) return 1;
+
+  const maxByDimension = Math.min(
+    MAX_CANVAS_DIMENSION / width,
+    MAX_CANVAS_DIMENSION / height
+  );
+  const maxByPixels = Math.sqrt(MAX_CANVAS_PIXELS / (width * height));
+
+  return Math.max(1, Math.min(preferredScale, maxByDimension, maxByPixels));
+}
+
 export async function exportPdf(elementId: string): Promise<void> {
+  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+    import('html2canvas'),
+    import('jspdf'),
+  ]);
+
   try {
     const element = document.getElementById(elementId);
     if (!element) {
-      throw new Error('Timeline element not found for PDF export.');
+      throw new Error('PDFエクスポート対象の年表要素が見つかりません。');
     }
 
-    // Temporarily modify styles for capture
     element.classList.add('pdf-export');
 
-    // 年代ラベルの表示状態を確認
-    const yearLabels = element.querySelectorAll('[data-year-label]');
-    console.log('Year labels found:', yearLabels.length);
-
-    // Ensure scroll position is at the top for consistent capture
     const timelineContainer = element.querySelector('.timeline-container');
     if (timelineContainer) {
       timelineContainer.scrollTop = 0;
     }
 
-    console.log('Starting PDF export process...');
-    console.log('PDF export class added:', element.classList.contains('pdf-export'));
+    const scale = computeSafeScale(element.scrollWidth, element.scrollHeight, 3);
 
-    // Capture the entire element with its natural dimensions
     const canvas = await html2canvas(element, {
-      scale: 3, // Higher scale for better quality
+      scale,
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',
-      logging: true,
-      // 年代ラベルが確実にキャプチャされるようにする
-      ignoreElements: (el) => {
-        // 不要な要素のみ除外
-        return el.classList.contains('pdf-export-ignore');
-      },
-      // フォントの読み込みを待つ
-      onclone: (clonedDoc) => {
-        console.log('Cloned document for PDF export');
-      }
+      logging: false,
+      ignoreElements: (el) => el.classList.contains('pdf-export-ignore'),
     });
 
-    console.log(`Canvas created with dimensions: ${canvas.width}x${canvas.height}`);
-
-    // Restore original styles
     element.classList.remove('pdf-export');
 
-    // Create a new PDF in landscape mode
     const pdf = new jsPDF({
       orientation: 'landscape',
       unit: 'mm',
@@ -60,58 +58,59 @@ export async function exportPdf(elementId: string): Promise<void> {
 
     const canvasWidth = canvas.width;
     const canvasHeight = canvas.height;
-
-    // Calculate the aspect ratio
     const canvasAspectRatio = canvasWidth / canvasHeight;
-
-    // Calculate the height of the image on the PDF page, fitting the width
     const imageWidthOnPdf = A4_LANDSCAPE_WIDTH_MM;
     const imageHeightOnPdf = imageWidthOnPdf / canvasAspectRatio;
-
-    // Calculate how many pages are needed
     const totalPages = Math.ceil(imageHeightOnPdf / A4_LANDSCAPE_HEIGHT_MM);
-    console.log(`PDF will have ${totalPages} pages.`);
 
     let heightLeft = imageHeightOnPdf;
 
-    // Add the image to the PDF, splitting it across pages if necessary
+    // ページ切片用キャンバスを再利用
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) {
+      throw new Error('PDF用キャンバスの初期化に失敗しました。');
+    }
+
     for (let i = 0; i < totalPages; i++) {
       if (i > 0) {
         pdf.addPage();
       }
-      // Calculate the position and height of the slice to draw
+
       const pageImageHeight = Math.min(A4_LANDSCAPE_HEIGHT_MM, heightLeft);
       const imageSrcY = i * A4_LANDSCAPE_HEIGHT_MM * (canvasHeight / imageHeightOnPdf);
       const imageSrcHeight = pageImageHeight * (canvasHeight / imageHeightOnPdf);
 
-      // Create a temporary canvas for the slice
-      const tempCanvas = document.createElement('canvas');
       tempCanvas.width = canvasWidth;
-      tempCanvas.height = imageSrcHeight;
-      const tempCtx = tempCanvas.getContext('2d');
+      tempCanvas.height = Math.max(1, Math.ceil(imageSrcHeight));
+      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+      tempCtx.drawImage(
+        canvas,
+        0,
+        imageSrcY,
+        canvasWidth,
+        imageSrcHeight,
+        0,
+        0,
+        canvasWidth,
+        imageSrcHeight
+      );
 
-      if (tempCtx) {
-        // Draw the slice from the original canvas to the temporary canvas
-        tempCtx.drawImage(canvas, 0, imageSrcY, canvasWidth, imageSrcHeight, 0, 0, canvasWidth, imageSrcHeight);
-        const imgData = tempCanvas.toDataURL('image/png', 1.0);
-
-        // Add the image slice to the PDF page
-        pdf.addImage(imgData, 'PNG', 0, 0, imageWidthOnPdf, pageImageHeight, undefined, 'SLOW');
-      }
+      const imgData = tempCanvas.toDataURL('image/jpeg', 0.92);
+      pdf.addImage(imgData, 'JPEG', 0, 0, imageWidthOnPdf, pageImageHeight, undefined, 'FAST');
 
       heightLeft -= A4_LANDSCAPE_HEIGHT_MM;
     }
 
-    // Generate filename and save
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `timeline-export-${timestamp}.pdf`;
-    pdf.save(filename);
-
-    console.log('PDF export successful.');
-
+    pdf.save(`timeline-export-${timestamp}.pdf`);
   } catch (error) {
-    console.error('PDF export failed:', error);
-    // Re-throw the error to be caught by the calling hook
-    throw new Error('Failed to export PDF. See console for details.');
+    const element = document.getElementById(elementId);
+    element?.classList.remove('pdf-export');
+
+    if (error instanceof Error) {
+      throw new Error(`PDFのエクスポートに失敗しました: ${error.message}`);
+    }
+    throw new Error('PDFのエクスポートに失敗しました。');
   }
 }

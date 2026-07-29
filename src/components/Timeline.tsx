@@ -1,15 +1,16 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { TimelineData, PositionedEvent, DynamicLayoutConfig } from '../lib/types';
 import { LaneColumn } from './LaneColumn';
 import { LaneHeaderRow } from './LaneHeaderRow';
+import { getYearTicks } from '../lib/yearTicks';
 
 interface TimelineProps {
   data: TimelineData;
   positionedEvents: PositionedEvent[][];
   layoutConfig: DynamicLayoutConfig;
-  laneColors: string[];
-  eventColors: string[];
+  laneColorByName: Record<string, string>;
+  eventColorByName: Record<string, string>;
   yearRange: { min: number; max: number };
   onEventClick?: (event: PositionedEvent) => void;
 }
@@ -18,37 +19,34 @@ export function Timeline({
   data,
   positionedEvents,
   layoutConfig,
-  laneColors,
-  eventColors,
+  laneColorByName,
+  eventColorByName,
   yearRange,
-  onEventClick
+  onEventClick,
 }: TimelineProps) {
-  const timelineRef = useRef<HTMLDivElement>(null);
+  const timelineHeight =
+    layoutConfig.timelineHeight || Math.max(800, (yearRange.max - yearRange.min) * 8);
+  const { yearAxisWidth, totalWidth, laneWidthByName, laneWidths } = layoutConfig;
 
-  // 動的高さを使用（レイアウト設定から取得、フォールバックあり）
-  const timelineHeight = layoutConfig.timelineHeight || Math.max(800, (yearRange.max - yearRange.min) * 8);
-  const { yearAxisWidth, totalWidth, laneWidths } = layoutConfig;
-
-  // 年軸のヘッダー高さを考慮した位置計算
   const headerHeight = 60;
   const contentHeight = timelineHeight - headerHeight;
+  const yearSpan = Math.max(1, yearRange.max - yearRange.min);
+  const ticks = getYearTicks(yearRange.min, yearRange.max);
 
   return (
     <Box
       id="timelineRoot"
-      ref={timelineRef}
       sx={{
         width: `${totalWidth}px`,
         minHeight: timelineHeight,
         backgroundColor: '#F7F7F7',
         borderRadius: 1,
         border: '1px solid rgba(0,0,0,0.1)',
-        overflow: 'visible', // 内部スクロール削除
+        overflow: 'visible',
         position: 'relative',
         display: 'flex',
         boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        maxWidth: '100%',
-        // PDFエクスポート用のスタイル
+        margin: '0 auto',
         '&.pdf-export': {
           overflow: 'visible',
           height: 'auto',
@@ -56,29 +54,27 @@ export function Timeline({
         },
       }}
     >
-      {/* 固定年代軸 - ページスクロールでも固定 */}
       <Box
         data-year-axis="true"
         sx={{
-          position: 'sticky', // ページスクロールでも固定
+          position: 'sticky',
           left: 0,
           top: 0,
           width: yearAxisWidth,
           minHeight: timelineHeight,
           backgroundColor: 'rgba(255,255,255,0.95)',
-          borderRight: '1px solid rgba(0,0,0,0.1)', // 1pxに統一
+          borderRight: '1px solid rgba(0,0,0,0.1)',
           zIndex: 200,
           display: 'flex',
           flexDirection: 'column',
           minWidth: '60px',
         }}
       >
-        {/* 年代軸ヘッダー */}
         <Box
           sx={{
             height: headerHeight,
             backgroundColor: 'rgba(255,255,255,0.95)',
-            borderBottom: '1px solid rgba(0,0,0,0.1)', // 1pxに統一
+            borderBottom: '1px solid rgba(0,0,0,0.1)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -93,14 +89,13 @@ export function Timeline({
             sx={{
               color: '#212121',
               fontWeight: 'bold',
-              fontSize: '1rem'
+              fontSize: '1rem',
             }}
           >
             年代
           </Typography>
         </Box>
 
-        {/* 固定年代ラベル */}
         <Box
           sx={{
             position: 'relative',
@@ -108,18 +103,17 @@ export function Timeline({
             minHeight: contentHeight,
           }}
         >
-          {Array.from({ length: Math.floor((yearRange.max - yearRange.min) / 10) + 1 }, (_, i) => {
-            const year = yearRange.min + i * 10;
-            // LaneColumnのグリッド線と同じ計算方法を使用
-            const y = ((year - yearRange.min) / (yearRange.max - yearRange.min)) * contentHeight;
+          {ticks.map((year) => {
+            const y = ((year - yearRange.min) / yearSpan) * contentHeight;
 
             return (
               <Box
                 key={year}
+                data-year-label="true"
                 sx={{
                   position: 'absolute',
                   left: '8px',
-                  top: `${y}px`,
+                  top: `${y - 10}px`,
                   width: 'calc(100% - 16px)',
                   height: '20px',
                   display: 'flex',
@@ -140,7 +134,6 @@ export function Timeline({
         </Box>
       </Box>
 
-      {/* メインコンテンツ領域 */}
       <Box
         sx={{
           flex: 1,
@@ -149,7 +142,6 @@ export function Timeline({
           flexDirection: 'column',
         }}
       >
-        {/* 固定レーンヘッダー - ページスクロールでも固定 */}
         <Box
           sx={{
             position: 'sticky',
@@ -159,12 +151,13 @@ export function Timeline({
         >
           <LaneHeaderRow
             data={data}
-            laneWidths={laneWidths}
+            laneWidths={data.map(
+              (lane, index) => laneWidthByName[lane.name] ?? laneWidths[index] ?? 300
+            )}
             headerHeight={headerHeight}
           />
         </Box>
 
-        {/* イベント表示領域 - スクロール無し */}
         <Box
           sx={{
             display: 'flex',
@@ -177,14 +170,12 @@ export function Timeline({
               key={lane.name}
               lane={lane}
               events={positionedEvents[index] || []}
-              laneColor={laneColors[index]}
-              eventColor={eventColors[index]}
-              laneWidth={laneWidths[index] || 300}
+              laneColor={laneColorByName[lane.name] || '#E3F2FD'}
+              eventColor={eventColorByName[lane.name] || '#1565C0'}
+              laneWidth={laneWidthByName[lane.name] ?? laneWidths[index] ?? 300}
               onEventClick={onEventClick}
               yearRange={yearRange}
-              timelineHeight={contentHeight} // ヘッダーを除いた高さ
-              scrollPosition={0} // スクロール位置は使用しない
-              showHeader={false} // ヘッダーは表示しない
+              timelineHeight={contentHeight}
             />
           ))}
         </Box>

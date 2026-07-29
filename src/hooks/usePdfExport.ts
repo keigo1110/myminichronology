@@ -12,7 +12,7 @@ export function usePdfExport() {
     try {
       await exportPdf(elementId);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to export PDF.';
+      const message = error instanceof Error ? error.message : 'PDFのエクスポートに失敗しました。';
       setExportError(message);
     } finally {
       setExporting(false);
@@ -27,6 +27,6 @@ export function usePdfExport() {
     exporting,
     exportError,
     exportToPdf,
-    clearExportError
+    clearExportError,
   };
 }

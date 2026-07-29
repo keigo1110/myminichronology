@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from './providers';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 const inter = Inter({ subsets: ["latin"] });
 
 const siteName = 'ミニクロ';
-const description = 'ExcelやGoogleスプレッドシートのデータから、自動で年表・タイムラインを生成する無料のWebアプリ。複雑な設定は不要で、ファイルをアップロードするだけ。PDF形式で簡単にエクスポートも可能です。';
+const description = 'Excelデータから、自動で年表・タイムラインを生成する無料のWebアプリ。複雑な設定は不要で、ファイルをアップロードするだけ。PDF形式で簡単にエクスポートも可能です。';
 const url = 'https://myminichronology.vercel.app/';
 
 export const metadata: Metadata = {
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
     template: `%s | ${siteName}`,
   },
   description,
-  keywords: ['年表作成', 'タイムライン作成', '年表ジェネレーター', 'タイムラインジェネレーター', 'Excel', 'Googleスプレッドシート', '自動生成', '可視化', 'PDF', '無料', 'Webアプリ'],
+  keywords: ['年表作成', 'タイムライン作成', '年表ジェネレーター', 'タイムラインジェネレーター', 'Excel', '自動生成', '可視化', 'PDF', '無料', 'Webアプリ'],
   alternates: {
     canonical: url,
   },
@@ -48,10 +49,6 @@ export const metadata: Metadata = {
     description,
     images: ['/og-image.jpg'],
   },
-  icons: {
-    icon: '/icon.png',
-    apple: '/apple-icon.png',
-  },
 };
 
 export default function RootLayout({
@@ -81,7 +78,9 @@ export default function RootLayout({
             }),
           }}
         />
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </ThemeProvider>
       </body>
     </html>
   );
