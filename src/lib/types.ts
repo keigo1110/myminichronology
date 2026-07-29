@@ -4,7 +4,7 @@ export interface Event {
   label: string;
   /** フォントサイズ（px）。未指定時は UI デフォルト */
   fontSize?: number;
-  /** イベント塗り色（#RRGGBB）。未指定時は黒 */
+  /** 文字色（#RRGGBB）。未指定時は黒 */
   color?: string;
 }
 

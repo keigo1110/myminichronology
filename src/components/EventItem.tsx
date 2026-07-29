@@ -1,10 +1,9 @@
 import React from 'react';
 import { Box, Typography, Tooltip } from '@mui/material';
 import { PositionedEvent } from '../lib/types';
-import { pickReadableTextColor } from '../lib/colorPalette';
 import { DEFAULT_EVENT_COLOR } from '../lib/parseExcel';
 
-/** 1行テキスト + 枠線が収まる最小表示高さ */
+/** 1行テキストが収まる最小表示高さ */
 export const EVENT_ITEM_MIN_HEIGHT = 22;
 
 /** 横書き時のデフォルトフォントサイズ（現状相当 ≈ 0.68rem） */
@@ -32,8 +31,7 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
   const useVertical = !isPointEvent && height >= 72;
   const isCompact = !useVertical && height < 40;
 
-  const fillColor = event.color || color || DEFAULT_EVENT_COLOR;
-  const textColor = pickReadableTextColor(fillColor);
+  const textColor = event.color || color || DEFAULT_EVENT_COLOR;
   const fontSizePx =
     event.fontSize ??
     (useVertical ? DEFAULT_VERTICAL_FONT_SIZE_PX : DEFAULT_FONT_SIZE_PX);
@@ -60,25 +58,25 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
           ...style,
           height: `${height}px`,
           boxSizing: 'border-box',
-          backgroundColor: fillColor,
-          borderRadius: '2px',
-          border: '1px solid rgba(0,0,0,0.12)',
+          backgroundColor: 'transparent',
+          border: 'none',
           boxShadow: 'none',
           display: 'flex',
           alignItems: 'center',
           justifyContent: useVertical ? 'center' : 'flex-start',
-          px: useVertical ? 0.4 : 0.7,
-          py: useVertical ? 0.6 : isCompact ? 0 : 0.5,
+          px: 0.5,
+          py: 0,
           overflow: 'hidden',
           cursor: isInteractive ? 'pointer' : 'default',
           outline: 'none',
           '&:hover': isInteractive
             ? {
-                filter: 'brightness(0.96)',
+                opacity: 0.75,
               }
             : undefined,
           '&:focus-visible': {
             boxShadow: '0 0 0 2px #1976d2',
+            borderRadius: '2px',
           },
         }}
         onClick={() => onClick?.(event)}

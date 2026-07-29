@@ -47,7 +47,7 @@ export function useTimelineData(data: TimelineData | null) {
   const eventColorByName = useMemo(() => {
     const map: Record<string, string> = {};
     data?.forEach((lane) => {
-      // テンプレート未指定時のフォールバックは黒（イベント個別 color が優先）
+      // テンプレート未指定時のフォールバック文字色は黒（イベント個別 color が優先）
       map[lane.name] = '#000000';
     });
     return map;

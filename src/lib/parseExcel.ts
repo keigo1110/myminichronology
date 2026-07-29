@@ -6,7 +6,7 @@ import {
   MIN_YEAR,
 } from './fileValidation';
 
-/** 未指定時のイベント塗り色（黒） */
+/** 未指定時のイベント文字色（黒） */
 export const DEFAULT_EVENT_COLOR = '#000000';
 
 /** フォントサイズの許容範囲（px） */
@@ -284,7 +284,7 @@ export async function parseExcel(file: File): Promise<ParseResult> {
           pushWarning(
             warnings,
             'invalid-style',
-            `シート「${sheetName}」${rowNumber}行目: 色「${String(colorRaw)}」が無効です（例: #C45C26）。黒を使います。`,
+            `シート「${sheetName}」${rowNumber}行目: 色「${String(colorRaw)}」が無効です（例: #C45C26）。文字色は黒を使います。`,
             sheetName,
             rowNumber
           );
