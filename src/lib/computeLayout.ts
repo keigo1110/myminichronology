@@ -1,5 +1,5 @@
 import { scaleLinear } from 'd3-scale';
-import { Event, TimelineData, PositionedEvent, DynamicLayoutConfig } from './types';
+import { Event, TimelineData, PositionedEvent, DynamicLayoutConfig, TimelineOrientation } from './types';
 
 const MIN_LANE_WIDTH = 280;
 const MAX_LANE_WIDTH = 640;
@@ -355,6 +355,22 @@ function deriveYearRange(data: TimelineData): { min: number; max: number } {
 export function computeLayout(
   data: TimelineData,
   yearHeightScale: number = 1,
+  yearRangeOverride?: { min: number; max: number },
+  orientation: TimelineOrientation = 'vertical'
+): {
+  positionedEvents: PositionedEvent[][];
+  layoutConfig: DynamicLayoutConfig;
+  yearRange: { min: number; max: number };
+} {
+  if (orientation === 'horizontal') {
+    return computeLayoutHorizontal(data, yearHeightScale, yearRangeOverride);
+  }
+  return computeLayoutVertical(data, yearHeightScale, yearRangeOverride);
+}
+
+function computeLayoutVertical(
+  data: TimelineData,
+  yearHeightScale: number = 1,
   yearRangeOverride?: { min: number; max: number }
 ): {
   positionedEvents: PositionedEvent[][];
@@ -369,6 +385,7 @@ export function computeLayout(
         laneWidthByName: {},
         yearAxisWidth: 60,
         totalWidth: 120,
+        orientation: 'vertical',
       },
       yearRange: { min: 0, max: 0 },
     };
@@ -407,7 +424,6 @@ export function computeLayout(
       if (event.displayStyle === 'label') {
         size = estimateLabelBoxDimensions(event);
       } else if (event.end != null) {
-        // 期間の高さ = 開始〜終了の年スケール差（最低でもフォント分）
         const endY = yScale(event.end);
         const rangeHeight = Math.max(
           minHeightForFont(defaultFontSize(event), yearHeightScale),
@@ -434,9 +450,6 @@ export function computeLayout(
     positionedEvents.push(resolveEventCollisions(laneEvents, laneWidth, contentHeight));
   });
 
-  // 衝突退避で content 下端を超えた分があれば timeline を伸ばす余地は描画側の overflow に任せる
-  // （年位置の意味を保つため、ここでは y を年スケール優先で維持し collision のみ微調整）
-
   return {
     positionedEvents,
     layoutConfig: {
@@ -445,9 +458,193 @@ export function computeLayout(
       yearAxisWidth,
       totalWidth,
       timelineHeight,
+      orientation: 'vertical',
     },
     yearRange,
   };
+}
+
+const MIN_LANE_ROW_HEIGHT = 88;
+const LANE_LABEL_WIDTH = 108;
+export const YEAR_AXIS_HEIGHT_HORIZONTAL = 44;
+
+/**
+ * 横型: 横=年代（左が古・右が新）、縦=テーマ（レーン行）。
+ */
+function computeLayoutHorizontal(
+  data: TimelineData,
+  yearHeightScale: number = 1,
+  yearRangeOverride?: { min: number; max: number }
+): {
+  positionedEvents: PositionedEvent[][];
+  layoutConfig: DynamicLayoutConfig;
+  yearRange: { min: number; max: number };
+} {
+  if (data.length === 0) {
+    return {
+      positionedEvents: [],
+      layoutConfig: {
+        laneWidths: [],
+        laneWidthByName: {},
+        laneHeights: [],
+        laneHeightByName: {},
+        yearAxisWidth: 0,
+        yearAxisHeight: YEAR_AXIS_HEIGHT_HORIZONTAL,
+        laneLabelWidth: LANE_LABEL_WIDTH,
+        totalWidth: 120,
+        timelineHeight: 200,
+        orientation: 'horizontal',
+      },
+      yearRange: { min: 0, max: 0 },
+    };
+  }
+
+  const yearRange = yearRangeOverride ?? deriveYearRange(data);
+  const yearSpan = Math.max(1, yearRange.max - yearRange.min);
+  const yearPxPerYear = Math.max(8, 24 * yearHeightScale);
+  const contentWidth = Math.max(640, yearSpan * yearPxPerYear);
+  const yearAxisHeight = YEAR_AXIS_HEIGHT_HORIZONTAL;
+  const laneLabelWidth = LANE_LABEL_WIDTH;
+
+  const xScale = scaleLinear()
+    .domain([yearRange.min, yearRange.max])
+    .range([0, contentWidth]);
+
+  const positionedEvents: PositionedEvent[][] = [];
+  const laneHeights: number[] = [];
+  const laneHeightByName: Record<string, number> = {};
+  const laneWidths: number[] = [];
+  const laneWidthByName: Record<string, number> = {};
+
+  data.forEach((lane) => {
+    const laneEvents: PositionedEvent[] = [];
+
+    lane.events.forEach((event) => {
+      const x = xScale(event.start);
+      let width: number;
+      let height: number;
+
+      if (event.displayStyle === 'label') {
+        const box = estimateLabelBoxDimensions(event);
+        // 横型でも label は縦書きボックス（点イベント相当）
+        width = box.width;
+        height = box.height;
+      } else if (event.end != null) {
+        const endX = xScale(event.end);
+        const fontSize = defaultFontSize(event);
+        const rangeWidth = Math.max(
+          minHeightForFont(fontSize, yearHeightScale),
+          Math.max(endX - x, yearPxPerYear * Math.max(0.5, event.end - event.start))
+        );
+        height = minHeightForFont(fontSize, yearHeightScale) + 6;
+        width = rangeWidth;
+      } else {
+        const size = measureEventSize(event, { yearHeightScale });
+        width = size.width;
+        height = size.height;
+      }
+
+      laneEvents.push({
+        ...event,
+        x,
+        y: TIMELINE_PADDING,
+        width: Math.min(width, contentWidth - TIMELINE_PADDING),
+        height,
+      });
+    });
+
+    const packed = resolveHorizontalCollisions(laneEvents, contentWidth);
+    const maxBottom = packed.reduce(
+      (max, e) => Math.max(max, e.y + e.height),
+      TIMELINE_PADDING
+    );
+    const laneHeight = Math.max(MIN_LANE_ROW_HEIGHT, maxBottom + TIMELINE_PADDING + 8);
+    laneHeights.push(laneHeight);
+    laneHeightByName[lane.name] = laneHeight;
+    laneWidths.push(contentWidth);
+    laneWidthByName[lane.name] = contentWidth;
+    positionedEvents.push(packed);
+  });
+
+  const timelineHeight =
+    yearAxisHeight * 2 + laneHeights.reduce((sum, h) => sum + h, 0);
+  const totalWidth = laneLabelWidth + contentWidth;
+
+  return {
+    positionedEvents,
+    layoutConfig: {
+      laneWidths,
+      laneWidthByName,
+      laneHeights,
+      laneHeightByName,
+      yearAxisWidth: 0,
+      yearAxisHeight,
+      laneLabelWidth,
+      totalWidth,
+      timelineHeight,
+      orientation: 'horizontal',
+    },
+    yearRange,
+  };
+}
+
+/** 横型レーン内: 年位置を保ちつつ下へ積んで衝突回避 */
+function resolveHorizontalCollisions(
+  events: PositionedEvent[],
+  contentWidth: number
+): PositionedEvent[] {
+  const sortedEvents = [...events].sort((a, b) => {
+    const ka = layoutSortKey(a);
+    const kb = layoutSortKey(b);
+    if (ka.start !== kb.start) return ka.start - kb.start;
+    if (ka.duration !== kb.duration) return kb.duration - ka.duration;
+    const aIsRange = a.displayStyle !== 'label' && a.end != null;
+    const bIsRange = b.displayStyle !== 'label' && b.end != null;
+    if (aIsRange !== bIsRange) return aIsRange ? -1 : 1;
+    return ka.label.localeCompare(kb.label);
+  });
+
+  const resolved: PositionedEvent[] = [];
+
+  sortedEvents.forEach((event) => {
+    const width = Math.min(event.width, Math.max(20, contentWidth - event.x - TIMELINE_PADDING));
+    const height = Math.max(event.height, MIN_EVENT_HEIGHT);
+    const bestX = Math.max(0, Math.min(event.x, Math.max(0, contentWidth - width)));
+    let bestY = TIMELINE_PADDING;
+
+    let placed = false;
+    for (let attempt = 0; attempt < COLLISION_MAX_ATTEMPTS && !placed; attempt++) {
+      const candidate: Rect = { x: bestX, y: bestY, width, height };
+      let blocker: PositionedEvent | null = null;
+      for (const other of resolved) {
+        if (boxesOverlap(candidate, other)) {
+          blocker = other;
+          break;
+        }
+      }
+      if (!blocker) {
+        placed = true;
+        break;
+      }
+      // 下へ
+      bestY = blocker.y + blocker.height + EVENT_VERTICAL_SPACING;
+    }
+
+    if (!placed) {
+      const maxBottom = resolved.reduce((m, o) => Math.max(m, o.y + o.height), 0);
+      bestY = maxBottom + EVENT_VERTICAL_SPACING;
+    }
+
+    resolved.push({
+      ...event,
+      x: bestX,
+      y: bestY,
+      width,
+      height,
+    });
+  });
+
+  return resolved;
 }
 
 export function calculateTimelineHeight(data: TimelineData, yearHeightScale: number = 1): number {

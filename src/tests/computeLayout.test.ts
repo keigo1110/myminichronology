@@ -557,3 +557,76 @@ describe('Integration: Filter and Layout Recalculation', () => {
     expect(result.current.layoutConfig).toBeUndefined();
   });
 });
+describe('computeLayout horizontal', () => {
+  it('maps years to x (left=old, right=new) and stacks lanes as rows', () => {
+    const data: TimelineData = [
+      {
+        name: '政治',
+        events: [
+          { start: 2000, label: '古い' },
+          { start: 2010, label: '新しい' },
+        ],
+      },
+      {
+        name: '経済',
+        events: [{ start: 2005, label: '中間' }],
+      },
+    ];
+
+    const result = computeLayout(data, 1, undefined, 'horizontal');
+    expect(result.layoutConfig.orientation).toBe('horizontal');
+    expect(result.layoutConfig.laneHeights).toHaveLength(2);
+    expect(result.layoutConfig.laneLabelWidth).toBeGreaterThan(0);
+    expect(result.layoutConfig.yearAxisHeight).toBeGreaterThan(0);
+
+    const [oldEvent, newEvent] = result.positionedEvents[0];
+    expect(oldEvent.x).toBeLessThan(newEvent.x);
+
+    const rangeData: TimelineData = [
+      {
+        name: '期間',
+        events: [{ start: 2000, end: 2020, label: '長期' }],
+      },
+    ];
+    const rangeResult = computeLayout(rangeData, 1, undefined, 'horizontal');
+    const rangeEvent = rangeResult.positionedEvents[0][0];
+    expect(rangeEvent.width).toBeGreaterThan(rangeEvent.height);
+  });
+
+  it('packs overlapping horizontal events downward within a lane', () => {
+    const data: TimelineData = [
+      {
+        name: '重なり',
+        events: [
+          { start: 2000, end: 2020, label: '長い期間' },
+          { start: 2005, label: '点' },
+        ],
+      },
+    ];
+
+    const result = computeLayout(data, 1, undefined, 'horizontal');
+    const events = result.positionedEvents[0];
+    const range = events.find((e) => e.label === '長い期間')!;
+    const point = events.find((e) => e.label === '点')!;
+
+    expect(point.x).toBeGreaterThanOrEqual(range.x);
+    expect(point.x).toBeLessThan(range.x + range.width);
+    expect(point.y).toBeGreaterThanOrEqual(range.y + range.height - 1);
+  });
+
+  it('scales content width with yearHeightScale', () => {
+    const data: TimelineData = [
+      {
+        name: 'Scale',
+        events: [
+          { start: 2000, label: 'A' },
+          { start: 2050, label: 'B' },
+        ],
+      },
+    ];
+
+    const normal = computeLayout(data, 1, undefined, 'horizontal');
+    const wide = computeLayout(data, 2, undefined, 'horizontal');
+    expect(wide.layoutConfig.totalWidth).toBeGreaterThan(normal.layoutConfig.totalWidth);
+  });
+});

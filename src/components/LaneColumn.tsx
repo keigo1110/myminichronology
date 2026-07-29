@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { Box, useTheme } from '@mui/material';
-import { Lane, PositionedEvent } from '../lib/types';
+import { Box, Typography, useTheme } from '@mui/material';
+import { Lane, PositionedEvent, TimelineOrientation } from '../lib/types';
 import { EventItem, EVENT_ITEM_MIN_HEIGHT } from './EventItem';
 import { getYearTicks } from '../lib/yearTicks';
 import { DEFAULT_EVENT_COLOR } from '../lib/parseExcel';
@@ -14,10 +14,14 @@ interface LaneColumnProps {
   laneColor: string;
   eventColor: string;
   laneWidth: number;
+  laneHeight?: number;
   onEventClick?: (event: PositionedEvent) => void;
   yearRange: { min: number; max: number };
   timelineHeight: number;
   highlightedEventId?: string | null;
+  orientation?: TimelineOrientation;
+  showLaneLabel?: boolean;
+  laneLabelWidth?: number;
 }
 
 export function LaneColumn({
@@ -26,36 +30,79 @@ export function LaneColumn({
   laneColor,
   eventColor,
   laneWidth,
+  laneHeight,
   onEventClick,
   yearRange,
   timelineHeight,
   highlightedEventId = null,
+  orientation = 'vertical',
+  showLaneLabel = false,
+  laneLabelWidth = 108,
 }: LaneColumnProps) {
   const theme = useTheme();
   const yearSpan = Math.max(1, yearRange.max - yearRange.min);
   const ticks = getYearTicks(yearRange.min, yearRange.max);
+  const isHorizontal = orientation === 'horizontal';
+  const rowHeight = isHorizontal ? laneHeight ?? timelineHeight : timelineHeight;
 
   return (
     <Box
       sx={{
         position: 'relative',
-        width: laneWidth,
-        minHeight: timelineHeight,
-        backgroundColor: laneColor,
-        borderRight: `1px solid ${theme.palette.chronology.hairline}`,
         display: 'flex',
-        flexDirection: 'column',
+        flexDirection: 'row',
+        width: isHorizontal ? laneLabelWidth + laneWidth : laneWidth,
+        minHeight: rowHeight,
+        height: isHorizontal ? rowHeight : undefined,
+        borderRight: isHorizontal ? undefined : `1px solid ${theme.palette.chronology.hairline}`,
+        borderBottom: isHorizontal ? `1px solid ${theme.palette.chronology.hairline}` : undefined,
       }}
     >
+      {showLaneLabel && (
+        <Box
+          sx={{
+            width: laneLabelWidth,
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            px: 1,
+            backgroundColor: laneColor,
+            borderRight: `1px solid ${theme.palette.chronology.hairlineStrong}`,
+            position: 'sticky',
+            left: 0,
+            zIndex: 120,
+          }}
+        >
+          <Typography
+            sx={{
+              fontWeight: 700,
+              fontSize: '0.8rem',
+              textAlign: 'center',
+              color: theme.palette.text.primary,
+              maxWidth: '100%',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {lane.name}
+          </Typography>
+        </Box>
+      )}
+
       <Box
         sx={{
           position: 'relative',
           flex: 1,
-          minHeight: timelineHeight,
+          width: laneWidth,
+          minHeight: rowHeight,
+          height: isHorizontal ? rowHeight : undefined,
+          backgroundColor: laneColor,
         }}
       >
         {ticks.map((year) => {
-          const y = ((year - yearRange.min) / yearSpan) * timelineHeight;
+          const pos = ((year - yearRange.min) / yearSpan) * (isHorizontal ? laneWidth : rowHeight);
           const isDecade = year % 10 === 0;
 
           return (
@@ -63,10 +110,19 @@ export function LaneColumn({
               key={`grid-${lane.name}-${year}`}
               sx={{
                 position: 'absolute',
-                left: 0,
-                top: `${y}px`,
-                width: '100%',
-                height: '1px',
+                ...(isHorizontal
+                  ? {
+                      left: `${pos}px`,
+                      top: 0,
+                      width: '1px',
+                      height: '100%',
+                    }
+                  : {
+                      left: 0,
+                      top: `${pos}px`,
+                      width: '100%',
+                      height: '1px',
+                    }),
                 backgroundColor: isDecade
                   ? theme.palette.chronology.gridDecade
                   : theme.palette.chronology.grid,
@@ -88,6 +144,7 @@ export function LaneColumn({
               color={color}
               onClick={onEventClick}
               highlighted={highlightedEventId === eventId}
+              orientation={orientation}
               style={{
                 position: 'absolute',
                 top: `${event.y}px`,

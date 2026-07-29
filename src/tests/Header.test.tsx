@@ -157,6 +157,26 @@ describe('Header', () => {
     expect(screen.getByLabelText('ダークモードに切替')).toBeInTheDocument();
   });
 
+  it('should render orientation swap button when data is available', () => {
+    const onOrientationChange = vi.fn();
+    renderHeader(
+      <Header
+        {...mockProps}
+        orientation="vertical"
+        onOrientationChange={onOrientationChange}
+      />
+    );
+    const swap = screen.getByRole('button', { name: '縦横入れ替え' });
+    expect(swap).toBeInTheDocument();
+    fireEvent.click(swap);
+    expect(onOrientationChange).toHaveBeenCalledWith('horizontal');
+  });
+
+  it('should not render orientation swap when no data', () => {
+    renderHeader(<Header {...mockProps} hasData={false} />);
+    expect(screen.queryByRole('button', { name: '縦横入れ替え' })).not.toBeInTheDocument();
+  });
+
   it('should render help button', () => {
     renderHeader(<Header {...mockProps} />);
     expect(screen.getByRole('link', { name: '使い方ガイド' })).toBeInTheDocument();

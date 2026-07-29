@@ -25,10 +25,11 @@ import {
   KeyboardArrowDown,
   DarkMode,
   LightMode,
+  SwapVert,
 } from '@mui/icons-material';
 import { DraggableLaneList } from './DraggableLaneList';
 import { CopyableAlert } from './CopyableAlert';
-import { LayoutMode } from '../lib/types';
+import { LayoutMode, TimelineOrientation } from '../lib/types';
 import { isXlsxFileName } from '../lib/fileValidation';
 import { useColorMode } from '../app/providers';
 
@@ -54,6 +55,8 @@ interface HeaderProps {
   onYearRangeChange?: (yearRange: [number, number]) => void;
   layoutMode?: LayoutMode;
   onLayoutModeChange?: (mode: LayoutMode) => void;
+  orientation?: TimelineOrientation;
+  onOrientationChange?: (orientation: TimelineOrientation) => void;
   searchQuery?: string;
   onSearchQueryChange?: (query: string) => void;
   searchMatchCount?: number;
@@ -82,6 +85,8 @@ export function Header({
   onYearRangeChange,
   layoutMode = 'zoom',
   onLayoutModeChange,
+  orientation = 'vertical',
+  onOrientationChange,
   searchQuery = '',
   onSearchQueryChange,
   searchMatchCount = 0,
@@ -248,9 +253,21 @@ export function Header({
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {hasData && (
-            <Tooltip title="年間高さ調整">
+            <Tooltip
+              title={
+                orientation === 'horizontal'
+                  ? '年あたりの幅を調整'
+                  : '年間高さ調整'
+              }
+            >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 140 }}>
-                <Height sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <Height
+                  sx={{
+                    fontSize: 16,
+                    color: 'text.secondary',
+                    transform: orientation === 'horizontal' ? 'rotate(90deg)' : undefined,
+                  }}
+                />
                 <Slider
                   size="small"
                   value={yearHeight}
@@ -258,7 +275,9 @@ export function Header({
                   min={8}
                   max={120}
                   step={2}
-                  aria-label="年間高さ"
+                  aria-label={
+                    orientation === 'horizontal' ? '年あたりの幅' : '年間高さ'
+                  }
                   sx={{
                     '& .MuiSlider-thumb': { width: 12, height: 12 },
                     '& .MuiSlider-track': { height: 2 },
@@ -285,6 +304,35 @@ export function Header({
                   </span>
                 </Tooltip>
               </Box>
+            </Tooltip>
+          )}
+
+          {hasData && (
+            <Tooltip
+              title={
+                orientation === 'vertical'
+                  ? '縦横入れ替え（縦：テーマ・横：年代）'
+                  : '縦横入れ替え（縦：年代・横：テーマ）'
+              }
+            >
+              <IconButton
+                onClick={() =>
+                  onOrientationChange?.(
+                    orientation === 'vertical' ? 'horizontal' : 'vertical'
+                  )
+                }
+                size="small"
+                aria-label="縦横入れ替え"
+                aria-pressed={orientation === 'horizontal'}
+                color={orientation === 'horizontal' ? 'primary' : 'default'}
+              >
+                <SwapVert
+                  sx={{
+                    transform: orientation === 'horizontal' ? 'rotate(90deg)' : undefined,
+                    transition: 'transform 0.2s',
+                  }}
+                />
+              </IconButton>
             </Tooltip>
           )}
 

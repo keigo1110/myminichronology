@@ -1,5 +1,11 @@
 import { useMemo } from 'react';
-import { TimelineData, PositionedEvent, LayoutMode, DynamicLayoutConfig } from '../lib/types';
+import {
+  TimelineData,
+  PositionedEvent,
+  LayoutMode,
+  DynamicLayoutConfig,
+  TimelineOrientation,
+} from '../lib/types';
 import { computeLayout } from '../lib/computeLayout';
 
 export interface FilterState {
@@ -20,7 +26,8 @@ export function useFilteredEvents(
   selectedLanes: string[],
   layoutMode: LayoutMode = 'zoom',
   yearHeightScale: number = 1,
-  baseYearRange: { min: number; max: number } = { min: 0, max: 0 }
+  baseYearRange: { min: number; max: number } = { min: 0, max: 0 },
+  orientation: TimelineOrientation = 'vertical'
 ): FilteredEventsResult {
   const yearRangeKey = `${filters.yearRange[0]}:${filters.yearRange[1]}`;
   const selectedLanesKey = selectedLanes.join('|');
@@ -79,7 +86,7 @@ export function useFilteredEvents(
       positionedEvents: recomputedEvents,
       layoutConfig: recomputedLayout,
       yearRange: recomputedYearRange,
-    } = computeLayout(filteredData, yearHeightScale, overrideRange);
+    } = computeLayout(filteredData, yearHeightScale, overrideRange, orientation);
 
     return {
       filteredData,
@@ -88,5 +95,5 @@ export function useFilteredEvents(
       yearRange: layoutMode === 'zoom' ? recomputedYearRange : (baseYearRange.min > 0 ? baseYearRange : recomputedYearRange),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, yearRangeKey, selectedLanesKey, layoutMode, yearHeightScale, baseYearRange.min, baseYearRange.max]);
+  }, [data, yearRangeKey, selectedLanesKey, layoutMode, yearHeightScale, baseYearRange.min, baseYearRange.max, orientation]);
 }

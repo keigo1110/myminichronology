@@ -10,7 +10,7 @@ import { useSheetLoader } from '../hooks/useSheetLoader';
 import { useTimelineData } from '../hooks/useTimelineData';
 import { useFilteredEvents } from '../hooks/useFilteredEvents';
 import { usePdfExport } from '../hooks/usePdfExport';
-import { LayoutMode } from '../lib/types';
+import { LayoutMode, TimelineOrientation } from '../lib/types';
 import { validateExcelFile } from '../lib/fileValidation';
 import { getEventDomId } from '../lib/eventDomId';
 
@@ -18,6 +18,7 @@ const HELP_URL = 'https://note.com/namida1110/n/nfd97132121ef';
 
 export default function Home() {
   const { data, loading, error, warnings, loadExcelFile, clearData } = useSheetLoader();
+  const [orientation, setOrientation] = useState<TimelineOrientation>('vertical');
   const {
     positionedEvents,
     layoutConfig,
@@ -26,7 +27,7 @@ export default function Home() {
     eventColorByName,
     yearHeight,
     setYearHeight,
-  } = useTimelineData(data);
+  } = useTimelineData(data, orientation);
   const { exporting, exportError, exportToPdf, clearExportError } = usePdfExport();
 
   const [isDragOver, setIsDragOver] = useState(false);
@@ -80,7 +81,8 @@ export default function Home() {
     selectedLanes,
     layoutMode,
     yearHeight / 24,
-    yearRange
+    yearRange,
+    orientation
   );
 
   React.useEffect(() => {
@@ -213,10 +215,14 @@ export default function Home() {
       setSearchMatchIndex(normalized);
       setHighlightedEventId(id);
       requestAnimationFrame(() => {
-        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        document.getElementById(id)?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: orientation === 'horizontal' ? 'center' : 'nearest',
+        });
       });
     },
-    [searchMatches]
+    [searchMatches, orientation]
   );
 
   const handleSearchNext = useCallback(() => {
@@ -241,12 +247,14 @@ export default function Home() {
   React.useEffect(() => {
     if (highlightedEventId && searchMatches.includes(highlightedEventId)) {
       requestAnimationFrame(() => {
-        document
-          .getElementById(highlightedEventId)
-          ?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        document.getElementById(highlightedEventId)?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: orientation === 'horizontal' ? 'center' : 'nearest',
+        });
       });
     }
-  }, [highlightedEventId, searchMatches]);
+  }, [highlightedEventId, searchMatches, orientation]);
 
   useEffect(() => {
     const el = chromeRef.current;
@@ -304,6 +312,8 @@ export default function Home() {
           onYearRangeChange={setYearRangeFilter}
           layoutMode={layoutMode}
           onLayoutModeChange={setLayoutMode}
+          orientation={orientation}
+          onOrientationChange={setOrientation}
           searchQuery={searchQuery}
           onSearchQueryChange={setSearchQuery}
           searchMatchCount={searchMatches.length}
@@ -344,6 +354,7 @@ export default function Home() {
                 eventColorByName={eventColorByName}
                 yearRange={effectiveYearRange}
                 highlightedEventId={highlightedEventId}
+                orientation={orientation}
               />
             </Box>
           </Box>

@@ -1,5 +1,8 @@
 export type EventDisplayStyle = 'default' | 'label';
 
+/** vertical: 縦=年代 / 横=テーマ。horizontal: 縦=テーマ / 横=年代（左→右で新） */
+export type TimelineOrientation = 'vertical' | 'horizontal';
+
 export interface Event {
   start: number;
   end?: number; // undefined → 点イベント
@@ -33,9 +36,17 @@ export interface PositionedEvent extends Event {
 export interface DynamicLayoutConfig {
   laneWidths: number[];
   laneWidthByName: Record<string, number>;
+  /** horizontal 時: 各レーン行の高さ */
+  laneHeights?: number[];
+  laneHeightByName?: Record<string, number>;
   yearAxisWidth: number;
+  /** horizontal 時: 上下の年軸の高さ */
+  yearAxisHeight?: number;
+  /** horizontal 時: 左のレーン名レール幅 */
+  laneLabelWidth?: number;
   totalWidth: number;
   timelineHeight?: number;
+  orientation?: TimelineOrientation;
 }
 
 export type LayoutMode = 'zoom' | 'filter';

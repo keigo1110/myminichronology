@@ -1,9 +1,12 @@
 import { useState, useMemo } from 'react';
-import { TimelineData, PositionedEvent } from '../lib/types';
+import { TimelineData, PositionedEvent, TimelineOrientation } from '../lib/types';
 import { computeLayout, calculateTimelineHeight, calculateTimelineWidth } from '../lib/computeLayout';
 import { chronologyLaneBackgrounds } from '../lib/colorPalette';
 
-export function useTimelineData(data: TimelineData | null) {
+export function useTimelineData(
+  data: TimelineData | null,
+  orientation: TimelineOrientation = 'vertical'
+) {
   const [yearHeight, setYearHeight] = useState(24);
 
   const layoutResult = useMemo(() => {
@@ -16,13 +19,14 @@ export function useTimelineData(data: TimelineData | null) {
           yearAxisWidth: 56,
           totalWidth: 120,
           timelineHeight: 800,
+          orientation,
         },
         yearRange: { min: 0, max: 0 },
       };
     }
     const yearHeightScale = yearHeight / 24;
-    return computeLayout(data, yearHeightScale);
-  }, [data, yearHeight]);
+    return computeLayout(data, yearHeightScale, undefined, orientation);
+  }, [data, yearHeight, orientation]);
 
   const { positionedEvents, layoutConfig, yearRange } = layoutResult;
 

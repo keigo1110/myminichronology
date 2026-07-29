@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Box, Typography, Tooltip, useTheme } from '@mui/material';
-import { PositionedEvent } from '../lib/types';
+import { PositionedEvent, TimelineOrientation } from '../lib/types';
 import { DEFAULT_EVENT_COLOR } from '../lib/parseExcel';
 import { pickReadableTextColor } from '../lib/colorPalette';
 import {
@@ -25,6 +25,7 @@ interface EventItemProps {
   style?: React.CSSProperties;
   eventId?: string;
   highlighted?: boolean;
+  orientation?: TimelineOrientation;
 }
 
 function parseStyleHeight(style?: React.CSSProperties): number {
@@ -46,8 +47,10 @@ export function EventItem({
   style,
   eventId,
   highlighted = false,
+  orientation = 'vertical',
 }: EventItemProps) {
   const theme = useTheme();
+  const isHorizontal = orientation === 'horizontal';
   const isPointEvent = !event.end;
   const isRangeEvent = !isPointEvent && event.displayStyle !== 'label';
   const isLabelStyle = event.displayStyle === 'label';
@@ -58,12 +61,15 @@ export function EventItem({
 
   const fontSizePx =
     event.fontSize ??
-    (isLabelStyle || layoutHeight >= VERTICAL_RANGE_HEIGHT_THRESHOLD
+    (isLabelStyle || (!isHorizontal && layoutHeight >= VERTICAL_RANGE_HEIGHT_THRESHOLD)
       ? DEFAULT_VERTICAL_FONT_SIZE_PX
       : DEFAULT_FONT_SIZE_PX);
 
   const height = Math.max(layoutHeight, Math.ceil(fontSizePx * 1.25) + 6);
-  const useVertical = isLabelStyle || (isRangeEvent && height >= VERTICAL_RANGE_HEIGHT_THRESHOLD);
+  // 横型の期間は横書き。label のみ縦書きボックス
+  const useVertical =
+    isLabelStyle ||
+    (!isHorizontal && isRangeEvent && height >= VERTICAL_RANGE_HEIGHT_THRESHOLD);
   const isCompact = !useVertical && height < 40;
 
   const accentColor = event.color || color || DEFAULT_EVENT_COLOR;
@@ -92,6 +98,9 @@ export function EventItem({
         ? `${fontSizePx + 2}px`
         : 'auto';
 
+  const showHorizontalRangeBar = isHorizontal && isRangeEvent;
+  const showVerticalRangeBar = !isHorizontal && isRangeEvent;
+
   return (
     <Tooltip title={eventLabel} placement="top">
       <Box
@@ -115,10 +124,16 @@ export function EventItem({
           borderRadius: isLabelStyle || highlighted ? '2px' : 0,
           boxShadow: highlighted ? `0 0 0 3px ${highlightRing}` : 'none',
           display: 'flex',
-          flexDirection: 'row',
-          alignItems: isLabelStyle ? 'center' : useVertical ? 'flex-start' : 'center',
+          flexDirection: showHorizontalRangeBar ? 'column' : 'row',
+          alignItems: isLabelStyle
+            ? 'center'
+            : showHorizontalRangeBar
+              ? 'stretch'
+              : useVertical
+                ? 'flex-start'
+                : 'center',
           justifyContent: isLabelStyle ? 'center' : 'flex-start',
-          gap: !isLabelStyle && isRangeEvent ? '4px' : 0,
+          gap: !isLabelStyle && isRangeEvent ? (showHorizontalRangeBar ? '2px' : '4px') : 0,
           px: isLabelStyle ? 0.4 : 0,
           py: isLabelStyle ? 0.5 : 0,
           overflow: isLabelStyle ? 'hidden' : 'visible',
@@ -126,6 +141,7 @@ export function EventItem({
           outline: 'none',
           zIndex: highlighted ? 20 : undefined,
           scrollMarginTop: 'var(--app-chrome-height, 120px)',
+          scrollMarginLeft: isHorizontal ? '120px' : undefined,
           transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
           '&:hover': isInteractive
             ? {
@@ -141,7 +157,7 @@ export function EventItem({
         onClick={() => onClick?.(event)}
         onKeyDown={handleKeyDown}
       >
-        {!isLabelStyle && isRangeEvent && (
+        {showVerticalRangeBar && (
           <Box
             aria-hidden
             sx={{
@@ -149,6 +165,19 @@ export function EventItem({
               flexShrink: 0,
               alignSelf: 'stretch',
               height: '100%',
+              backgroundColor: accentColor,
+              borderRadius: '1px',
+            }}
+          />
+        )}
+
+        {showHorizontalRangeBar && (
+          <Box
+            aria-hidden
+            sx={{
+              height: RANGE_BAR_WIDTH_PX,
+              flexShrink: 0,
+              width: '100%',
               backgroundColor: accentColor,
               borderRadius: '1px',
             }}
@@ -171,10 +200,17 @@ export function EventItem({
             wordBreak: 'break-word',
             flex: isLabelStyle && useVertical ? '1 1 auto' : '0 0 auto',
             width: labelTextWidth,
-            maxWidth: isLabelStyle ? '100%' : useVertical ? `${fontSizePx + 2}px` : '100%',
+            maxWidth: isLabelStyle
+              ? '100%'
+              : useVertical
+                ? `${fontSizePx + 2}px`
+                : showHorizontalRangeBar
+                  ? '100%'
+                  : '100%',
             height: useVertical ? '100%' : 'auto',
             m: 0,
             paddingTop: useVertical ? '2px' : 0,
+            paddingLeft: showHorizontalRangeBar ? '2px' : 0,
             pointerEvents: 'none',
           }}
         >
