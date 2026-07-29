@@ -54,7 +54,7 @@ export function LaneHeaderRow({
             <Typography
               component="span"
               sx={{
-                color: `${overlay.ink} !important`,
+                color: overlay.ink,
                 fontWeight: 700,
                 fontSize: '0.85rem',
                 textAlign: 'center',

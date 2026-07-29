@@ -264,9 +264,12 @@ export function EventItem({
             flexDirection: imageBelow ? 'column' : 'row',
             alignItems: imageBelow ? 'flex-start' : useVertical || isLabelStyle ? 'center' : 'center',
             gap: hasImage ? '4px' : 0,
-            minWidth: 0,
+            // minWidth:0 だと縦書きラベルの幅が潰れて文字が見えなくなる
+            minWidth: useVertical || isLabelStyle ? 'min-content' : 0,
             flex: imageBelow ? '1 1 auto' : undefined,
-            height: showVerticalRangeBar ? '100%' : undefined,
+            height: showVerticalRangeBar || isLabelStyle ? '100%' : undefined,
+            width: isLabelStyle ? '100%' : undefined,
+            justifyContent: isLabelStyle ? 'center' : undefined,
           }}
         >
           {hasImage && event.imageUrl && !imageBelow && (
@@ -276,8 +279,7 @@ export function EventItem({
           <Typography
             component="span"
             sx={{
-              // label 塗り背景の上ではテーマ色継承で淡色文字になると読めない
-              color: isLabelStyle ? `${textColor} !important` : textColor,
+              color: textColor,
               fontWeight: 700,
               fontSize: `${fontSizePx}px`,
               lineHeight: 1.25,
@@ -288,8 +290,10 @@ export function EventItem({
               overflow: 'visible',
               display: 'block',
               wordBreak: 'break-word',
-              flex: isLabelStyle && useVertical ? '1 1 auto' : '0 0 auto',
+              flex: '0 0 auto',
+              flexShrink: 0,
               width: labelTextWidth,
+              minWidth: useVertical ? Math.ceil(fontSizePx + 2) : undefined,
               maxWidth: isLabelStyle
                 ? '100%'
                 : useVertical

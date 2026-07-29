@@ -87,8 +87,7 @@ export function LaneColumn({
               fontWeight: 700,
               fontSize: '0.8rem',
               textAlign: 'center',
-              // テーマの text.primary（ダーク時は淡色）を継承しない
-              color: `${overlay.ink} !important`,
+              color: overlay.ink,
               writingMode: 'vertical-rl',
               textOrientation: 'mixed',
               letterSpacing: '0.12em',
