@@ -2,13 +2,19 @@ import React from 'react';
 import { Box, Typography, Tooltip } from '@mui/material';
 import { PositionedEvent } from '../lib/types';
 import { pickReadableTextColor } from '../lib/colorPalette';
+import { DEFAULT_EVENT_COLOR } from '../lib/parseExcel';
 
 /** 1行テキスト + 枠線が収まる最小表示高さ */
 export const EVENT_ITEM_MIN_HEIGHT = 22;
 
+/** 横書き時のデフォルトフォントサイズ（現状相当 ≈ 0.68rem） */
+export const DEFAULT_FONT_SIZE_PX = 11;
+/** 縦書き時のデフォルト */
+export const DEFAULT_VERTICAL_FONT_SIZE_PX = 12;
+
 interface EventItemProps {
   event: PositionedEvent;
-  color: string;
+  color?: string;
   onClick?: (event: PositionedEvent) => void;
   style?: React.CSSProperties;
 }
@@ -25,7 +31,12 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
   const height = Math.max(parseStyleHeight(style), EVENT_ITEM_MIN_HEIGHT);
   const useVertical = !isPointEvent && height >= 72;
   const isCompact = !useVertical && height < 40;
-  const textColor = pickReadableTextColor(color);
+
+  const fillColor = event.color || color || DEFAULT_EVENT_COLOR;
+  const textColor = pickReadableTextColor(fillColor);
+  const fontSizePx =
+    event.fontSize ??
+    (useVertical ? DEFAULT_VERTICAL_FONT_SIZE_PX : DEFAULT_FONT_SIZE_PX);
 
   const eventLabel = isPointEvent
     ? `${event.start}年：${event.label}`
@@ -49,7 +60,7 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
           ...style,
           height: `${height}px`,
           boxSizing: 'border-box',
-          backgroundColor: color,
+          backgroundColor: fillColor,
           borderRadius: '2px',
           border: '1px solid rgba(0,0,0,0.12)',
           boxShadow: 'none',
@@ -57,7 +68,6 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
           alignItems: 'center',
           justifyContent: useVertical ? 'center' : 'flex-start',
           px: useVertical ? 0.4 : 0.7,
-          // コンパクト時は上下パディングを付けず、中央揃えで下端欠けを防ぐ
           py: useVertical ? 0.6 : isCompact ? 0 : 0.5,
           overflow: 'hidden',
           cursor: isInteractive ? 'pointer' : 'default',
@@ -79,7 +89,7 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
           sx={{
             color: textColor,
             fontWeight: 700,
-            fontSize: useVertical ? '0.74rem' : '0.68rem',
+            fontSize: `${fontSizePx}px`,
             lineHeight: isCompact ? '1.2' : 1.35,
             letterSpacing: useVertical ? '0.06em' : '0.01em',
             writingMode: useVertical ? 'vertical-rl' : 'horizontal-tb',
@@ -93,7 +103,6 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
             wordBreak: 'break-word',
             maxWidth: '100%',
             m: 0,
-            // ベースライン下の見切れを避ける（日本語・ラテン共通）
             paddingTop: isCompact ? '1px' : 0,
             paddingBottom: isCompact ? '2px' : 0,
             pointerEvents: 'none',

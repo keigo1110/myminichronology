@@ -276,7 +276,7 @@ export default function Home() {
                 {isDragOver ? 'ファイルを離して年表を表示' : 'またはヘッダーのアップロードボタンをクリック'}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                対応形式: .xlsx（最大10MB・最大5シート）
+                対応形式: .xlsx（最大10MB・最大5シート）／D列フォントサイズ・E列色（任意）
               </Typography>
             </Box>
 

@@ -2,6 +2,10 @@ export interface Event {
   start: number;
   end?: number; // undefined → 点イベント
   label: string;
+  /** フォントサイズ（px）。未指定時は UI デフォルト */
+  fontSize?: number;
+  /** イベント塗り色（#RRGGBB）。未指定時は黒 */
+  color?: string;
 }
 
 export interface Lane {
@@ -36,7 +40,8 @@ export type ParseErrorType =
   | 'empty-sheet'
   | 'skipped-sheet'
   | 'year-order'
-  | 'year-span';
+  | 'year-span'
+  | 'invalid-style';
 
 export interface ParseWarning {
   type: ParseErrorType;

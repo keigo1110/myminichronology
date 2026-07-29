@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { TimelineData, PositionedEvent } from '../lib/types';
 import { computeLayout, calculateTimelineHeight, calculateTimelineWidth } from '../lib/computeLayout';
-import { chronologyLaneBackgrounds, chronologyEventColors } from '../lib/colorPalette';
+import { chronologyLaneBackgrounds } from '../lib/colorPalette';
 
 export function useTimelineData(data: TimelineData | null) {
   const [yearHeight, setYearHeight] = useState(24);
@@ -46,8 +46,9 @@ export function useTimelineData(data: TimelineData | null) {
 
   const eventColorByName = useMemo(() => {
     const map: Record<string, string> = {};
-    data?.forEach((lane, index) => {
-      map[lane.name] = chronologyEventColors[index % chronologyEventColors.length];
+    data?.forEach((lane) => {
+      // テンプレート未指定時のフォールバックは黒（イベント個別 color が優先）
+      map[lane.name] = '#000000';
     });
     return map;
   }, [data]);

@@ -36,8 +36,10 @@ describe('parseExcel', () => {
     expect(result.lanes[0].events[0]).toMatchObject({
       start: 2020,
       label: 'オリンピック延期',
+      color: '#000000',
     });
     expect(result.lanes[0].events[0].end).toBeUndefined();
+    expect(result.lanes[0].events[0].fontSize).toBeUndefined();
   });
 
   it('should parse valid Excel file with range events', async () => {
@@ -53,7 +55,43 @@ describe('parseExcel', () => {
       start: 2008,
       end: 2009,
       label: 'リーマンショック',
+      color: '#000000',
     });
+  });
+
+  it('should parse font size and color columns', async () => {
+    const file = createWorkbookFile({
+      政治: [
+        ['年', 'いつまで', '出来事', 'フォントサイズ', '色'],
+        [2020, null, '指定あり', 14, '#C45C26'],
+        [2021, null, '色のみ', null, '1565C0'],
+        [2022, null, 'サイズのみ', 12, null],
+        [2023, null, '無効スタイル', 99, 'not-a-color'],
+      ],
+    });
+
+    const result = await parseExcel(file);
+    expect(result.lanes[0].events[0]).toMatchObject({
+      label: '指定あり',
+      fontSize: 14,
+      color: '#C45C26',
+    });
+    expect(result.lanes[0].events[1]).toMatchObject({
+      label: '色のみ',
+      color: '#1565C0',
+    });
+    expect(result.lanes[0].events[1].fontSize).toBeUndefined();
+    expect(result.lanes[0].events[2]).toMatchObject({
+      label: 'サイズのみ',
+      fontSize: 12,
+      color: '#000000',
+    });
+    expect(result.lanes[0].events[3]).toMatchObject({
+      label: '無効スタイル',
+      color: '#000000',
+    });
+    expect(result.lanes[0].events[3].fontSize).toBeUndefined();
+    expect(result.warnings.filter((w) => w.type === 'invalid-style')).toHaveLength(2);
   });
 
   it('should warn and skip rows with missing required columns', async () => {

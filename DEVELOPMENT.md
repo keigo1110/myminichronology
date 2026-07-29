@@ -90,11 +90,14 @@ npm run typecheck && npm run lint && npm run test:ci && npm run build
 | A | 開始年 | ✔ |
 | B | 終了年 | 任意（空なら点イベント） |
 | C | 出来事 | ✔ |
+| D | フォントサイズ（px, 8〜48） | 任意 |
+| E | 色（`#RRGGBB` / `#RGB`） | 任意（空なら `#000000`） |
 
 - 1 行目はヘッダーとしてスキップ
 - シート名 = レーン名
 - 日付セルは年に変換を試みます
 - テンプレート: [`/public/template.xlsx`](./public/template.xlsx)
+- 文字色は塗り色とのコントラストから自動選択（白 or 濃色）
 
 ## テスト方針
 

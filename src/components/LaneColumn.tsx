@@ -3,7 +3,7 @@ import { Box } from '@mui/material';
 import { Lane, PositionedEvent } from '../lib/types';
 import { EventItem, EVENT_ITEM_MIN_HEIGHT } from './EventItem';
 import { getYearTicks } from '../lib/yearTicks';
-import { pickChronologyEventColor } from '../lib/colorPalette';
+import { DEFAULT_EVENT_COLOR } from '../lib/parseExcel';
 
 interface LaneColumnProps {
   lane: Lane;
@@ -69,16 +69,13 @@ export function LaneColumn({
         })}
 
         {events.map((event, index) => {
-          const color = pickChronologyEventColor(
-            `${lane.name}:${event.label}:${event.start}`,
-            index
-          );
+          const color = event.color || eventColor || DEFAULT_EVENT_COLOR;
 
           return (
             <EventItem
               key={`${lane.name}-${event.label}-${event.start}-${index}`}
               event={event}
-              color={color || eventColor}
+              color={color}
               onClick={onEventClick}
               style={{
                 position: 'absolute',
