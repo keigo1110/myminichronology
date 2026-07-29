@@ -1,3 +1,5 @@
+import { AppMessageError } from '../i18n/errors';
+
 // A4 landscape dimensions in mm
 const A4_LANDSCAPE_WIDTH_MM = 297;
 const A4_LANDSCAPE_HEIGHT_MM = 210;
@@ -35,11 +37,10 @@ function buildPdfPages(
   const tempCanvas = document.createElement('canvas');
   const tempCtx = tempCanvas.getContext('2d');
   if (!tempCtx) {
-    throw new Error('PDF用キャンバスの初期化に失敗しました。');
+    throw new AppMessageError('pdf.canvasFailed');
   }
 
   if (pageHorizontally) {
-    // 高さを A4 に合わせ、幅方向に分割
     const imageHeightOnPdf = A4_LANDSCAPE_HEIGHT_MM;
     const imageWidthOnPdf = imageHeightOnPdf * canvasAspect;
     const totalPages = Math.ceil(imageWidthOnPdf / A4_LANDSCAPE_WIDTH_MM);
@@ -74,7 +75,6 @@ function buildPdfPages(
     return;
   }
 
-  // 幅を A4 に合わせ、高さ方向に分割
   const imageWidthOnPdf = A4_LANDSCAPE_WIDTH_MM;
   const imageHeightOnPdf = imageWidthOnPdf / canvasAspect;
   const totalPages = Math.ceil(imageHeightOnPdf / A4_LANDSCAPE_HEIGHT_MM);
@@ -117,7 +117,7 @@ export async function exportPdf(elementId: string): Promise<void> {
   try {
     const element = document.getElementById(elementId);
     if (!element) {
-      throw new Error('PDFエクスポート対象の年表要素が見つかりません。');
+      throw new AppMessageError('pdf.elementMissing');
     }
 
     element.classList.add('pdf-export');
@@ -155,9 +155,12 @@ export async function exportPdf(elementId: string): Promise<void> {
     const element = document.getElementById(elementId);
     element?.classList.remove('pdf-export');
 
-    if (error instanceof Error) {
-      throw new Error(`PDFのエクスポートに失敗しました: ${error.message}`);
+    if (error instanceof AppMessageError) {
+      throw error;
     }
-    throw new Error('PDFのエクスポートに失敗しました。');
+    if (error instanceof Error) {
+      throw new AppMessageError('pdf.exportFailed', { detail: error.message });
+    }
+    throw new AppMessageError('pdf.exportFailedGeneric');
   }
 }

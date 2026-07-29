@@ -8,6 +8,7 @@ import {
   buildAgentFixPrompt,
   copyTextToClipboard,
 } from '../lib/agentPrompt';
+import { useT } from '../i18n/LocaleProvider';
 
 interface CopyableAlertProps {
   severity: 'error' | 'warning' | 'info' | 'success';
@@ -30,6 +31,7 @@ export function CopyableAlert({
   onClose,
   sx,
 }: CopyableAlertProps) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const issueKind: AgentIssueKind =
     kind ?? (severity === 'error' ? 'error' : 'warning');
@@ -54,17 +56,13 @@ export function CopyableAlert({
       action={
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
           <Tooltip
-            title={
-              copied
-                ? 'コピーしました'
-                : 'エージェント用プロンプトをコピー（Skill 付きチャットに貼り付け）'
-            }
+            title={copied ? t('alert.copied') : t('alert.copyPrompt')}
           >
             <IconButton
               size="small"
               color="inherit"
               onClick={handleCopy}
-              aria-label="エージェント用プロンプトをコピー"
+              aria-label={t('alert.copyAria')}
             >
               {copied ? <Check fontSize="small" /> : <ContentCopy fontSize="small" />}
             </IconButton>
@@ -74,7 +72,7 @@ export function CopyableAlert({
               size="small"
               color="inherit"
               onClick={onClose}
-              aria-label="閉じる"
+              aria-label={t('alert.close')}
             >
               <Close fontSize="small" />
             </IconButton>

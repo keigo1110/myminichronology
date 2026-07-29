@@ -3,6 +3,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import { CopyableAlert } from './CopyableAlert';
+import { LocaleContext } from '../i18n/LocaleProvider';
 
 interface Props {
   children: ReactNode;
@@ -22,7 +23,7 @@ export class ErrorBoundary extends Component<Props, State> {
   static getDerivedStateFromError(error: Error): State {
     return {
       hasError: true,
-      message: error.message || '予期しないエラーが発生しました。',
+      message: error.message || '',
     };
   }
 
@@ -38,34 +39,41 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <Box
-          component="main"
-          sx={{
-            minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            p: 3,
-            backgroundColor: 'background.default',
+        <LocaleContext.Consumer>
+          {({ t }) => {
+            const detail = this.state.message || t('error.boundaryFallback');
+            return (
+              <Box
+                component="main"
+                sx={{
+                  minHeight: '100vh',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  p: 3,
+                  backgroundColor: 'background.default',
+                }}
+              >
+                <Box sx={{ maxWidth: 480, width: '100%' }}>
+                  <CopyableAlert
+                    severity="error"
+                    kind="error"
+                    messages={[detail]}
+                    sx={{ mb: 2 }}
+                  >
+                    {t('error.boundaryTitle')}
+                  </CopyableAlert>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    {detail || t('error.unexpected')}
+                  </Typography>
+                  <Button variant="contained" onClick={this.handleReload}>
+                    {t('error.reload')}
+                  </Button>
+                </Box>
+              </Box>
+            );
           }}
-        >
-          <Box sx={{ maxWidth: 480, width: '100%' }}>
-            <CopyableAlert
-              severity="error"
-              kind="error"
-              messages={[this.state.message || '表示中にエラーが発生しました']}
-              sx={{ mb: 2 }}
-            >
-              表示中にエラーが発生しました。ページを再読み込みしてください。
-            </CopyableAlert>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              {this.state.message}
-            </Typography>
-            <Button variant="contained" onClick={this.handleReload}>
-              再読み込み
-            </Button>
-          </Box>
-        </Box>
+        </LocaleContext.Consumer>
       );
     }
 

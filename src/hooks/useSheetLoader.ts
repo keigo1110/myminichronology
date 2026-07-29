@@ -2,11 +2,12 @@ import { useState, useCallback } from 'react';
 import { TimelineData, ParseWarning } from '../lib/types';
 import { parseExcel } from '../lib/parseExcel';
 import { isXlsxFile } from '../lib/fileValidation';
+import { AppMessageError, isAppMessageError, type StoredAppError } from '../i18n/errors';
 
 export function useSheetLoader() {
   const [data, setData] = useState<TimelineData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<StoredAppError | null>(null);
   const [warnings, setWarnings] = useState<ParseWarning[]>([]);
 
   const loadExcelFile = useCallback(async (file: File) => {
@@ -16,7 +17,7 @@ export function useSheetLoader() {
 
     try {
       if (!isXlsxFile(file)) {
-        throw new Error('Excelファイル（.xlsx）を選択してください。');
+        throw new AppMessageError('file.notXlsxPeriod');
       }
 
       const result = await parseExcel(file);
@@ -24,8 +25,11 @@ export function useSheetLoader() {
       setWarnings(result.warnings);
     } catch (err) {
       console.error('Excel file load error:', err);
-      const message = err instanceof Error ? err.message : 'Excelファイルの読み込みに失敗しました。';
-      setError(message);
+      if (isAppMessageError(err)) {
+        setError({ code: err.code, params: err.params });
+      } else {
+        setError({ code: 'error.loadFailed' });
+      }
       setData(null);
       setWarnings([]);
     } finally {

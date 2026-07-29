@@ -1,15 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
 import { validateExcelFile } from '../lib/fileValidation';
+import type { MessageKey } from '../i18n/messages';
 
 /**
  * page.tsx の handleFileDrop と同じ検証ロジックをテストする。
  * 実際の読み込みコールバックはモックする。
+ * 戻り値は MessageKey（UI 側で t() する前提）。
  */
 function createHandleFileDrop(
   mockClearData: () => void,
   mockLoadExcelFile: (file: File) => void
 ) {
-  return (file: File): string | null => {
+  return (file: File): MessageKey | null => {
     try {
       const validationError = validateExcelFile(file);
       if (validationError) {
@@ -20,7 +22,7 @@ function createHandleFileDrop(
       mockLoadExcelFile(file);
       return null;
     } catch {
-      return 'ファイルの処理中にエラーが発生しました';
+      return 'error.fileProcess';
     }
   };
 }
@@ -34,7 +36,7 @@ describe('file drop validation', () => {
     const file = new File(['content'], 'test.pdf', { type: 'application/pdf' });
     const result = handleFileDrop(file);
 
-    expect(result).toBe('Excelファイル（.xlsx）を選択してください');
+    expect(result).toBe('file.notXlsx');
     expect(mockClearData).not.toHaveBeenCalled();
     expect(mockLoadExcelFile).not.toHaveBeenCalled();
   });
@@ -52,7 +54,7 @@ describe('file drop validation', () => {
 
     const result = handleFileDrop(file);
 
-    expect(result).toBe('ファイルサイズが大きすぎます（10MB以下にしてください）');
+    expect(result).toBe('file.tooLarge');
     expect(mockClearData).not.toHaveBeenCalled();
     expect(mockLoadExcelFile).not.toHaveBeenCalled();
   });
@@ -104,7 +106,7 @@ describe('file drop validation', () => {
 
     const result = handleFileDrop(file);
 
-    expect(result).toBe('ファイルの処理中にエラーが発生しました');
+    expect(result).toBe('error.fileProcess');
     expect(mockClearData).toHaveBeenCalledOnce();
     expect(mockLoadExcelFile).toHaveBeenCalledWith(file);
   });

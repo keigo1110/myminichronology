@@ -26,12 +26,14 @@ import {
   DarkMode,
   LightMode,
   SwapVert,
+  Translate,
 } from '@mui/icons-material';
 import { DraggableLaneList } from './DraggableLaneList';
 import { CopyableAlert } from './CopyableAlert';
 import { LayoutMode, TimelineOrientation } from '../lib/types';
 import { isXlsxFileName } from '../lib/fileValidation';
 import { useColorMode } from '../app/providers';
+import { useT, useLocale } from '../i18n/LocaleProvider';
 
 const HELP_URL = 'https://note.com/namida1110/n/nfd97132121ef';
 
@@ -95,6 +97,8 @@ export function Header({
   onSearchPrev,
 }: HeaderProps) {
   const { mode, toggleColorMode } = useColorMode();
+  const t = useT();
+  const { locale, toggleLocale } = useLocale();
   const [isDragOver, setIsDragOver] = useState(false);
   const [expanded, setExpanded] = useState(hasData);
   const [filterYearRange, setFilterYearRange] = useState<[number, number]>([
@@ -137,13 +141,13 @@ export function Header({
 
       const files = Array.from(e.dataTransfer.files);
       if (files.length === 0) {
-        reportError('ファイルが選択されていません');
+        reportError(t('error.noFile'));
         return;
       }
 
       const excelFile = files.find((file) => isXlsxFileName(file.name));
       if (!excelFile) {
-        reportError('Excelファイル（.xlsx）を選択してください');
+        reportError(t('file.notXlsx'));
         return;
       }
 
@@ -154,19 +158,19 @@ export function Header({
       }
       reportError(null);
     },
-    [onFileDrop, reportError]
+    [onFileDrop, reportError, t]
   );
 
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) {
-        reportError('ファイルが選択されていません');
+        reportError(t('error.noFile'));
         return;
       }
 
       if (!isXlsxFileName(file.name)) {
-        reportError('Excelファイル（.xlsx）を選択してください');
+        reportError(t('file.notXlsx'));
         return;
       }
 
@@ -178,7 +182,7 @@ export function Header({
       reportError(null);
       e.target.value = '';
     },
-    [onFileDrop, reportError]
+    [onFileDrop, reportError, t]
   );
 
   const handleYearHeightChange = useCallback(
@@ -225,6 +229,7 @@ export function Header({
   const isYearRangeActive =
     filterYearRange[0] !== yearRange.min || filterYearRange[1] !== yearRange.max;
   const isLaneSelectionDefault = selectedLanes.length === lanes.length;
+  const langToggleLabel = locale === 'ja' ? t('header.langToEn') : t('header.langToJa');
 
   return (
     <Box
@@ -243,7 +248,7 @@ export function Header({
         <Box
           component="img"
           src="/minikuro-title.jpg"
-          alt="ミニクロ"
+          alt={t('brand.name')}
           sx={{
             height: { xs: 32, sm: 36, md: 40 },
             width: 'auto',
@@ -256,8 +261,8 @@ export function Header({
             <Tooltip
               title={
                 orientation === 'horizontal'
-                  ? '年あたりの幅を調整'
-                  : '年間高さ調整'
+                  ? t('header.yearWidth')
+                  : t('header.yearHeight')
               }
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 140 }}>
@@ -276,7 +281,9 @@ export function Header({
                   max={120}
                   step={2}
                   aria-label={
-                    orientation === 'horizontal' ? '年あたりの幅' : '年間高さ'
+                    orientation === 'horizontal'
+                      ? t('header.yearWidthAria')
+                      : t('header.yearHeightAria')
                   }
                   sx={{
                     '& .MuiSlider-thumb': { width: 12, height: 12 },
@@ -287,7 +294,7 @@ export function Header({
                 <Typography variant="caption" sx={{ minWidth: 20, textAlign: 'center' }}>
                   {yearHeight}px
                 </Typography>
-                <Tooltip title="デフォルト値（24px）にリセット">
+                <Tooltip title={t('header.resetDefault24')}>
                   <span>
                     <IconButton
                       size="small"
@@ -311,8 +318,8 @@ export function Header({
             <Tooltip
               title={
                 orientation === 'vertical'
-                  ? '縦横入れ替え（縦：テーマ・横：年代）'
-                  : '縦横入れ替え（縦：年代・横：テーマ）'
+                  ? t('header.swapToHorizontal')
+                  : t('header.swapToVertical')
               }
             >
               <IconButton
@@ -322,7 +329,7 @@ export function Header({
                   )
                 }
                 size="small"
-                aria-label="縦横入れ替え"
+                aria-label={t('header.swapAria')}
                 aria-pressed={orientation === 'horizontal'}
                 color={orientation === 'horizontal' ? 'primary' : 'default'}
               >
@@ -336,12 +343,12 @@ export function Header({
             </Tooltip>
           )}
 
-          <Tooltip title="Excel ファイルをアップロード">
+          <Tooltip title={t('header.upload')}>
             <span>
               <IconButton
                 component="label"
                 disabled={loading}
-                aria-label="Excelファイルをアップロード"
+                aria-label={t('header.uploadAria')}
                 sx={{
                   border: '1px dashed',
                   borderColor: isDragOver ? 'primary.main' : fileError ? 'error.main' : 'grey.300',
@@ -373,12 +380,12 @@ export function Header({
           </Tooltip>
 
           {hasData && (
-            <Tooltip title={exporting ? 'PDFを生成中…' : 'PDF エクスポート'}>
+            <Tooltip title={exporting ? t('header.pdfBusy') : t('header.pdf')}>
               <span>
                 <IconButton
                   onClick={onPdfExport}
                   disabled={exporting}
-                  aria-label="PDFエクスポート"
+                  aria-label={t('header.pdfAria')}
                 >
                   <PictureAsPdf />
                 </IconButton>
@@ -386,24 +393,34 @@ export function Header({
             </Tooltip>
           )}
 
-          <Tooltip title={mode === 'dark' ? 'ライトモードに切替' : 'ダークモードに切替'}>
+          <Tooltip title={mode === 'dark' ? t('header.lightMode') : t('header.darkMode')}>
             <IconButton
               onClick={toggleColorMode}
               size="small"
-              aria-label={mode === 'dark' ? 'ライトモードに切替' : 'ダークモードに切替'}
+              aria-label={mode === 'dark' ? t('header.lightMode') : t('header.darkMode')}
             >
               {mode === 'dark' ? <LightMode /> : <DarkMode />}
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="使い方ガイド">
+          <Tooltip title={langToggleLabel}>
+            <IconButton
+              onClick={toggleLocale}
+              size="small"
+              aria-label={langToggleLabel}
+            >
+              <Translate />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title={t('header.help')}>
             <IconButton
               component="a"
               href={HELP_URL}
               target="_blank"
               rel="noopener noreferrer"
               size="small"
-              aria-label="使い方ガイド"
+              aria-label={t('header.help')}
             >
               <HelpOutline />
             </IconButton>
@@ -412,7 +429,7 @@ export function Header({
           <IconButton
             onClick={() => setExpanded(!expanded)}
             size="small"
-            aria-label={expanded ? '表示範囲の設定を閉じる' : '表示範囲の設定を開く'}
+            aria-label={expanded ? t('header.expandClose') : t('header.expandOpen')}
           >
             {expanded ? <ExpandLess /> : <ExpandMore />}
           </IconButton>
@@ -451,7 +468,7 @@ export function Header({
                 >
                   <TextField
                     size="small"
-                    placeholder="表示中を検索"
+                    placeholder={t('header.searchPlaceholder')}
                     value={searchQuery}
                     onChange={(e) => onSearchQueryChange?.(e.target.value)}
                     onKeyDown={(e) => {
@@ -471,7 +488,7 @@ export function Header({
                       '& .MuiInputBase-root': { height: 32, fontSize: '0.75rem' },
                       '& .MuiInputBase-input': { py: 0.5, px: 0.5 },
                     }}
-                    inputProps={{ 'aria-label': '表示中の出来事を検索' }}
+                    inputProps={{ 'aria-label': t('header.searchAria') }}
                   />
                   <Typography
                     variant="caption"
@@ -485,25 +502,25 @@ export function Header({
                         : `${searchMatchIndex + 1}/${searchMatchCount}`
                       : ''}
                   </Typography>
-                  <Tooltip title="前の一致（Shift+Enter）">
+                  <Tooltip title={t('header.searchPrev')}>
                     <span>
                       <IconButton
                         size="small"
                         onClick={onSearchPrev}
                         disabled={!searchQuery.trim() || searchMatchCount === 0}
-                        aria-label="前の検索結果へ"
+                        aria-label={t('header.searchPrevAria')}
                       >
                         <KeyboardArrowUp fontSize="small" />
                       </IconButton>
                     </span>
                   </Tooltip>
-                  <Tooltip title="次の一致（Enter）">
+                  <Tooltip title={t('header.searchNext')}>
                     <span>
                       <IconButton
                         size="small"
                         onClick={onSearchNext}
                         disabled={!searchQuery.trim() || searchMatchCount === 0}
-                        aria-label="次の検索結果へ"
+                        aria-label={t('header.searchNextAria')}
                       >
                         <KeyboardArrowDown fontSize="small" />
                       </IconButton>
@@ -518,13 +535,13 @@ export function Header({
                       variant="body2"
                       sx={{ minWidth: 'fit-content', fontSize: '0.875rem' }}
                     >
-                      年代範囲:
+                      {t('header.yearRange')}
                     </Typography>
                     <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
                       <TextField
                         size="small"
                         type="number"
-                        label="開始年"
+                        label={t('header.startYear')}
                         value={filterYearRange[0]}
                         onChange={(e) => {
                           const value = parseInt(e.target.value, 10);
@@ -551,7 +568,7 @@ export function Header({
                       <TextField
                         size="small"
                         type="number"
-                        label="終了年"
+                        label={t('header.endYear')}
                         value={filterYearRange[1]}
                         onChange={(e) => {
                           const value = parseInt(e.target.value, 10);
@@ -572,7 +589,7 @@ export function Header({
                         }}
                         inputProps={{ min: yearRange.min, max: yearRange.max }}
                       />
-                      <Tooltip title="デフォルト値にリセット">
+                      <Tooltip title={t('header.resetDefault')}>
                         <span>
                           <IconButton
                             size="small"
@@ -593,7 +610,7 @@ export function Header({
                       <Select
                         value={layoutMode}
                         onChange={(e) => onLayoutModeChange?.(e.target.value as LayoutMode)}
-                        aria-label="年代範囲の見せ方"
+                        aria-label={t('header.layoutModeAria')}
                         sx={{
                           fontSize: '0.75rem',
                           height: 32,
@@ -601,23 +618,23 @@ export function Header({
                         }}
                       >
                         <MenuItem value="zoom" sx={{ fontSize: '0.75rem' }}>
-                          拡大して再配置
+                          {t('header.layoutZoom')}
                         </MenuItem>
                         <MenuItem value="filter" sx={{ fontSize: '0.75rem' }}>
-                          位置はそのまま
+                          {t('header.layoutFilter')}
                         </MenuItem>
                       </Select>
                     </FormControl>
                     <Tooltip
                       title={
                         layoutMode === 'zoom'
-                          ? '選んだ年代を画面いっぱいに広げて再配置します'
-                          : '全体の位置関係はそのまま、範囲外の出来事だけ隠します'
+                          ? t('header.layoutZoomHelp')
+                          : t('header.layoutFilterHelp')
                       }
                     >
                       <IconButton
                         size="small"
-                        aria-label="年代範囲の見せ方の説明"
+                        aria-label={t('header.layoutHelpAria')}
                         sx={{ width: 28, height: 28 }}
                       >
                         <HelpOutline sx={{ fontSize: 16 }} />
@@ -633,7 +650,7 @@ export function Header({
                       variant="body2"
                       sx={{ minWidth: 'fit-content', fontSize: '0.875rem' }}
                     >
-                      レーン:
+                      {t('header.lanes')}
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1, minWidth: 0 }}>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.25, flex: 1 }}>
@@ -644,7 +661,7 @@ export function Header({
                           onLaneOrderChange={onLaneOrderChange || (() => {})}
                         />
                       </Box>
-                      <Tooltip title="すべてのレーンを表示">
+                      <Tooltip title={t('header.resetLanes')}>
                         <span>
                           <IconButton
                             size="small"
@@ -666,7 +683,7 @@ export function Header({
               </Box>
             ) : (
               <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
-                Excelファイルを読み込むと、検索・年代範囲・レーンの設定が表示されます。
+                {t('header.filterHint')}
               </Typography>
             )}
           </Paper>

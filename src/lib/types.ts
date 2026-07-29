@@ -66,7 +66,9 @@ export type ParseErrorType =
 
 export interface ParseWarning {
   type: ParseErrorType;
-  message: string;
+  /** i18n MessageKey（例: parse.invalidStartYear） */
+  code: string;
+  params?: Record<string, string | number>;
   sheet?: string;
   row?: number;
 }

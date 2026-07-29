@@ -16,14 +16,19 @@
 │   ├── app/                        # Next.js App Router
 │   │   ├── layout.tsx              # ルートレイアウト / メタデータ
 │   │   ├── page.tsx                # メインページ（クライアント）
-│   │   ├── providers.tsx           # ThemeProvider + ライト/ダーク
+│   │   ├── providers.tsx           # ThemeProvider + LocaleProvider + ライト/ダーク
 │   │   ├── globals.css             # グローバル CSS
 │   │   ├── icon.png                # favicon（ファイルベース）
 │   │   └── apple-icon.png          # Apple touch icon
 │   ├── theme/
 │   │   └── createAppTheme.ts       # 紙面トーンの light/dark テーマ
+│   ├── i18n/                       # UI 日英（LocaleProvider + 辞書）
+│   │   ├── messages.ts             # ja / en 文言カタログ
+│   │   ├── LocaleProvider.tsx      # useT / useLocale
+│   │   ├── errors.ts               # AppMessageError
+│   │   └── index.ts                # translate ヘルパー
 │   ├── components/
-│   │   ├── Header.tsx              # ヘッダー（アップロード / フィルタ / PDF / テーマ）
+│   │   ├── Header.tsx              # ヘッダー（アップロード / フィルタ / PDF / テーマ / 言語）
 │   │   ├── Timeline.tsx            # 年表ルート
 │   │   ├── YearAxis.tsx            # 左右の年軸
 │   │   ├── LaneHeaderRow.tsx       # レーン見出し（sticky）
@@ -72,7 +77,7 @@
 
 ### Header.tsx
 
-- ロゴ、レイアウトモード、年間高さ、アップロード、PDF、ヘルプ
+- ロゴ、レイアウトモード、年間高さ、アップロード、PDF、テーマ、言語切替、ヘルプ
 - 展開パネル: 年代範囲入力、レーン選択 / 並び替え
 - エラー Alert（読み込み / ドロップ / PDF）
 

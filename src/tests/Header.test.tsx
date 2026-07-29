@@ -182,6 +182,11 @@ describe('Header', () => {
     expect(screen.getByRole('link', { name: '使い方ガイド' })).toBeInTheDocument();
   });
 
+  it('should render language toggle', () => {
+    renderHeader(<Header {...mockProps} />);
+    expect(screen.getByLabelText('Switch to English')).toBeInTheDocument();
+  });
+
   it('should render expand/collapse button', () => {
     renderHeader(<Header {...mockProps} />);
     expect(screen.getByTestId('ExpandLessIcon')).toBeInTheDocument();

@@ -4,6 +4,7 @@ import React from 'react';
 import { Box, Typography, useTheme } from '@mui/material';
 import { formatYearLabel, getYearTickInterval, getYearTicks } from '../lib/yearTicks';
 import { TimelineOrientation } from '../lib/types';
+import { useT } from '../i18n/LocaleProvider';
 
 interface YearAxisProps {
   yearRange: { min: number; max: number };
@@ -32,6 +33,7 @@ export function YearAxis({
   labelOffset = 0,
 }: YearAxisProps) {
   const theme = useTheme();
+  const t = useT();
   const sheet = theme.palette.chronology.sheet;
   const border = theme.palette.chronology.hairlineStrong;
   const ink = theme.palette.text.primary;
@@ -85,7 +87,7 @@ export function YearAxis({
               letterSpacing: '0.04em',
             }}
           >
-            年代
+            {t('axis.years')}
           </Typography>
         </Box>
 
@@ -172,7 +174,7 @@ export function YearAxis({
             letterSpacing: '0.04em',
           }}
         >
-          年代
+          {t('axis.years')}
         </Typography>
       </Box>
 

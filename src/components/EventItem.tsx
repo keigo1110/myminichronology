@@ -11,6 +11,7 @@ import {
   EVENT_IMAGE_MAX_WIDTH,
   EVENT_IMAGE_MAX_HEIGHT,
 } from '../lib/computeLayout';
+import { useT } from '../i18n/LocaleProvider';
 
 /** 1行テキストが収まる最小表示高さ */
 export const EVENT_ITEM_MIN_HEIGHT = 22;
@@ -50,6 +51,7 @@ function EventImageThumb({
   alt: string;
 }) {
   const theme = useTheme();
+  const t = useT();
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -100,7 +102,7 @@ function EventImageThumb({
             lineHeight: 1.2,
           }}
         >
-          画像なし
+          {t('event.noImage')}
         </Typography>
       )}
     </Box>
@@ -117,6 +119,7 @@ export function EventItem({
   orientation = 'vertical',
 }: EventItemProps) {
   const theme = useTheme();
+  const t = useT();
   const isHorizontal = orientation === 'horizontal';
   const isPointEvent = !event.end;
   const isRangeEvent = !isPointEvent && event.displayStyle !== 'label';
@@ -147,9 +150,12 @@ export function EventItem({
 
   const eventLabel =
     isPointEvent || isLabelStyle
-      ? `${event.start}年：${event.label}`
-      : `${event.start}年-${event.end}年：${event.label}`;
-
+      ? t('event.pointLabel', { year: event.start, label: event.label })
+      : t('event.rangeLabel', {
+          start: event.start,
+          end: event.end as number,
+          label: event.label,
+        });
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!onClick) return;
     if (e.key === 'Enter' || e.key === ' ') {

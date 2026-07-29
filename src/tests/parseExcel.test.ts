@@ -83,7 +83,7 @@ describe('parseExcel', () => {
     });
     expect(result.lanes[0].events[2].displayStyle).toBeUndefined();
     expect(result.lanes[0].events[3].displayStyle).toBeUndefined();
-    expect(result.warnings.some((w) => w.message.includes('表示スタイル'))).toBe(true);
+    expect(result.warnings.some((w) => w.code === 'parse.invalidStyle')).toBe(true);
   });
 
   it('should parse font size and color columns', async () => {
@@ -173,7 +173,7 @@ describe('parseExcel', () => {
       空: [['年', '出来事', '(いつまで)']],
     });
 
-    await expect(parseExcel(file)).rejects.toThrow(/有効なデータ/);
+    await expect(parseExcel(file)).rejects.toThrow(/parse\.noValidData/);
   });
 
   it('should parse image URL column (G)', async () => {
@@ -193,7 +193,7 @@ describe('parseExcel', () => {
     expect(result.lanes[0].events[2].imageUrl).toBeUndefined();
     expect(result.lanes[0].events[3].imageUrl).toBeUndefined();
     expect(
-      result.warnings.filter((w) => w.message.includes('画像リンク')).length
+      result.warnings.filter((w) => w.code === 'parse.invalidImageUrl').length
     ).toBeGreaterThanOrEqual(2);
   });
 });

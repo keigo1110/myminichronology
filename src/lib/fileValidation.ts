@@ -1,3 +1,5 @@
+import type { MessageKey } from '../i18n/messages';
+
 /** Excel ファイルの最大サイズ（10MB） */
 export const MAX_EXCEL_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -21,15 +23,15 @@ export function isXlsxFile(file: File): boolean {
 
 /**
  * アップロード前のファイル検証。
- * @returns エラーメッセージ（日本語）。成功時は null。
+ * @returns エラーメッセージキー。成功時は null。
  */
-export function validateExcelFile(file: File): string | null {
+export function validateExcelFile(file: File): MessageKey | null {
   if (!isXlsxFile(file)) {
-    return 'Excelファイル（.xlsx）を選択してください';
+    return 'file.notXlsx';
   }
 
   if (file.size > MAX_EXCEL_FILE_SIZE) {
-    return 'ファイルサイズが大きすぎます（10MB以下にしてください）';
+    return 'file.tooLarge';
   }
 
   return null;

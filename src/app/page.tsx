@@ -13,10 +13,13 @@ import { usePdfExport } from '../hooks/usePdfExport';
 import { LayoutMode, TimelineOrientation } from '../lib/types';
 import { validateExcelFile } from '../lib/fileValidation';
 import { getEventDomId } from '../lib/eventDomId';
+import { useT } from '../i18n/LocaleProvider';
+import type { MessageKey } from '../i18n/messages';
 
 const HELP_URL = 'https://note.com/namida1110/n/nfd97132121ef';
 
 export default function Home() {
+  const t = useT();
   const { data, loading, error, warnings, loadExcelFile, clearData } = useSheetLoader();
   const [orientation, setOrientation] = useState<TimelineOrientation>('vertical');
   const {
@@ -106,8 +109,9 @@ export default function Home() {
       try {
         const validationError = validateExcelFile(file);
         if (validationError) {
-          setFileError(validationError);
-          return validationError;
+          const msg = t(validationError);
+          setFileError(msg);
+          return msg;
         }
 
         clearData();
@@ -117,13 +121,13 @@ export default function Home() {
         dragDepthRef.current = 0;
         return null;
       } catch (err) {
-        const errorMsg = 'ファイルの処理中にエラーが発生しました';
+        const errorMsg = t('error.fileProcess');
         console.error('File drop error:', err);
         setFileError(errorMsg);
         return errorMsg;
       }
     },
-    [clearData, loadExcelFile]
+    [clearData, loadExcelFile, t]
   );
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -155,13 +159,13 @@ export default function Home() {
 
     const files = Array.from(e.dataTransfer.files);
     if (files.length === 0) {
-      setFileError('ファイルが選択されていません');
+      setFileError(t('error.noFile'));
       return;
     }
 
     const excelFile = files.find((file) => file.name.toLowerCase().endsWith('.xlsx'));
     if (!excelFile) {
-      setFileError('Excelファイル（.xlsx）を選択してください');
+      setFileError(t('file.notXlsx'));
       return;
     }
 
@@ -233,16 +237,18 @@ export default function Home() {
     jumpToMatch(searchMatchIndex - 1);
   }, [jumpToMatch, searchMatchIndex]);
 
-  const warningMessages = warnings.map((w) => w.message);
+  const warningMessages = warnings.map((w) => t(w.code as MessageKey, w.params));
   const warningSummary =
     warnings.length > 0
       ? warnings.length <= 3
-        ? warnings.map((w) => w.message).join(' ')
-        : `${warnings
-            .slice(0, 2)
-            .map((w) => w.message)
-            .join(' ')} 他${warnings.length - 2}件の警告があります。`
+        ? warningMessages.join(' ')
+        : `${warningMessages.slice(0, 2).join(' ')} ${t('warning.moreCount', {
+            count: warnings.length - 2,
+          })}`
       : null;
+
+  const displayError = error ? t(error.code, error.params) : null;
+  const displayExportError = exportError ? t(exportError.code, exportError.params) : null;
 
   React.useEffect(() => {
     if (highlightedEventId && searchMatches.includes(highlightedEventId)) {
@@ -288,7 +294,7 @@ export default function Home() {
       onDrop={handleDrop}
     >
       <h1 style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>
-        ミニクロ - Excelから年表を自動生成
+        {t('brand.h1')}
       </h1>
 
       <Box ref={chromeRef} sx={{ flexShrink: 0 }}>
@@ -298,11 +304,11 @@ export default function Home() {
           onYearHeightChange={setYearHeight}
           yearHeight={yearHeight}
           loading={loading}
-          error={error}
+          error={displayError}
           fileError={fileError}
           onFileError={setFileError}
           exporting={exporting}
-          exportError={exportError}
+          exportError={displayExportError}
           hasData={!!data}
           lanes={laneOrder.length > 0 ? laneOrder : data?.map((lane) => lane.name) || []}
           selectedLanes={selectedLanes}
@@ -398,15 +404,13 @@ export default function Home() {
                 variant="h5"
                 sx={{ fontWeight: 700, color: 'text.primary', mb: 1, letterSpacing: '0.02em' }}
               >
-                {isDragOver ? 'ここにドロップ' : '年表をつくる'}
+                {isDragOver ? t('empty.drop') : t('empty.title')}
               </Typography>
               <Typography variant="body1" color="text.secondary" sx={{ mb: 1.5 }}>
-                {isDragOver
-                  ? 'ファイルを離して表示します'
-                  : 'Excel（.xlsx）をドロップするか、ヘッダーからアップロード'}
+                {isDragOver ? t('empty.subtitleDrop') : t('empty.subtitle')}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                最大10MB・最大5シート／見本ファイルから始められます
+                {t('empty.limits')}
               </Typography>
               <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <Button
@@ -416,7 +420,7 @@ export default function Home() {
                   download
                   size="small"
                 >
-                  見本Excel
+                  {t('empty.sample')}
                 </Button>
                 <Button
                   variant="outlined"
@@ -427,7 +431,7 @@ export default function Home() {
                   rel="noopener noreferrer"
                   size="small"
                 >
-                  使い方
+                  {t('empty.help')}
                 </Button>
               </Box>
             </Box>

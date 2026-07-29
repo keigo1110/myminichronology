@@ -4,7 +4,6 @@ import type {
   Lane,
   ParseResult,
   ParseWarning,
-  ParseErrorType,
   EventDisplayStyle,
 } from './types';
 import {
@@ -13,6 +12,8 @@ import {
   MAX_YEAR_SPAN,
   MIN_YEAR,
 } from './fileValidation';
+import { pushParseWarning } from './parseWarnings';
+import { AppMessageError, isAppMessageError } from '../i18n/errors';
 
 /** 未指定時のイベント色（黒） */
 export const DEFAULT_EVENT_COLOR = '#000000';
@@ -202,12 +203,13 @@ async function readFileAsArrayBuffer(file: Blob): Promise<ArrayBuffer> {
 
 function pushWarning(
   warnings: ParseWarning[],
-  type: ParseErrorType,
-  message: string,
+  type: ParseWarning['type'],
+  code: Parameters<typeof pushParseWarning>[2],
+  params?: Parameters<typeof pushParseWarning>[3],
   sheet?: string,
   row?: number
 ) {
-  warnings.push({ type, message, sheet, row });
+  pushParseWarning(warnings, type, code, params, sheet, row);
 }
 
 export async function parseExcel(file: File): Promise<ParseResult> {
@@ -222,11 +224,11 @@ export async function parseExcel(file: File): Promise<ParseResult> {
     const truncatedSheets = Math.max(0, allSheetNames.length - MAX_SHEETS);
 
     if (truncatedSheets > 0) {
-      pushWarning(
-        warnings,
-        'too-many-lanes',
-        `シートが${allSheetNames.length}件あります。先頭${MAX_SHEETS}件のみ読み込みました（${truncatedSheets}件をスキップ）。`
-      );
+      pushWarning(warnings, 'too-many-lanes', 'parse.tooManyLanes', {
+        count: allSheetNames.length,
+        max: MAX_SHEETS,
+        skipped: truncatedSheets,
+      });
     }
 
     const sheetNames = allSheetNames.slice(0, MAX_SHEETS);
@@ -235,12 +237,7 @@ export async function parseExcel(file: File): Promise<ParseResult> {
     for (const sheetName of sheetNames) {
       const worksheet = workbook.Sheets[sheetName];
       if (!worksheet) {
-        pushWarning(
-          warnings,
-          'skipped-sheet',
-          `シート「${sheetName}」は読み込めませんでした（チャートシート等）。`,
-          sheetName
-        );
+        pushWarning(warnings, 'skipped-sheet', 'parse.skippedSheet', { sheet: sheetName }, sheetName);
         continue;
       }
 
@@ -251,12 +248,7 @@ export async function parseExcel(file: File): Promise<ParseResult> {
       }) as unknown[][];
 
       if (jsonData.length < 2) {
-        pushWarning(
-          warnings,
-          'empty-sheet',
-          `シート「${sheetName}」にデータ行がありません。`,
-          sheetName
-        );
+        pushWarning(warnings, 'empty-sheet', 'parse.emptySheet', { sheet: sheetName }, sheetName);
         continue;
       }
 
@@ -271,7 +263,8 @@ export async function parseExcel(file: File): Promise<ParseResult> {
             pushWarning(
               warnings,
               'missing-columns',
-              `シート「${sheetName}」${rowNumber}行目: 列が不足しているためスキップしました。`,
+              'parse.missingColumns',
+              { sheet: sheetName, row: rowNumber },
               sheetName,
               rowNumber
             );
@@ -298,7 +291,8 @@ export async function parseExcel(file: File): Promise<ParseResult> {
           pushWarning(
             warnings,
             'missing-columns',
-            `シート「${sheetName}」${rowNumber}行目: 開始年または出来事が空のためスキップしました。`,
+            'parse.missingRequired',
+            { sheet: sheetName, row: rowNumber },
             sheetName,
             rowNumber
           );
@@ -310,7 +304,14 @@ export async function parseExcel(file: File): Promise<ParseResult> {
           pushWarning(
             warnings,
             'invalid-year',
-            `シート「${sheetName}」${rowNumber}行目: 開始年「${String(startYearRaw)}」が無効です（${MIN_YEAR}〜${MAX_YEAR}）。`,
+            'parse.invalidStartYear',
+            {
+              sheet: sheetName,
+              row: rowNumber,
+              value: String(startYearRaw),
+              min: MIN_YEAR,
+              max: MAX_YEAR,
+            },
             sheetName,
             rowNumber
           );
@@ -324,7 +325,8 @@ export async function parseExcel(file: File): Promise<ParseResult> {
             pushWarning(
               warnings,
               'invalid-year',
-              `シート「${sheetName}」${rowNumber}行目: 終了年「${String(endYearRaw)}」が無効なため点イベントとして扱います。`,
+              'parse.invalidEndYear',
+              { sheet: sheetName, row: rowNumber, value: String(endYearRaw) },
               sheetName,
               rowNumber
             );
@@ -332,7 +334,8 @@ export async function parseExcel(file: File): Promise<ParseResult> {
             pushWarning(
               warnings,
               'year-order',
-              `シート「${sheetName}」${rowNumber}行目: 終了年が開始年より前のため点イベントとして扱います。`,
+              'parse.yearOrder',
+              { sheet: sheetName, row: rowNumber },
               sheetName,
               rowNumber
             );
@@ -347,7 +350,14 @@ export async function parseExcel(file: File): Promise<ParseResult> {
           pushWarning(
             warnings,
             'invalid-style',
-            `シート「${sheetName}」${rowNumber}行目: フォントサイズ「${String(fontSizeRaw)}」が無効です（${MIN_FONT_SIZE_PX}〜${MAX_FONT_SIZE_PX}）。デフォルトを使います。`,
+            'parse.invalidFontSize',
+            {
+              sheet: sheetName,
+              row: rowNumber,
+              value: String(fontSizeRaw),
+              min: MIN_FONT_SIZE_PX,
+              max: MAX_FONT_SIZE_PX,
+            },
             sheetName,
             rowNumber
           );
@@ -361,7 +371,8 @@ export async function parseExcel(file: File): Promise<ParseResult> {
           pushWarning(
             warnings,
             'invalid-style',
-            `シート「${sheetName}」${rowNumber}行目: 色「${String(colorRaw)}」が無効です（例: #C45C26）。黒を使います。`,
+            'parse.invalidColor',
+            { sheet: sheetName, row: rowNumber, value: String(colorRaw) },
             sheetName,
             rowNumber
           );
@@ -376,7 +387,8 @@ export async function parseExcel(file: File): Promise<ParseResult> {
           pushWarning(
             warnings,
             'invalid-style',
-            `シート「${sheetName}」${rowNumber}行目: 表示スタイル「${String(displayStyleRaw)}」は未対応のため通常表示にします（使える値: 空欄 または label）。`,
+            'parse.invalidStyle',
+            { sheet: sheetName, row: rowNumber, value: String(displayStyleRaw) },
             sheetName,
             rowNumber
           );
@@ -390,7 +402,8 @@ export async function parseExcel(file: File): Promise<ParseResult> {
           pushWarning(
             warnings,
             'invalid-style',
-            `シート「${sheetName}」${rowNumber}行目: 画像リンク「${String(imageUrlRaw).slice(0, 80)}」が無効です（http/https の URL のみ）。画像なしで表示します。`,
+            'parse.invalidImageUrl',
+            { sheet: sheetName, row: rowNumber, value: String(imageUrlRaw).slice(0, 80) },
             sheetName,
             rowNumber
           );
@@ -415,14 +428,15 @@ export async function parseExcel(file: File): Promise<ParseResult> {
         pushWarning(
           warnings,
           'empty-sheet',
-          `シート「${sheetName}」から有効なイベントを読み取れませんでした。`,
+          'parse.emptySheetNoEvents',
+          { sheet: sheetName },
           sheetName
         );
       }
     }
 
     if (lanes.length === 0) {
-      throw new Error('有効なデータが見つかりませんでした。年・出来事の列を確認してください。');
+      throw new AppMessageError('parse.noValidData');
     }
 
     let minYear = Infinity;
@@ -435,20 +449,22 @@ export async function parseExcel(file: File): Promise<ParseResult> {
     });
 
     if (maxYear - minYear > MAX_YEAR_SPAN) {
-      throw new Error(
-        `年の範囲が広すぎます（${minYear}〜${maxYear}年）。${MAX_YEAR_SPAN}年以内に収まるデータをご用意ください。`
-      );
+      throw new AppMessageError('parse.yearSpanTooWide', {
+        min: minYear,
+        max: maxYear,
+        maxSpan: MAX_YEAR_SPAN,
+      });
     }
 
     return { lanes, warnings, truncatedSheets };
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message.startsWith('有効なデータ') || error.message.startsWith('年の範囲')) {
-        throw error;
-      }
-      throw new Error(`Excelファイルの解析に失敗しました: ${error.message}`);
+    if (isAppMessageError(error)) {
+      throw error;
     }
-    throw new Error('Excelファイルの解析に失敗しました。');
+    if (error instanceof Error) {
+      throw new AppMessageError('parse.failed', { detail: error.message });
+    }
+    throw new AppMessageError('parse.failedGeneric');
   }
 }
 

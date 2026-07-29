@@ -53,6 +53,12 @@
 - `metadataBase`: 本番 URL
 - JSON-LD (`SoftwareApplication`)
 
+## UI 国際化（i18n）
+
+- カスタム `LocaleProvider`（`src/i18n/`）で ja / en を切替
+- `useT()` / `useLocale()` で UI 文字列を取得（`messages.ts` が正本）
+- **next-intl は未使用**
+
 ## ブラウザ対応
 
 - モダンブラウザ（Chrome / Firefox / Safari / Edge の最新2メジャー）

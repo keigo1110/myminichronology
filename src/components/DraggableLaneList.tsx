@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Box, Chip } from '@mui/material';
+import { useT } from '../i18n/LocaleProvider';
 
 interface DraggableLaneListProps {
   lanes: string[];
@@ -84,6 +85,7 @@ export function DraggableLaneList({
   onLaneSelectionChange,
   onLaneOrderChange,
 }: DraggableLaneListProps) {
+  const t = useT();
   const [draggedLane, setDraggedLane] = useState<string | null>(null);
 
   const handleDragStart = (e: React.DragEvent, lane: string) => {
@@ -119,7 +121,7 @@ export function DraggableLaneList({
   };
 
   return (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }} role="group" aria-label="レーン選択">
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }} role="group" aria-label={t('header.laneSelectAria')}>
       {lanes.map((lane) => (
         <SortableLaneChip
           key={lane}

@@ -11,6 +11,7 @@ import React, {
 import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { createAppTheme } from '../theme/createAppTheme';
+import { LocaleProvider } from '../i18n/LocaleProvider';
 
 type ColorMode = 'light' | 'dark';
 
@@ -82,7 +83,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     <ColorModeContext.Provider value={contextValue}>
       <MuiThemeProvider theme={theme}>
         <CssBaseline />
-        {children}
+        <LocaleProvider>{children}</LocaleProvider>
       </MuiThemeProvider>
     </ColorModeContext.Provider>
   );

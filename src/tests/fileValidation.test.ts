@@ -39,6 +39,11 @@ describe('fileValidation', () => {
   it('rejects oversized files', () => {
     const file = new File(['x'], 'a.xlsx');
     Object.defineProperty(file, 'size', { value: 11 * 1024 * 1024 });
-    expect(validateExcelFile(file)).toMatch(/10MB/);
+    expect(validateExcelFile(file)).toBe('file.tooLarge');
+  });
+
+  it('rejects non-xlsx files', () => {
+    const file = new File(['x'], 'a.pdf');
+    expect(validateExcelFile(file)).toBe('file.notXlsx');
   });
 });
