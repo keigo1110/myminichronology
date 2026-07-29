@@ -7,6 +7,7 @@ import { EventItem, EVENT_ITEM_MIN_HEIGHT } from './EventItem';
 import { getYearTicks } from '../lib/yearTicks';
 import { DEFAULT_EVENT_COLOR } from '../lib/parseExcel';
 import { getEventDomId } from '../lib/eventDomId';
+import { pickReadableTextColor } from '../lib/colorPalette';
 
 interface LaneColumnProps {
   lane: Lane;
@@ -79,7 +80,7 @@ export function LaneColumn({
               fontWeight: 700,
               fontSize: '0.8rem',
               textAlign: 'center',
-              color: theme.palette.text.primary,
+              color: pickReadableTextColor(laneColor),
               maxWidth: '100%',
               overflow: 'hidden',
               textOverflow: 'ellipsis',

@@ -3,6 +3,7 @@
 import React from 'react';
 import { Box, Typography, useTheme } from '@mui/material';
 import { TimelineData } from '../lib/types';
+import { pickReadableTextColor } from '../lib/colorPalette';
 
 interface LaneHeaderRowProps {
   data: TimelineData;
@@ -33,37 +34,42 @@ export function LaneHeaderRow({
         borderBottom: `1px solid ${border}`,
       }}
     >
-      {data.map((lane, index) => (
-        <Box
-          key={lane.name}
-          sx={{
-            width: laneWidths[index] || 300,
-            height: headerHeight,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRight: `1px solid ${laneBorder}`,
-            backgroundColor: laneColors[index] || sheet,
-            px: 1,
-          }}
-        >
-          <Typography
+      {data.map((lane, index) => {
+        const laneBg = laneColors[index] || sheet;
+        const labelColor = pickReadableTextColor(laneBg);
+
+        return (
+          <Box
+            key={lane.name}
             sx={{
-              color: theme.palette.text.primary,
-              fontWeight: 700,
-              fontSize: '0.85rem',
-              textAlign: 'center',
-              maxWidth: '100%',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              letterSpacing: '0.02em',
+              width: laneWidths[index] || 300,
+              height: headerHeight,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRight: `1px solid ${laneBorder}`,
+              backgroundColor: laneBg,
+              px: 1,
             }}
           >
-            {lane.name}
-          </Typography>
-        </Box>
-      ))}
+            <Typography
+              sx={{
+                color: labelColor,
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                textAlign: 'center',
+                maxWidth: '100%',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                letterSpacing: '0.02em',
+              }}
+            >
+              {lane.name}
+            </Typography>
+          </Box>
+        );
+      })}
     </Box>
   );
 }
