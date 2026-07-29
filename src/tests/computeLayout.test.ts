@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { computeLayout, calculateTimelineHeight, calculateTimelineWidth } from '../lib/computeLayout';
+import { computeLayout, calculateTimelineHeight, calculateTimelineWidth, LANE_LABEL_WIDTH_HORIZONTAL } from '../lib/computeLayout';
 import { useFilteredEvents, FilterState } from '../hooks/useFilteredEvents';
 import { TimelineData, PositionedEvent } from '../lib/types';
 
@@ -679,5 +679,28 @@ describe('computeLayout with images', () => {
     expect(withImg.positionedEvents[0][0].height).toBeGreaterThan(
       plain.positionedEvents[0][0].height
     );
+  });
+});
+
+describe('horizontal lane label height', () => {
+  it('grows row height so vertical theme labels are not clipped', () => {
+    const shortName = '政治';
+    const longName = '3_ラベルボックス';
+    const short = computeLayout(
+      [{ name: shortName, events: [{ start: 2000, label: 'A' }] }],
+      1,
+      undefined,
+      'horizontal'
+    );
+    const long = computeLayout(
+      [{ name: longName, events: [{ start: 2000, label: 'A' }] }],
+      1,
+      undefined,
+      'horizontal'
+    );
+    expect(long.layoutConfig.laneHeights?.[0] ?? 0).toBeGreaterThan(
+      short.layoutConfig.laneHeights?.[0] ?? 0
+    );
+    expect(long.layoutConfig.laneLabelWidth).toBe(LANE_LABEL_WIDTH_HORIZONTAL);
   });
 });

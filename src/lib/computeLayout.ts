@@ -503,8 +503,16 @@ function computeLayoutVertical(
 }
 
 const MIN_LANE_ROW_HEIGHT = 88;
-const LANE_LABEL_WIDTH = 108;
+/** 横型のテーマ名レール（縦書き1列分） */
+export const LANE_LABEL_WIDTH_HORIZONTAL = 44;
+const LANE_LABEL_FONT_PX = 13;
 export const YEAR_AXIS_HEIGHT_HORIZONTAL = 44;
+
+/** 縦書きテーマ名が切れない最低行高 */
+export function minHeightForVerticalLaneLabel(name: string): number {
+  const charCount = Math.max(1, name.length);
+  return Math.ceil(charCount * LANE_LABEL_FONT_PX * 1.28) + 20;
+}
 
 /**
  * 横型: 横=年代（左が古・右が新）、縦=テーマ（レーン行）。
@@ -528,7 +536,7 @@ function computeLayoutHorizontal(
         laneHeightByName: {},
         yearAxisWidth: 0,
         yearAxisHeight: YEAR_AXIS_HEIGHT_HORIZONTAL,
-        laneLabelWidth: LANE_LABEL_WIDTH,
+        laneLabelWidth: LANE_LABEL_WIDTH_HORIZONTAL,
         totalWidth: 120,
         timelineHeight: 200,
         orientation: 'horizontal',
@@ -542,7 +550,7 @@ function computeLayoutHorizontal(
   const yearPxPerYear = Math.max(8, 24 * yearHeightScale);
   const contentWidth = Math.max(640, yearSpan * yearPxPerYear);
   const yearAxisHeight = YEAR_AXIS_HEIGHT_HORIZONTAL;
-  const laneLabelWidth = LANE_LABEL_WIDTH;
+  const laneLabelWidth = LANE_LABEL_WIDTH_HORIZONTAL;
 
   const xScale = scaleLinear()
     .domain([yearRange.min, yearRange.max])
@@ -604,7 +612,11 @@ function computeLayoutHorizontal(
       (max, e) => Math.max(max, e.y + e.height),
       TIMELINE_PADDING
     );
-    const laneHeight = Math.max(MIN_LANE_ROW_HEIGHT, maxBottom + TIMELINE_PADDING + 8);
+    const laneHeight = Math.max(
+      MIN_LANE_ROW_HEIGHT,
+      maxBottom + TIMELINE_PADDING + 8,
+      minHeightForVerticalLaneLabel(lane.name)
+    );
     laneHeights.push(laneHeight);
     laneHeightByName[lane.name] = laneHeight;
     laneWidths.push(contentWidth);

@@ -38,7 +38,7 @@ export function LaneColumn({
   highlightedEventId = null,
   orientation = 'vertical',
   showLaneLabel = false,
-  laneLabelWidth = 108,
+  laneLabelWidth = 44,
 }: LaneColumnProps) {
   const theme = useTheme();
   const yearSpan = Math.max(1, yearRange.max - yearRange.min);
@@ -67,13 +67,16 @@ export function LaneColumn({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            px: 1,
+            px: 0.5,
+            py: 1,
             backgroundColor: laneColor,
             borderRight: `1px solid ${theme.palette.chronology.hairlineStrong}`,
             position: 'sticky',
             left: 0,
             zIndex: 120,
+            boxSizing: 'border-box',
           }}
+          title={lane.name}
         >
           <Typography
             sx={{
@@ -81,9 +84,12 @@ export function LaneColumn({
               fontSize: '0.8rem',
               textAlign: 'center',
               color: pickReadableTextColor(laneColor),
-              maxWidth: '100%',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
+              writingMode: 'vertical-rl',
+              textOrientation: 'mixed',
+              letterSpacing: '0.12em',
+              lineHeight: 1.2,
+              maxHeight: '100%',
+              overflow: 'visible',
               whiteSpace: 'nowrap',
             }}
           >

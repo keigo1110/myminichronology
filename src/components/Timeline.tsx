@@ -6,7 +6,7 @@ import { TimelineData, PositionedEvent, DynamicLayoutConfig, TimelineOrientation
 import { LaneColumn } from './LaneColumn';
 import { LaneHeaderRow } from './LaneHeaderRow';
 import { YearAxis } from './YearAxis';
-import { TIMELINE_HEADER_HEIGHT, YEAR_AXIS_HEIGHT_HORIZONTAL } from '../lib/computeLayout';
+import { TIMELINE_HEADER_HEIGHT, YEAR_AXIS_HEIGHT_HORIZONTAL, LANE_LABEL_WIDTH_HORIZONTAL } from '../lib/computeLayout';
 
 interface TimelineProps {
   data: TimelineData;
@@ -41,7 +41,7 @@ export function Timeline({
   const {
     yearAxisWidth,
     yearAxisHeight = YEAR_AXIS_HEIGHT_HORIZONTAL,
-    laneLabelWidth = 108,
+    laneLabelWidth = LANE_LABEL_WIDTH_HORIZONTAL,
     totalWidth,
     laneWidthByName,
     laneWidths,
