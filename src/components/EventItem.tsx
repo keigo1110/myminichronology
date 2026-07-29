@@ -11,6 +11,11 @@ export const DEFAULT_FONT_SIZE_PX = 11;
 /** 縦書き時のデフォルト */
 export const DEFAULT_VERTICAL_FONT_SIZE_PX = 12;
 
+/** 期間バー（いつまであり）の基本幅 */
+const RANGE_BAR_WIDTH_PX = 6;
+/** 縦書きになるほど長い期間のバー幅 */
+const RANGE_BAR_WIDTH_VERTICAL_PX = 14;
+
 interface EventItemProps {
   event: PositionedEvent;
   color?: string;
@@ -26,12 +31,13 @@ function parseStyleHeight(style?: React.CSSProperties): number {
 
 export function EventItem({ event, color, onClick, style }: EventItemProps) {
   const isPointEvent = !event.end;
+  const isRangeEvent = !isPointEvent;
   const isInteractive = Boolean(onClick);
   const height = Math.max(parseStyleHeight(style), EVENT_ITEM_MIN_HEIGHT);
-  const useVertical = !isPointEvent && height >= 72;
+  const useVertical = isRangeEvent && height >= 72;
   const isCompact = !useVertical && height < 40;
 
-  const textColor = event.color || color || DEFAULT_EVENT_COLOR;
+  const accentColor = event.color || color || DEFAULT_EVENT_COLOR;
   const fontSizePx =
     event.fontSize ??
     (useVertical ? DEFAULT_VERTICAL_FONT_SIZE_PX : DEFAULT_FONT_SIZE_PX);
@@ -62,8 +68,10 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
           border: 'none',
           boxShadow: 'none',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: useVertical ? 'center' : 'flex-start',
+          flexDirection: 'row',
+          alignItems: useVertical ? 'stretch' : 'center',
+          justifyContent: 'flex-start',
+          gap: isRangeEvent ? '6px' : 0,
           px: 0.5,
           py: 0,
           overflow: 'hidden',
@@ -82,10 +90,25 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
         onClick={() => onClick?.(event)}
         onKeyDown={handleKeyDown}
       >
+        {isRangeEvent && (
+          <Box
+            aria-hidden
+            sx={{
+              width: useVertical ? RANGE_BAR_WIDTH_VERTICAL_PX : RANGE_BAR_WIDTH_PX,
+              flexShrink: 0,
+              alignSelf: 'stretch',
+              backgroundColor: accentColor,
+              borderRadius: '2px',
+              // 期間の始終を少し強調
+              boxShadow: `inset 0 2px 0 rgba(255,255,255,0.25), inset 0 -2px 0 rgba(0,0,0,0.15)`,
+            }}
+          />
+        )}
+
         <Typography
           component="span"
           sx={{
-            color: textColor,
+            color: accentColor,
             fontWeight: 700,
             fontSize: `${fontSizePx}px`,
             lineHeight: isCompact ? '1.2' : 1.35,
@@ -100,9 +123,11 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
             WebkitBoxOrient: useVertical || isCompact ? undefined : 'vertical',
             wordBreak: 'break-word',
             maxWidth: '100%',
+            minWidth: 0,
+            flex: 1,
             m: 0,
-            paddingTop: isCompact ? '1px' : 0,
-            paddingBottom: isCompact ? '2px' : 0,
+            paddingTop: isCompact ? '1px' : useVertical ? '4px' : 0,
+            paddingBottom: isCompact ? '2px' : useVertical ? '4px' : 0,
             pointerEvents: 'none',
           }}
         >
