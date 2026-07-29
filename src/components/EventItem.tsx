@@ -2,6 +2,10 @@ import React from 'react';
 import { Box, Typography, Tooltip } from '@mui/material';
 import { PositionedEvent } from '../lib/types';
 import { DEFAULT_EVENT_COLOR } from '../lib/parseExcel';
+import {
+  RANGE_BAR_WIDTH_PX,
+  RANGE_BAR_WIDTH_VERTICAL_PX,
+} from '../lib/computeLayout';
 
 /** 1行テキストが収まる最小表示高さ */
 export const EVENT_ITEM_MIN_HEIGHT = 22;
@@ -10,11 +14,6 @@ export const EVENT_ITEM_MIN_HEIGHT = 22;
 export const DEFAULT_FONT_SIZE_PX = 11;
 /** 縦書き時のデフォルト */
 export const DEFAULT_VERTICAL_FONT_SIZE_PX = 12;
-
-/** 期間バー（いつまであり）の基本幅 */
-const RANGE_BAR_WIDTH_PX = 6;
-/** 縦書きになるほど長い期間のバー幅 */
-const RANGE_BAR_WIDTH_VERTICAL_PX = 14;
 
 interface EventItemProps {
   event: PositionedEvent;
@@ -69,10 +68,10 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
           boxShadow: 'none',
           display: 'flex',
           flexDirection: 'row',
-          alignItems: useVertical ? 'stretch' : 'center',
+          alignItems: useVertical ? 'flex-start' : 'center',
           justifyContent: 'flex-start',
-          gap: isRangeEvent ? '6px' : 0,
-          px: 0.5,
+          gap: isRangeEvent ? '4px' : 0,
+          px: 0,
           py: 0,
           overflow: 'hidden',
           cursor: isInteractive ? 'pointer' : 'default',
@@ -96,10 +95,9 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
             sx={{
               width: useVertical ? RANGE_BAR_WIDTH_VERTICAL_PX : RANGE_BAR_WIDTH_PX,
               flexShrink: 0,
-              alignSelf: 'stretch',
+              height: '100%',
               backgroundColor: accentColor,
               borderRadius: '2px',
-              // 期間の始終を少し強調
               boxShadow: `inset 0 2px 0 rgba(255,255,255,0.25), inset 0 -2px 0 rgba(0,0,0,0.15)`,
             }}
           />
@@ -111,23 +109,23 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
             color: accentColor,
             fontWeight: 700,
             fontSize: `${fontSizePx}px`,
-            lineHeight: isCompact ? '1.2' : 1.35,
-            letterSpacing: useVertical ? '0.06em' : '0.01em',
+            lineHeight: isCompact ? '1.2' : 1.25,
+            letterSpacing: useVertical ? '0.08em' : '0.01em',
             writingMode: useVertical ? 'vertical-rl' : 'horizontal-tb',
             textOrientation: 'mixed',
             whiteSpace: useVertical || isCompact ? 'nowrap' : 'normal',
             overflow: 'hidden',
             textOverflow: useVertical || isCompact ? 'ellipsis' : undefined,
-            display: useVertical ? 'block' : isCompact ? 'block' : '-webkit-box',
-            WebkitLineClamp: useVertical || isCompact ? undefined : 4,
-            WebkitBoxOrient: useVertical || isCompact ? undefined : 'vertical',
+            display: 'block',
             wordBreak: 'break-word',
-            maxWidth: '100%',
-            minWidth: 0,
-            flex: 1,
+            // 縦書きをバー直後に密着（flex:1 禁止 = 右端への離れを防ぐ）
+            flex: '0 0 auto',
+            width: useVertical ? `${fontSizePx + 2}px` : 'auto',
+            maxWidth: useVertical ? `${fontSizePx + 2}px` : '100%',
+            height: useVertical ? '100%' : 'auto',
             m: 0,
-            paddingTop: isCompact ? '1px' : useVertical ? '4px' : 0,
-            paddingBottom: isCompact ? '2px' : useVertical ? '4px' : 0,
+            paddingTop: useVertical ? '2px' : isCompact ? '1px' : 0,
+            paddingBottom: isCompact ? '2px' : 0,
             pointerEvents: 'none',
           }}
         >

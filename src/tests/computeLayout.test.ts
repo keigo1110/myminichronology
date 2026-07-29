@@ -114,10 +114,34 @@ describe('computeLayout', () => {
     expect(result.positionedEvents).toHaveLength(2);
     expect(result.layoutConfig.laneWidths).toHaveLength(2);
 
-    // レーン2のX位置はレーン1の幅分ずれているはず
-    const lane1Width = result.layoutConfig.laneWidths[0];
-    const lane2X = result.positionedEvents[1][0]?.x || 0;
-    expect(lane2X).toBeGreaterThanOrEqual(lane1Width);
+    // 各レーン内の x はレーン相対（左端付近から開始）
+    expect(result.positionedEvents[0][0]?.x).toBeGreaterThanOrEqual(0);
+    expect(result.positionedEvents[1][0]?.x).toBeGreaterThanOrEqual(0);
+    expect(result.positionedEvents[0][0]?.width).toBeGreaterThan(0);
+  });
+
+  it('should pack overlapping range and point events horizontally', () => {
+    const data: TimelineData = [
+      {
+        name: 'Test Lane',
+        events: [
+          { start: 1956, end: 1998, label: 'gggg' },
+          { start: 1966, label: 'hhhh' },
+          { start: 1955, label: 'ffff' },
+        ],
+      },
+    ];
+
+    const result = computeLayout(data);
+    const events = result.positionedEvents[0];
+    const range = events.find((e) => e.label === 'gggg')!;
+    const point = events.find((e) => e.label === 'hhhh')!;
+
+    expect(range.end).toBe(1998);
+    expect(point.end).toBeUndefined();
+
+    // 期間が重なる点イベントは期間バーの右側へ
+    expect(point.x).toBeGreaterThanOrEqual(range.x + range.width);
   });
 });
 

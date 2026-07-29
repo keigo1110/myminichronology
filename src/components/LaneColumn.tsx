@@ -80,10 +80,10 @@ export function LaneColumn({
               style={{
                 position: 'absolute',
                 top: `${event.y}px`,
-                left: '3px',
-                right: '3px',
+                left: `${event.x}px`,
+                width: `${Math.max(event.width, EVENT_ITEM_MIN_HEIGHT)}px`,
                 height: `${Math.max(event.height, EVENT_ITEM_MIN_HEIGHT)}px`,
-                zIndex: 5,
+                zIndex: event.end ? 4 : 6,
               }}
             />
           );

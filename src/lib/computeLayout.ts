@@ -5,25 +5,30 @@ const MIN_LANE_WIDTH = 300;
 const MAX_LANE_WIDTH = 500;
 const TIMELINE_PADDING = 4;
 const EVENT_VERTICAL_SPACING = 4;
+const EVENT_COLUMN_GAP = 6;
 const MIN_EVENT_HEIGHT = 22;
 const MIN_YEAR_HEIGHT = 24;
 export const TIMELINE_HEADER_HEIGHT = 52;
 
-function estimateTextWidth(text: string): number {
-  // 日本語・全角文字は英数字の約2倍幅として計算
+/** EventItem の期間バー幅と揃える */
+export const RANGE_BAR_WIDTH_PX = 6;
+export const RANGE_BAR_WIDTH_VERTICAL_PX = 14;
+const VERTICAL_RANGE_HEIGHT_THRESHOLD = 72;
+
+function estimateTextWidth(text: string, fontSizePx = 11): number {
   const wideCharCount = (text.match(/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\uFF00-\uFFEF]/g) || []).length;
   const otherCharCount = text.length - wideCharCount;
-  return wideCharCount * 10 + otherCharCount * 8;
+  const wide = fontSizePx * 1.05;
+  const narrow = fontSizePx * 0.62;
+  return wideCharCount * wide + otherCharCount * narrow;
 }
 
-function calculateOptimalLaneWidth(events: { start: number; end?: number; label: string }[]): number {
+function calculateOptimalLaneWidth(events: { start: number; end?: number; label: string; fontSize?: number }[]): number {
   let maxTextWidth = 0;
 
   events.forEach((event) => {
-    const eventLabel = event.end
-      ? `${event.start}年-${event.end}年：${event.label}`
-      : `${event.start}年：${event.label}`;
-    maxTextWidth = Math.max(maxTextWidth, estimateTextWidth(eventLabel));
+    const fontSize = event.fontSize ?? 11;
+    maxTextWidth = Math.max(maxTextWidth, estimateTextWidth(event.label, fontSize) + 40);
   });
 
   const requiredWidth = maxTextWidth + 80;
@@ -82,61 +87,111 @@ function calculateDynamicHeight(
   return Math.max(800, totalRequiredHeight + TIMELINE_PADDING * 2);
 }
 
+function timeRangesOverlap(a: PositionedEvent, b: PositionedEvent): boolean {
+  const aEnd = a.end ?? a.start;
+  const bEnd = b.end ?? b.start;
+  return a.start <= bEnd && b.start <= aEnd;
+}
+
+function boxesOverlap(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number }
+): boolean {
+  return !(
+    a.x + a.width <= b.x ||
+    b.x + b.width <= a.x ||
+    a.y + a.height <= b.y ||
+    b.y + b.height <= a.y
+  );
+}
+
+function estimateEventVisualWidth(event: PositionedEvent, laneWidth: number): number {
+  const fontSize = event.fontSize ?? 11;
+  const maxWidth = Math.max(40, laneWidth - TIMELINE_PADDING * 2);
+
+  if (event.end) {
+    if (event.height >= VERTICAL_RANGE_HEIGHT_THRESHOLD) {
+      // バー + 縦書き1列
+      return Math.min(maxWidth, RANGE_BAR_WIDTH_VERTICAL_PX + 4 + fontSize + 8);
+    }
+    return Math.min(
+      maxWidth,
+      RANGE_BAR_WIDTH_PX + 6 + estimateTextWidth(event.label, fontSize) + 8
+    );
+  }
+
+  return Math.min(maxWidth, estimateTextWidth(event.label, fontSize) + 12);
+}
+
+/**
+ * レーン内で期間が重なるイベントを横に並べ、必要なら縦にもずらす。
+ * x はレーン相対座標。
+ */
 function resolveEventCollisions(
   events: PositionedEvent[],
+  laneWidth: number,
   contentHeight: number,
   yearHeightScale: number = 1
 ): PositionedEvent[] {
   const sortedEvents = [...events].sort((a, b) => {
     if (a.start !== b.start) return a.start - b.start;
-    return (a.end || a.start) - (b.end || b.start);
+    const aDur = (a.end ?? a.start) - a.start;
+    const bDur = (b.end ?? b.start) - b.start;
+    if (aDur !== bDur) return bDur - aDur; // 長い期間を左に
+    return a.label.localeCompare(b.label);
   });
 
-  const resolvedEvents: PositionedEvent[] = [];
-  const yearSlots = new Map<number, number[]>();
-  const minGap = (MIN_EVENT_HEIGHT + EVENT_VERTICAL_SPACING) * yearHeightScale;
+  const resolved: PositionedEvent[] = [];
+  const minYGap = (MIN_EVENT_HEIGHT + EVENT_VERTICAL_SPACING) * yearHeightScale;
+  const usableWidth = Math.max(40, laneWidth - TIMELINE_PADDING);
 
   sortedEvents.forEach((event) => {
-    const startYear = event.start;
-    const endYear = event.end || event.start;
-
+    const visualWidth = estimateEventVisualWidth(event, laneWidth);
+    let bestX = TIMELINE_PADDING;
     let bestY = event.y;
-    let conflictFound = true;
-    let attempts = 0;
+    const height = Math.min(event.height, contentHeight);
 
-    while (conflictFound && attempts < 20) {
-      conflictFound = false;
+    const overlapping = resolved.filter((placed) => timeRangesOverlap(event, placed));
 
-      for (let year = startYear; year <= endYear; year++) {
-        const slots = yearSlots.get(year) || [];
-        for (const usedY of slots) {
-          if (Math.abs(bestY - usedY) < minGap) {
-            conflictFound = true;
-            bestY = usedY + minGap;
-            break;
+    let placed = false;
+    for (let attempt = 0; attempt < 40 && !placed; attempt++) {
+      let conflict = false;
+      const candidate = { x: bestX, y: bestY, width: visualWidth, height };
+
+      for (const other of overlapping) {
+        if (boxesOverlap(candidate, other)) {
+          conflict = true;
+          bestX = other.x + other.width + EVENT_COLUMN_GAP;
+          if (bestX + visualWidth > usableWidth) {
+            bestX = TIMELINE_PADDING;
+            bestY = Math.max(bestY, other.y + Math.min(other.height, minYGap * 2)) + minYGap * 0.25;
+            // 点イベント同士の軽い縦ずらし
+            if (!event.end) {
+              bestY = other.y + minYGap;
+            }
           }
+          break;
         }
-        if (conflictFound) break;
       }
 
-      attempts++;
-    }
-
-    // コンテナ外にはみ出さないようクランプ
-    const maxY = Math.max(0, contentHeight - event.height);
-    bestY = Math.min(Math.max(0, bestY), maxY);
-
-    for (let year = startYear; year <= endYear; year++) {
-      if (!yearSlots.has(year)) {
-        yearSlots.set(year, []);
+      if (!conflict) {
+        placed = true;
       }
-      yearSlots.get(year)!.push(bestY);
     }
 
-    resolvedEvents.push({ ...event, y: bestY });
+    bestX = Math.min(bestX, Math.max(TIMELINE_PADDING, usableWidth - visualWidth));
+    bestY = Math.min(Math.max(0, bestY), Math.max(0, contentHeight - height));
+
+    resolved.push({
+      ...event,
+      x: bestX,
+      y: bestY,
+      width: visualWidth,
+      height,
+    });
   });
 
-  return resolvedEvents;
+  return resolved;
 }
 
 function deriveYearRange(data: TimelineData): { min: number; max: number } {
@@ -191,7 +246,6 @@ export function computeLayout(
 
   const maxLaneWidth = Math.max(...laneWidths);
   const yearAxisWidth = Math.min(72, Math.max(48, maxLaneWidth * 0.08));
-  // 左右の年軸を含めた総幅（goal_design.png 準拠）
   const totalWidth = yearAxisWidth * 2 + laneWidths.reduce((sum, width) => sum + width, 0);
 
   const timelineHeight = calculateDynamicHeight(data, yearRange, yearHeightScale);
@@ -202,7 +256,6 @@ export function computeLayout(
     .range([0, contentHeight]);
 
   const positionedEvents: PositionedEvent[][] = [];
-  let currentX = 0;
 
   data.forEach((lane, laneIndex) => {
     const laneWidth = laneWidths[laneIndex];
@@ -215,7 +268,7 @@ export function computeLayout(
         const endY = yScale(event.end);
         laneEvents.push({
           ...event,
-          x: currentX + TIMELINE_PADDING,
+          x: TIMELINE_PADDING,
           y,
           width: laneWidth - TIMELINE_PADDING * 2,
           height: Math.max(MIN_EVENT_HEIGHT * yearHeightScale, endY - y),
@@ -223,7 +276,7 @@ export function computeLayout(
       } else {
         laneEvents.push({
           ...event,
-          x: currentX + TIMELINE_PADDING,
+          x: TIMELINE_PADDING,
           y,
           width: laneWidth - TIMELINE_PADDING * 2,
           height: MIN_EVENT_HEIGHT * yearHeightScale,
@@ -231,8 +284,9 @@ export function computeLayout(
       }
     });
 
-    positionedEvents.push(resolveEventCollisions(laneEvents, contentHeight, yearHeightScale));
-    currentX += laneWidth;
+    positionedEvents.push(
+      resolveEventCollisions(laneEvents, laneWidth, contentHeight, yearHeightScale)
+    );
   });
 
   return {
