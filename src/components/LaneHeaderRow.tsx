@@ -3,7 +3,7 @@
 import React from 'react';
 import { Box, Typography, useTheme } from '@mui/material';
 import { TimelineData } from '../lib/types';
-import { pickReadableTextColor } from '../lib/colorPalette';
+import { laneOverlayColors } from '../lib/colorPalette';
 
 interface LaneHeaderRowProps {
   data: TimelineData;
@@ -21,7 +21,6 @@ export function LaneHeaderRow({
   const theme = useTheme();
   const sheet = theme.palette.chronology.sheet;
   const border = theme.palette.chronology.hairlineStrong;
-  const laneBorder = theme.palette.chronology.hairline;
 
   return (
     <Box
@@ -36,7 +35,7 @@ export function LaneHeaderRow({
     >
       {data.map((lane, index) => {
         const laneBg = laneColors[index] || sheet;
-        const labelColor = pickReadableTextColor(laneBg);
+        const overlay = laneOverlayColors(laneBg);
 
         return (
           <Box
@@ -47,14 +46,15 @@ export function LaneHeaderRow({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              borderRight: `1px solid ${laneBorder}`,
+              borderRight: `1px solid ${overlay.hairline}`,
               backgroundColor: laneBg,
               px: 1,
             }}
           >
             <Typography
+              component="span"
               sx={{
-                color: labelColor,
+                color: `${overlay.ink} !important`,
                 fontWeight: 700,
                 fontSize: '0.85rem',
                 textAlign: 'center',

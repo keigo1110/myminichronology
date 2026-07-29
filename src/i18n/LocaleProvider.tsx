@@ -37,18 +37,15 @@ export function useT() {
   return useLocale().t;
 }
 
-/** layout.tsx のプリペイントスクリプトが決めた値 */
-function readPrepaintLocale(): Locale | null {
-  if (typeof document === 'undefined') return null;
-  const attr = document.documentElement.getAttribute('data-locale');
-  return attr === 'ja' || attr === 'en' ? attr : null;
-}
-
-function readInitialLocale(): Locale {
+/**
+ * SSR とクライアント初回描画は常に ja。
+ * 保存ロケールはマウント後にだけ適用する。
+ */
+function readStoredLocale(): Locale {
   if (typeof window === 'undefined') return 'ja';
-  const prepainted = readPrepaintLocale();
-  if (prepainted) return prepainted;
   try {
+    const attr = document.documentElement.getAttribute('data-locale');
+    if (attr === 'ja' || attr === 'en') return attr;
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored === 'ja' || stored === 'en') return stored;
     return detectBrowserLocale();
@@ -58,12 +55,11 @@ function readInitialLocale(): Locale {
 }
 
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(() => readPrepaintLocale() ?? 'ja');
+  const [locale, setLocaleState] = useState<Locale>('ja');
   const [ready, setReady] = useState(false);
 
-  // ハイドレーション直後・描画前に確定させ、誤った言語を一度も見せない
   useIsomorphicLayoutEffect(() => {
-    setLocaleState(readInitialLocale());
+    setLocaleState(readStoredLocale());
     setReady(true);
   }, []);
 

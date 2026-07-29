@@ -105,34 +105,35 @@ export const materialDesignColors = {
   }
 };
 
+// ヘックスカラーをRGBに変換
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      }
+    : null;
+}
+
+function getRelativeLuminance(rgb: { r: number; g: number; b: number }): number {
+  const sRGB = [rgb.r, rgb.g, rgb.b].map((c) => {
+    const channel = c / 255;
+    return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * sRGB[0] + 0.7152 * sRGB[1] + 0.0722 * sRGB[2];
+}
+
 // コントラスト比計算関数
 export function calculateContrastRatio(color1: string, color2: string): number {
-  // ヘックスカラーをRGBに変換
-  const hexToRgb = (hex: string) => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16)
-    } : null;
-  };
-
-  // 相対輝度計算
-  const getLuminance = (rgb: {r: number, g: number, b: number}) => {
-    const sRGB = [rgb.r, rgb.g, rgb.b].map(c => {
-      c = c / 255;
-      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-    });
-    return 0.2126 * sRGB[0] + 0.7152 * sRGB[1] + 0.0722 * sRGB[2];
-  };
-
   const rgb1 = hexToRgb(color1);
   const rgb2 = hexToRgb(color2);
 
   if (!rgb1 || !rgb2) return 0;
 
-  const lum1 = getLuminance(rgb1);
-  const lum2 = getLuminance(rgb2);
+  const lum1 = getRelativeLuminance(rgb1);
+  const lum2 = getRelativeLuminance(rgb2);
 
   const brightest = Math.max(lum1, lum2);
   const darkest = Math.min(lum1, lum2);
@@ -206,25 +207,39 @@ export function pickChronologyEventColor(seed: string, index = 0): string {
 export function pickReadableTextColor(background: string): '#FFFFFF' | '#212121' {
   const whiteRatio = calculateContrastRatio(background, '#FFFFFF');
   const darkRatio = calculateContrastRatio(background, '#212121');
+
+  // コントラストが近いときは輝度で紙面向けに倒す（淡色→濃字、濃色→白字）
+  if (Math.abs(whiteRatio - darkRatio) < 0.35) {
+    const rgb = hexToRgb(background);
+    if (rgb) {
+      const luminance = getRelativeLuminance(rgb);
+      return luminance > 0.55 ? '#212121' : '#FFFFFF';
+    }
+  }
+
   return whiteRatio >= darkRatio ? '#FFFFFF' : '#212121';
 }
 
 export interface LaneOverlayColors {
+  /** レーン上の文字色（テーマ名など） */
+  ink: string;
   grid: string;
   gridDecade: string;
   hairline: string;
 }
 
 /**
- * レーン背景の上に直接描く線色。
+ * レーン背景の上に直接描く線色・文字色。
  * テーマの chronology トークンはページ背景基準（ダークでは白系）なので、
  * 淡色レーン背景の上では見えなくなる。背景の明るさから選ぶ。
  */
 export function laneOverlayColors(background: string): LaneOverlayColors {
-  const isLightBackground = pickReadableTextColor(background) === '#212121';
+  const ink = pickReadableTextColor(background);
+  const isLightBackground = ink === '#212121';
 
   if (isLightBackground) {
     return {
+      ink,
       grid: 'rgba(0,0,0,0.08)',
       gridDecade: 'rgba(0,0,0,0.20)',
       hairline: 'rgba(0,0,0,0.18)',
@@ -232,6 +247,7 @@ export function laneOverlayColors(background: string): LaneOverlayColors {
   }
 
   return {
+    ink,
     grid: 'rgba(255,255,255,0.10)',
     gridDecade: 'rgba(255,255,255,0.24)',
     hairline: 'rgba(255,255,255,0.24)',

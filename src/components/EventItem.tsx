@@ -276,7 +276,8 @@ export function EventItem({
           <Typography
             component="span"
             sx={{
-              color: textColor,
+              // label 塗り背景の上ではテーマ色継承で淡色文字になると読めない
+              color: isLabelStyle ? `${textColor} !important` : textColor,
               fontWeight: 700,
               fontSize: `${fontSizePx}px`,
               lineHeight: 1.25,

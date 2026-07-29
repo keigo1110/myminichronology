@@ -7,7 +7,7 @@ import { EventItem, EVENT_ITEM_MIN_HEIGHT } from './EventItem';
 import { getYearTicks } from '../lib/yearTicks';
 import { DEFAULT_EVENT_COLOR } from '../lib/parseExcel';
 import { getEventDomId } from '../lib/eventDomId';
-import { laneOverlayColors, pickReadableTextColor } from '../lib/colorPalette';
+import { laneOverlayColors } from '../lib/colorPalette';
 import { LANE_LABEL_WIDTH_HORIZONTAL } from '../lib/computeLayout';
 
 interface LaneColumnProps {
@@ -82,11 +82,13 @@ export function LaneColumn({
           title={lane.name}
         >
           <Typography
+            component="span"
             sx={{
               fontWeight: 700,
               fontSize: '0.8rem',
               textAlign: 'center',
-              color: pickReadableTextColor(laneColor),
+              // テーマの text.primary（ダーク時は淡色）を継承しない
+              color: `${overlay.ink} !important`,
               writingMode: 'vertical-rl',
               textOrientation: 'mixed',
               letterSpacing: '0.12em',

@@ -9,17 +9,19 @@ import {
 } from '../lib/colorPalette';
 
 describe('laneOverlayColors', () => {
-  it('paints dark lines on light lane backgrounds', () => {
+  it('paints dark lines and ink on light lane backgrounds', () => {
     chronologyLaneBackgrounds.forEach((background) => {
       const overlay = laneOverlayColors(background);
+      expect(overlay.ink).toBe('#212121');
       expect(overlay.grid).toContain('rgba(0,0,0');
       expect(overlay.gridDecade).toContain('rgba(0,0,0');
       expect(overlay.hairline).toContain('rgba(0,0,0');
     });
   });
 
-  it('paints light lines on dark lane backgrounds', () => {
+  it('paints light lines and ink on dark lane backgrounds', () => {
     const overlay = laneOverlayColors('#1C1A17');
+    expect(overlay.ink).toBe('#FFFFFF');
     expect(overlay.grid).toContain('rgba(255,255,255');
     expect(overlay.gridDecade).toContain('rgba(255,255,255');
     expect(overlay.hairline).toContain('rgba(255,255,255');
