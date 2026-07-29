@@ -1,15 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { getYearTickInterval, getYearTicks } from '../lib/yearTicks';
+import { getYearTickInterval, getYearTicks, formatYearLabel } from '../lib/yearTicks';
 import { validateExcelFile, isXlsxFileName } from '../lib/fileValidation';
 
 describe('yearTicks', () => {
-  it('uses 10-year intervals for short spans', () => {
-    expect(getYearTickInterval(2000, 2050)).toBe(10);
+  it('uses 1-year intervals for short spans', () => {
+    expect(getYearTickInterval(2000, 2020)).toBe(1);
   });
 
   it('uses larger intervals for wide spans', () => {
-    expect(getYearTickInterval(1, 2000)).toBe(100);
-    expect(getYearTickInterval(1, 9000)).toBeGreaterThanOrEqual(250);
+    expect(getYearTickInterval(1, 2000)).toBe(50);
+    expect(getYearTickInterval(1, 9000)).toBeGreaterThanOrEqual(100);
   });
 
   it('returns empty ticks for invalid ranges', () => {
@@ -20,6 +20,12 @@ describe('yearTicks', () => {
     const ticks = getYearTicks(2000, 2050);
     expect(ticks[0]).toBeGreaterThanOrEqual(2000);
     expect(ticks[ticks.length - 1]).toBeLessThanOrEqual(2050);
+  });
+
+  it('formats dense year labels as two digits', () => {
+    expect(formatYearLabel(1985, 1)).toBe('85');
+    expect(formatYearLabel(1990, 1)).toBe('1990');
+    expect(formatYearLabel(2000, 10)).toBe('2000');
   });
 });
 

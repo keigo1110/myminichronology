@@ -33,7 +33,8 @@ const theme = createTheme({
       main: '#1976d2',
     },
     background: {
-      default: '#F7F7F7',
+      default: '#F7F4EE',
+      paper: '#FFFEFA',
     },
     text: {
       primary: '#212121',

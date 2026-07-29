@@ -260,10 +260,10 @@ export default function Home() {
               alignItems: 'center',
               height: '100%',
               minHeight: 'calc(100vh - 80px)',
-              backgroundColor: isDragOver ? 'primary.50' : '#F7F7F7',
-              borderRadius: 1,
+              backgroundColor: isDragOver ? 'primary.50' : '#FFFEFA',
+              borderRadius: 0,
               border: '2px dashed',
-              borderColor: isDragOver ? 'primary.main' : 'rgba(0,0,0,0.1)',
+              borderColor: isDragOver ? 'primary.main' : 'rgba(0,0,0,0.18)',
               transition: 'all 0.2s',
               p: 3,
             }}

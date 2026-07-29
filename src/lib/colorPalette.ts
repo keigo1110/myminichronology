@@ -163,3 +163,48 @@ export function validatePaletteAccessibility(palette: ColorPalette): {
     wcagLevel
   };
 }
+
+/** goal_design.png 系のレーン背景（淡色） */
+export const chronologyLaneBackgrounds = [
+  '#E3EEF7',
+  '#F3EDE3',
+  '#F5E6EB',
+  '#E6F0E6',
+  '#F7F0D8',
+] as const;
+
+/**
+ * goal_design.png 系のイベント塗り色（レーン内で色が分かれる想定）。
+ * WCAG AA を白 or 濃色テキストのどちらかで満たせる濃さを選ぶ。
+ */
+export const chronologyEventColors = [
+  '#C45C26',
+  '#1F7A6C',
+  '#5B4B8A',
+  '#B33A3A',
+  '#5D4037',
+  '#1565C0',
+  '#C2185B',
+  '#2E7D32',
+  '#E65100',
+  '#455A64',
+  '#6A1B9A',
+  '#00838F',
+  '#AD1457',
+  '#EF6C00',
+  '#37474F',
+] as const;
+
+export function pickChronologyEventColor(seed: string, index = 0): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return chronologyEventColors[(hash + index) % chronologyEventColors.length];
+}
+
+export function pickReadableTextColor(background: string): '#FFFFFF' | '#212121' {
+  const whiteRatio = calculateContrastRatio(background, '#FFFFFF');
+  const darkRatio = calculateContrastRatio(background, '#212121');
+  return whiteRatio >= darkRatio ? '#FFFFFF' : '#212121';
+}

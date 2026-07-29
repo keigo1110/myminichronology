@@ -1,22 +1,7 @@
 import { useState, useMemo } from 'react';
 import { TimelineData, PositionedEvent } from '../lib/types';
 import { computeLayout, calculateTimelineHeight, calculateTimelineWidth } from '../lib/computeLayout';
-
-const LANE_COLORS = [
-  '#E3F2FD',
-  '#F3E5F5',
-  '#E8F5E8',
-  '#FFF8E1',
-  '#FCE4EC',
-] as const;
-
-const EVENT_COLORS = [
-  '#1565C0',
-  '#7B1FA2',
-  '#2E7D32',
-  '#5D4037',
-  '#C2185B',
-] as const;
+import { chronologyLaneBackgrounds, chronologyEventColors } from '../lib/colorPalette';
 
 export function useTimelineData(data: TimelineData | null) {
   const [yearHeight, setYearHeight] = useState(24);
@@ -28,7 +13,7 @@ export function useTimelineData(data: TimelineData | null) {
         layoutConfig: {
           laneWidths: [],
           laneWidthByName: {},
-          yearAxisWidth: 60,
+          yearAxisWidth: 56,
           totalWidth: 120,
           timelineHeight: 800,
         },
@@ -54,7 +39,7 @@ export function useTimelineData(data: TimelineData | null) {
   const laneColorByName = useMemo(() => {
     const map: Record<string, string> = {};
     data?.forEach((lane, index) => {
-      map[lane.name] = LANE_COLORS[index % LANE_COLORS.length];
+      map[lane.name] = chronologyLaneBackgrounds[index % chronologyLaneBackgrounds.length];
     });
     return map;
   }, [data]);
@@ -62,7 +47,7 @@ export function useTimelineData(data: TimelineData | null) {
   const eventColorByName = useMemo(() => {
     const map: Record<string, string> = {};
     data?.forEach((lane, index) => {
-      map[lane.name] = EVENT_COLORS[index % EVENT_COLORS.length];
+      map[lane.name] = chronologyEventColors[index % chronologyEventColors.length];
     });
     return map;
   }, [data]);

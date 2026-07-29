@@ -3,6 +3,7 @@ import { Box } from '@mui/material';
 import { Lane, PositionedEvent } from '../lib/types';
 import { EventItem } from './EventItem';
 import { getYearTicks } from '../lib/yearTicks';
+import { pickChronologyEventColor } from '../lib/colorPalette';
 
 interface LaneColumnProps {
   lane: Lane;
@@ -35,7 +36,7 @@ export function LaneColumn({
         width: laneWidth,
         minHeight: timelineHeight,
         backgroundColor: laneColor,
-        borderRight: '1px solid rgba(0,0,0,0.1)',
+        borderRight: '1px solid rgba(0,0,0,0.12)',
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -49,6 +50,7 @@ export function LaneColumn({
       >
         {ticks.map((year) => {
           const y = ((year - yearRange.min) / yearSpan) * timelineHeight;
+          const isDecade = year % 10 === 0;
 
           return (
             <Box
@@ -59,29 +61,36 @@ export function LaneColumn({
                 top: `${y}px`,
                 width: '100%',
                 height: '1px',
-                backgroundColor: 'rgba(0,0,0,0.1)',
+                backgroundColor: isDecade ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.08)',
                 zIndex: 1,
               }}
             />
           );
         })}
 
-        {events.map((event, index) => (
-          <EventItem
-            key={`${lane.name}-${event.label}-${event.start}-${index}`}
-            event={event}
-            color={eventColor}
-            onClick={onEventClick}
-            style={{
-              position: 'absolute',
-              top: `${event.y}px`,
-              left: '4px',
-              right: '4px',
-              height: `${event.height}px`,
-              zIndex: 5,
-            }}
-          />
-        ))}
+        {events.map((event, index) => {
+          const color = pickChronologyEventColor(
+            `${lane.name}:${event.label}:${event.start}`,
+            index
+          );
+
+          return (
+            <EventItem
+              key={`${lane.name}-${event.label}-${event.start}-${index}`}
+              event={event}
+              color={color || eventColor}
+              onClick={onEventClick}
+              style={{
+                position: 'absolute',
+                top: `${event.y}px`,
+                left: '3px',
+                right: '3px',
+                height: `${Math.max(event.height, 18)}px`,
+                zIndex: 5,
+              }}
+            />
+          );
+        })}
       </Box>
     </Box>
   );

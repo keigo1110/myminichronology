@@ -131,8 +131,23 @@ npm run typecheck && npm run lint && npm run test:ci && npm run build
 | `DEVELOPMENT.md` | コントリビュータ（本ファイル） |
 | `technologystack.md` | 技術選定の記録 |
 | `directorystructure.md` | ディレクトリ地図 |
+| `docs/goal_design.png` | 年表 UI の見た目目標 |
 
-バージョンや構成を変えたら、上記 3 ファイル（stack / structure / 本ファイル）を同じ PR で更新してください。
+バージョンや構成を変えたら、上記ファイル（stack / structure / 本ファイル）を同じ PR で更新してください。
+
+## UI デザイン方針
+
+年表の見た目目標は [`docs/goal_design.png`](./docs/goal_design.png) です。
+
+意識している点:
+
+- 左右の年軸
+- レーンごとの淡い背景色
+- イベントは塗りつぶしブロック（点イベントも枠付き円ではなく色面）
+- 長い期間イベントは縦書き
+- 密集した情報量・紙面的なトーン（角丸・影は控えめ）
+
+機能追加時も、このトーンから外れる UI 変更は事前に方針を確認してください。
 
 ## 今後の推奨バックログ（未実装）
 
@@ -141,5 +156,5 @@ npm run typecheck && npm run lint && npm run test:ci && npm run build
 1. Excel パースの Web Worker 化（UI フリーズ耐性）
 2. 年表の仮想スクロール（超長スパン）
 3. `xlsx` → メンテ中ライブラリへの移行
-4. CI（typecheck / lint / test:ci / build）の GitHub Actions 化
-5. イベント詳細パネル（現状クリックは未配線。誤アフォーダンスを避けるため未接続）
+4. イベント詳細パネル（現状クリックは未配線）
+5. goal_design へのさらなる寄せ（列内テキスト密度・年ごとの行揃えなど）

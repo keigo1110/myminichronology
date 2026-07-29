@@ -2,8 +2,10 @@
 
 最終更新: 2026-07-29
 
-```
-myminichronology/
+├── docs/
+│   └── goal_design.png             # 年表 UI の見た目目標
+├── .github/workflows/
+│   └── ci.yml                      # typecheck / lint / test / build
 ├── public/                         # 静的ファイル
 │   ├── minikuro-title.jpg          # ヘッダーロゴ
 │   ├── og-image.jpg                # OGP 画像
@@ -19,6 +21,7 @@ myminichronology/
 │   ├── components/
 │   │   ├── Header.tsx              # ヘッダー（アップロード / フィルタ / PDF）
 │   │   ├── Timeline.tsx            # 年表ルート
+│   │   ├── YearAxis.tsx            # 左右の年軸
 │   │   ├── LaneHeaderRow.tsx       # レーン見出し（sticky）
 │   │   ├── LaneColumn.tsx          # レーン本体（グリッド + イベント）
 │   │   ├── EventItem.tsx           # 点 / 期間イベント
@@ -36,7 +39,7 @@ myminichronology/
 │   │   ├── computeLayout.ts        # 配置計算
 │   │   ├── yearTicks.ts            # 年目盛り間隔
 │   │   ├── exportPdf.ts            # html2canvas + jsPDF
-│   │   └── colorPalette.ts         # WCAG 準拠パレット
+│   │   └── colorPalette.ts         # WCAG 準拠パレット / 年表配色
 │   └── tests/                      # Vitest
 ├── package.json
 ├── tsconfig.json
@@ -57,7 +60,7 @@ myminichronology/
 4. `useFilteredEvents` が選択レーン・年範囲を適用
    - **zoom**: フィルタ後データで `computeLayout` を再実行（年軸も同期）
    - **filter**: 元レイアウトを維持し、表示だけ絞る
-5. `Timeline` がレーン名・色・幅マップで描画
+5. `Timeline` がレーン名・色・幅マップで描画（左右年軸）
 6. PDF は `#timelineRoot` をキャプチャ
 
 ## コンポーネント役割
@@ -70,7 +73,8 @@ myminichronology/
 
 ### Timeline.tsx
 
-- sticky 年軸 + sticky レーンヘッダー + 各 `LaneColumn`
+- sticky 年軸（左右） + sticky レーンヘッダー + 各 `LaneColumn`
+- 見た目目標: `docs/goal_design.png`
 - 色・幅は **レーン名** で参照（並び替え / 非表示でも色がずれない）
 
 ### ErrorBoundary.tsx

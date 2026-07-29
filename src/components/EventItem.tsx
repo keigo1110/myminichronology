@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography, Tooltip } from '@mui/material';
 import { PositionedEvent } from '../lib/types';
+import { pickReadableTextColor } from '../lib/colorPalette';
 
 interface EventItemProps {
   event: PositionedEvent;
@@ -9,9 +10,18 @@ interface EventItemProps {
   style?: React.CSSProperties;
 }
 
+function parseStyleHeight(style?: React.CSSProperties): number {
+  if (!style?.height) return 0;
+  if (typeof style.height === 'number') return style.height;
+  return parseFloat(String(style.height)) || 0;
+}
+
 export function EventItem({ event, color, onClick, style }: EventItemProps) {
   const isPointEvent = !event.end;
   const isInteractive = Boolean(onClick);
+  const height = parseStyleHeight(style);
+  const useVertical = !isPointEvent && height >= 72;
+  const textColor = pickReadableTextColor(color);
 
   const eventLabel = isPointEvent
     ? `${event.start}年：${event.label}`
@@ -33,68 +43,48 @@ export function EventItem({ event, color, onClick, style }: EventItemProps) {
         aria-label={eventLabel}
         sx={{
           ...style,
+          backgroundColor: color,
+          borderRadius: '2px',
+          border: '1px solid rgba(0,0,0,0.12)',
+          boxShadow: 'none',
+          display: 'flex',
+          alignItems: useVertical ? 'center' : 'flex-start',
+          justifyContent: useVertical ? 'center' : 'flex-start',
+          px: useVertical ? 0.4 : 0.7,
+          py: useVertical ? 0.6 : 0.35,
+          overflow: 'hidden',
           cursor: isInteractive ? 'pointer' : 'default',
           outline: 'none',
           '&:hover': isInteractive
             ? {
-                opacity: 0.8,
-                transform: 'scale(1.02)',
-                transition: 'all 0.2s ease',
+                filter: 'brightness(0.96)',
               }
             : undefined,
           '&:focus-visible': {
             boxShadow: '0 0 0 2px #1976d2',
-            borderRadius: 1,
           },
         }}
         onClick={() => onClick?.(event)}
         onKeyDown={handleKeyDown}
       >
-        {isPointEvent ? (
-          <Box
-            sx={{
-              width: 12,
-              height: 12,
-              borderRadius: '50%',
-              backgroundColor: '#fff',
-              border: `3px solid ${color}`,
-              position: 'absolute',
-              left: 8,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-              zIndex: 10,
-            }}
-          />
-        ) : (
-          <Box
-            sx={{
-              width: '100%',
-              height: '100%',
-              backgroundColor: color,
-              borderRadius: 1,
-              border: '1px solid rgba(0,0,0,0.1)',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-              position: 'relative',
-            }}
-          />
-        )}
-
         <Typography
-          variant="body2"
+          component="span"
           sx={{
-            position: 'absolute',
-            left: isPointEvent ? 24 : 8,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: isPointEvent ? '#333' : '#fff',
-            fontWeight: 'bold',
-            fontSize: '0.7rem',
-            whiteSpace: 'nowrap',
+            color: textColor,
+            fontWeight: 700,
+            fontSize: useVertical ? '0.74rem' : '0.68rem',
+            lineHeight: 1.3,
+            letterSpacing: useVertical ? '0.06em' : '0.01em',
+            writingMode: useVertical ? 'vertical-rl' : 'horizontal-tb',
+            textOrientation: 'mixed',
+            whiteSpace: useVertical ? 'nowrap' : 'normal',
             overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            maxWidth: isPointEvent ? 'calc(100% - 32px)' : 'calc(100% - 16px)',
-            textShadow: isPointEvent ? 'none' : '1px 1px 2px rgba(0,0,0,0.5)',
+            display: useVertical ? 'block' : '-webkit-box',
+            WebkitLineClamp: useVertical ? undefined : 4,
+            WebkitBoxOrient: useVertical ? undefined : 'vertical',
+            wordBreak: 'break-word',
+            maxHeight: '100%',
+            maxWidth: '100%',
             pointerEvents: 'none',
           }}
         >

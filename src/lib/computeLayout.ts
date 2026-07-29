@@ -7,6 +7,7 @@ const TIMELINE_PADDING = 4;
 const EVENT_VERTICAL_SPACING = 4;
 const MIN_EVENT_HEIGHT = 12;
 const MIN_YEAR_HEIGHT = 24;
+export const TIMELINE_HEADER_HEIGHT = 52;
 
 function estimateTextWidth(text: string): number {
   // 日本語・全角文字は英数字の約2倍幅として計算
@@ -189,12 +190,12 @@ export function computeLayout(
   });
 
   const maxLaneWidth = Math.max(...laneWidths);
-  const yearAxisWidth = Math.min(200, Math.max(60, maxLaneWidth * 0.1));
-  const totalWidth = yearAxisWidth + laneWidths.reduce((sum, width) => sum + width, 0);
+  const yearAxisWidth = Math.min(72, Math.max(48, maxLaneWidth * 0.08));
+  // 左右の年軸を含めた総幅（goal_design.png 準拠）
+  const totalWidth = yearAxisWidth * 2 + laneWidths.reduce((sum, width) => sum + width, 0);
 
   const timelineHeight = calculateDynamicHeight(data, yearRange, yearHeightScale);
-  const headerHeight = 60;
-  const contentHeight = timelineHeight - headerHeight;
+  const contentHeight = timelineHeight - TIMELINE_HEADER_HEIGHT;
 
   const yScale = scaleLinear()
     .domain([yearRange.min, yearRange.max])
@@ -258,9 +259,9 @@ export function calculateTimelineWidth(data: TimelineData): number {
 
   const laneWidths = data.map((lane) => calculateOptimalLaneWidth(lane.events));
   const maxLaneWidth = Math.max(...laneWidths);
-  const yearAxisWidth = Math.min(200, Math.max(60, maxLaneWidth * 0.1));
+  const yearAxisWidth = Math.min(72, Math.max(48, maxLaneWidth * 0.08));
 
-  return yearAxisWidth + laneWidths.reduce((sum, width) => sum + width, 0);
+  return yearAxisWidth * 2 + laneWidths.reduce((sum, width) => sum + width, 0);
 }
 
 export { deriveYearRange };

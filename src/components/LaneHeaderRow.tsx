@@ -6,9 +6,15 @@ interface LaneHeaderRowProps {
   data: TimelineData;
   laneWidths: number[];
   headerHeight: number;
+  laneColors?: string[];
 }
 
-export function LaneHeaderRow({ data, laneWidths, headerHeight }: LaneHeaderRowProps) {
+export function LaneHeaderRow({
+  data,
+  laneWidths,
+  headerHeight,
+  laneColors = [],
+}: LaneHeaderRowProps) {
   return (
     <Box
       sx={{
@@ -16,9 +22,8 @@ export function LaneHeaderRow({ data, laneWidths, headerHeight }: LaneHeaderRowP
         position: 'sticky',
         top: 0,
         zIndex: 150,
-        backgroundColor: 'rgba(255,255,255,0.95)',
-        borderBottom: '1px solid rgba(0,0,0,0.1)', // 1pxに統一
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+        backgroundColor: '#FFFEFA',
+        borderBottom: '1px solid rgba(0,0,0,0.18)',
       }}
     >
       {data.map((lane, index) => (
@@ -30,20 +35,22 @@ export function LaneHeaderRow({ data, laneWidths, headerHeight }: LaneHeaderRowP
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            borderRight: '1px solid rgba(0,0,0,0.1)',
+            borderRight: '1px solid rgba(0,0,0,0.12)',
+            backgroundColor: laneColors[index] || '#FFFEFA',
+            px: 1,
           }}
         >
           <Typography
-            variant="body1"
             sx={{
               color: '#212121',
-              fontWeight: 'bold',
-              fontSize: '0.9rem',
+              fontWeight: 700,
+              fontSize: '0.85rem',
               textAlign: 'center',
-              maxWidth: '90%',
+              maxWidth: '100%',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
+              whiteSpace: 'nowrap',
+              letterSpacing: '0.02em',
             }}
           >
             {lane.name}
