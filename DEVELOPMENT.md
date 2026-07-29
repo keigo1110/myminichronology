@@ -85,19 +85,17 @@ npm run typecheck && npm run lint && npm run test:ci && npm run build
 
 ## Excel 入力仕様
 
+列役割の正本: [`docs/excel-template-columns.md`](./docs/excel-template-columns.md)
+
 | 列 | 内容 | 必須 |
 | --- | --- | --- |
 | A | 開始年 | ✔ |
-| B | 終了年 | 任意（空なら点イベント） |
+| B | 終了年 | 任意 |
 | C | 出来事 | ✔ |
-| D | フォントサイズ（px, 8〜48） | 任意 |
-| E | 色（文字色 `#RRGGBB` / `#RGB`） | 任意（空なら `#000000`） |
+| D | フォントサイズ（px） | 任意 |
+| E | 色（文字色） | 任意 |
 
-- 1 行目はヘッダーとしてスキップ
-- シート名 = レーン名
-- 日付セルは年に変換を試みます
 - テンプレート: [`/public/template.xlsx`](./public/template.xlsx)
-- イベントは背景ボックスなしのテキスト表示
 
 ## テスト方針
 
@@ -134,6 +132,7 @@ npm run typecheck && npm run lint && npm run test:ci && npm run build
 | `DEVELOPMENT.md` | コントリビュータ（本ファイル） |
 | `technologystack.md` | 技術選定の記録 |
 | `directorystructure.md` | ディレクトリ地図 |
+| `docs/excel-template-columns.md` | Excel 列役割の正本 |
 | `docs/goal_design.png` | 年表 UI の見た目目標 |
 
 バージョンや構成を変えたら、上記ファイル（stack / structure / 本ファイル）を同じ PR で更新してください。

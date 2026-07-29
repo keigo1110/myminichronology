@@ -3,6 +3,7 @@
 最終更新: 2026-07-29
 
 ├── docs/
+│   ├── excel-template-columns.md   # Excel 列役割一覧（正本）
 │   └── goal_design.png             # 年表 UI の見た目目標
 ├── .github/workflows/
 │   └── ci.yml                      # typecheck / lint / test / build
