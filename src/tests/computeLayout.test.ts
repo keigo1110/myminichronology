@@ -6,9 +6,14 @@ import {
   calculateTimelineWidth,
   LANE_LABEL_WIDTH_HORIZONTAL,
   MIN_LANE_ROW_HEIGHT,
+  mapYearToPosition,
+  measureEventSize,
+  layoutOccupancyEnd,
+  TIMELINE_HEADER_HEIGHT,
 } from '../lib/computeLayout';
-import { useFilteredEvents, FilterState } from '../hooks/useFilteredEvents';
-import { TimelineData, PositionedEvent } from '../lib/types';
+import { useFilteredEvents } from '../hooks/useFilteredEvents';
+import type { FilterState } from '../hooks/useFilteredEvents';
+import type { TimelineData, PositionedEvent } from '../lib/types';
 
 describe('computeLayout', () => {
   it('should return empty layout for empty data', () => {
@@ -304,6 +309,192 @@ describe('computeLayout', () => {
       }
     }
   });
+
+  it('should expand dense year bands so older events do not spill into later decades', () => {
+    const data: TimelineData = [
+      {
+        name: 'Dense',
+        events: [
+          { start: 1800, label: '基準点' },
+          {
+            start: 1990,
+            label: '縦ラベルが長くても次年代へ食い込ませない',
+            displayStyle: 'label',
+            fontSize: 16,
+          },
+          { start: 1990, label: '同年イベントA', fontSize: 14 },
+          { start: 1990, label: '同年イベントB', fontSize: 14 },
+          { start: 1995, label: '密集イベントC', fontSize: 14 },
+          { start: 1995, label: '密集イベントD', fontSize: 14 },
+          { start: 1999, label: '20世紀末', fontSize: 14 },
+          { start: 2000, label: '21世紀', fontSize: 14 },
+          { start: 2010, label: '終端基準' },
+        ],
+      },
+    ];
+
+    const result = computeLayout(data);
+    const scale = result.layoutConfig.yearScale;
+    expect(scale).toBeDefined();
+
+    const contentHeight =
+      (result.layoutConfig.timelineHeight ?? 800) - TIMELINE_HEADER_HEIGHT;
+    const yearPosition = (year: number) =>
+      mapYearToPosition(year, result.yearRange, contentHeight, scale);
+
+    // label がある 1990 年だけ、通常年より大きい年バンドを確保する
+    expect(yearPosition(1991) - yearPosition(1990)).toBeGreaterThan(
+      yearPosition(1891) - yearPosition(1890)
+    );
+
+    const events = result.positionedEvents[0];
+    const year2000Y = yearPosition(2000);
+    for (const event of events.filter((item) => item.start < 2000)) {
+      expect(
+        event.y + event.height,
+        `${event.label} spills into the 2000s`
+      ).toBeLessThanOrEqual(year2000Y);
+    }
+
+    for (let first = 0; first < events.length; first += 1) {
+      for (let second = first + 1; second < events.length; second += 1) {
+        const a = events[first];
+        const b = events[second];
+        const overlap = !(
+          a.x + a.width <= b.x ||
+          b.x + b.width <= a.x ||
+          a.y + a.height <= b.y ||
+          b.y + b.height <= a.y
+        );
+        expect(overlap, `${a.label} overlaps ${b.label}`).toBe(false);
+      }
+    }
+  });
+
+  it('keeps more than 80 same-year events collision-free inside their year band', () => {
+    const data: TimelineData = [
+      {
+        name: 'Stress',
+        events: [
+          ...Array.from({ length: 160 }, (_, index) => ({
+            start: 2000,
+            label: `集中イベント-${String(index).padStart(3, '0')}`,
+          })),
+          { start: 2010, label: '終端基準' },
+        ],
+      },
+    ];
+
+    const result = computeLayout(data);
+    const events = result.positionedEvents[0].filter((event) => event.start === 2000);
+    const contentHeight =
+      (result.layoutConfig.timelineHeight ?? 800) - TIMELINE_HEADER_HEIGHT;
+    const nextYearY = mapYearToPosition(
+      2001,
+      result.yearRange,
+      contentHeight,
+      result.layoutConfig.yearScale
+    );
+
+    for (let first = 0; first < events.length; first += 1) {
+      expect(events[first].y + events[first].height).toBeLessThanOrEqual(nextYearY);
+      for (let second = first + 1; second < events.length; second += 1) {
+        const a = events[first];
+        const b = events[second];
+        const overlap = !(
+          a.x + a.width <= b.x ||
+          b.x + b.width <= a.x ||
+          a.y + a.height <= b.y ||
+          b.y + b.height <= a.y
+        );
+        expect(overlap, `${a.label} overlaps ${b.label}`).toBe(false);
+      }
+    }
+  });
+
+  it('keeps deterministic mixed stress data bounded and collision-free', () => {
+    let state = 0x5eed1234;
+    const random = () => {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state / 0x100000000;
+    };
+
+    for (let sample = 0; sample < 12; sample += 1) {
+      const events = Array.from({ length: 70 }, (_, index) => {
+        const start = 1950 + Math.floor(random() * 56);
+        const kind = random();
+        const end = kind < 0.22 ? Math.min(2010, start + 1 + Math.floor(random() * 15)) : undefined;
+        const displayStyle = kind >= 0.22 && kind < 0.36 ? ('label' as const) : undefined;
+        return {
+          start,
+          end,
+          displayStyle,
+          fontSize: 8 + Math.floor(random() * 17),
+          label: `${displayStyle ? '縦ラベル' : '混在イベント'}-${sample}-${index}-${'長'.repeat(
+            Math.floor(random() * 8)
+          )}`,
+        };
+      });
+      const result = computeLayout([{ name: `Stress-${sample}`, events }]);
+      const positioned = result.positionedEvents[0];
+      const laneWidth = result.layoutConfig.laneWidths[0];
+      const contentHeight =
+        (result.layoutConfig.timelineHeight ?? 800) - TIMELINE_HEADER_HEIGHT;
+      const yearPosition = (year: number) =>
+        mapYearToPosition(
+          year,
+          result.yearRange,
+          contentHeight,
+          result.layoutConfig.yearScale
+        );
+
+      for (let first = 0; first < positioned.length; first += 1) {
+        const a = positioned[first];
+        expect(a.x).toBeGreaterThanOrEqual(0);
+        expect(a.y).toBeGreaterThanOrEqual(0);
+        expect(a.x + a.width).toBeLessThanOrEqual(laneWidth);
+        expect(a.y + a.height).toBeLessThanOrEqual(contentHeight);
+        if (layoutOccupancyEnd(a) === a.start) {
+          expect(
+            a.y + a.height,
+            `${a.label} spills beyond its start-year band`
+          ).toBeLessThanOrEqual(yearPosition(a.start + 1));
+        }
+
+        for (let second = first + 1; second < positioned.length; second += 1) {
+          const b = positioned[second];
+          const overlap = !(
+            a.x + a.width <= b.x ||
+            b.x + b.width <= a.x ||
+            a.y + a.height <= b.y ||
+            b.y + b.height <= a.y
+          );
+          expect(
+            overlap,
+            `${a.label} ${JSON.stringify({ start: a.start, x: a.x, y: a.y, width: a.width, height: a.height })} ` +
+              `overlaps ${b.label} ${JSON.stringify({ start: b.start, x: b.x, y: b.y, width: b.width, height: b.height })}`
+          ).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('wraps an extremely long point label within the vertical lane', () => {
+    const result = computeLayout([
+      {
+        name: 'Long text',
+        events: [
+          { start: 2000, label: '長い説明'.repeat(80), fontSize: 14 },
+          { start: 2010, label: '終端' },
+        ],
+      },
+    ]);
+    const event = result.positionedEvents[0][0];
+    const laneWidth = result.layoutConfig.laneWidths[0];
+
+    expect(event.x + event.width).toBeLessThanOrEqual(laneWidth);
+    expect(event.height).toBeGreaterThan(40);
+  });
 });
 
 describe('calculateTimelineHeight', () => {
@@ -564,6 +755,18 @@ describe('Integration: Filter and Layout Recalculation', () => {
   });
 });
 describe('computeLayout horizontal', () => {
+  it('normalizes a zero-width year range so events and the axis share one scale', () => {
+    const result = computeLayout(
+      [{ name: '単年', events: [{ start: 2000, label: '年初イベント' }] }],
+      1,
+      { min: 2000, max: 2000 },
+      'horizontal'
+    );
+
+    expect(result.yearRange.max).toBeGreaterThan(result.yearRange.min);
+    expect(result.positionedEvents[0][0].x).toBe(0);
+  });
+
   it('maps years to x (left=old, right=new) and stacks lanes as rows', () => {
     const data: TimelineData = [
       {
@@ -648,6 +851,51 @@ describe('computeLayout horizontal', () => {
     expect(longRange.width).toBeGreaterThan(shortRange.width);
     // 期間の年スケール幅だけでなく、テキスト幅も確保されている
     expect(longRange.width).toBeGreaterThan(spanYears * 24);
+  });
+
+  it('reserves trailing space for long labels near the final year', () => {
+    const finalEvent = {
+      start: 2029,
+      label: 'NIST：ポスト量子暗号FIPS 203／204／205',
+    };
+    const result = computeLayout(
+      [
+        {
+          name: '右端',
+          events: [{ start: 2000, label: '開始' }, finalEvent],
+        },
+      ],
+      1,
+      { min: 2000, max: 2030 },
+      'horizontal'
+    );
+    const positioned = result.positionedEvents[0].find(
+      (event) => event.label === finalEvent.label
+    )!;
+    const expectedWidth = measureEventSize(finalEvent).width;
+    const laneWidth = result.layoutConfig.laneWidths[0];
+
+    expect(positioned.width).toBeGreaterThanOrEqual(expectedWidth);
+    expect(positioned.x + positioned.width).toBeLessThanOrEqual(laneWidth);
+  });
+
+  it('clips a range to the selected horizontal zoom window', () => {
+    const result = computeLayout(
+      [
+        {
+          name: '期間',
+          events: [{ start: 1900, end: 2100, label: '表示範囲をまたぐ期間' }],
+        },
+      ],
+      1,
+      { min: 2000, max: 2010 },
+      'horizontal'
+    );
+    const event = result.positionedEvents[0][0];
+    const yearContentWidth = result.layoutConfig.yearContentWidth!;
+
+    expect(event.x).toBe(0);
+    expect(event.width).toBeLessThanOrEqual(yearContentWidth);
   });
 
   it('scales content width with yearHeightScale', () => {

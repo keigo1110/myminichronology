@@ -2,8 +2,9 @@
 
 import React from 'react';
 import { Box, Typography, useTheme } from '@mui/material';
-import { formatYearLabel, getYearTickInterval, getYearTicks } from '../lib/yearTicks';
-import { TimelineOrientation } from '../lib/types';
+import { formatYearLabel, getSmallestYearTickInterval, getYearTicks } from '../lib/yearTicks';
+import type { AdaptiveYearScale, TimelineOrientation } from '../lib/types';
+import { mapYearToPosition } from '../lib/computeLayout';
 import { useT } from '../i18n/LocaleProvider';
 
 interface YearAxisProps {
@@ -20,6 +21,10 @@ interface YearAxisProps {
   orientation?: TimelineOrientation;
   /** horizontal 時: 左レーン名レール分のオフセット */
   labelOffset?: number;
+  /** Timeline で一度だけ計算した共有目盛り */
+  ticks?: number[];
+  /** vertical 時の密度連動スケール */
+  yearScale?: AdaptiveYearScale;
 }
 
 export function YearAxis({
@@ -31,6 +36,8 @@ export function YearAxis({
   side,
   orientation = 'vertical',
   labelOffset = 0,
+  ticks: providedTicks,
+  yearScale,
 }: YearAxisProps) {
   const theme = useTheme();
   const t = useT();
@@ -39,9 +46,8 @@ export function YearAxis({
   const ink = theme.palette.text.primary;
   const muted = theme.palette.chronology.axisMuted;
 
-  const yearSpan = Math.max(1, yearRange.max - yearRange.min);
-  const interval = getYearTickInterval(yearRange.min, yearRange.max);
-  const ticks = getYearTicks(yearRange.min, yearRange.max);
+  const ticks = providedTicks ?? getYearTicks(yearRange.min, yearRange.max);
+  const interval = getSmallestYearTickInterval(ticks);
   const isHorizontal = orientation === 'horizontal';
 
   if (isHorizontal) {
@@ -50,6 +56,7 @@ export function YearAxis({
     return (
       <Box
         data-year-axis={side}
+        aria-hidden={side === 'bottom' ? true : undefined}
         sx={{
           position: 'sticky',
           ...stickyEdge,
@@ -100,7 +107,8 @@ export function YearAxis({
           }}
         >
           {ticks.map((year) => {
-            const x = ((year - yearRange.min) / yearSpan) * contentSize;
+            const x = mapYearToPosition(year, yearRange, contentSize);
+            const labelLeft = Math.max(0, Math.min(Math.max(0, contentSize - 40), x - 20));
             const isEmphasized = year % 10 === 0 || interval >= 10;
             const label = formatYearLabel(year, interval);
 
@@ -112,7 +120,7 @@ export function YearAxis({
                   position: 'absolute',
                   top: 0,
                   bottom: 0,
-                  left: `${x - 20}px`,
+                  left: `${labelLeft}px`,
                   width: '40px',
                   display: 'flex',
                   alignItems: 'center',
@@ -138,6 +146,7 @@ export function YearAxis({
   return (
     <Box
       data-year-axis={side}
+      aria-hidden={side === 'right' ? true : undefined}
       sx={{
         position: 'sticky',
         ...stickySide,
@@ -148,7 +157,8 @@ export function YearAxis({
         borderRight: side === 'left' ? `1px solid ${border}` : undefined,
         borderLeft: side === 'right' ? `1px solid ${border}` : undefined,
         zIndex: 200,
-        display: 'flex',
+        // 狭い画面では左軸だけで年代を十分に読める。重複軸で本文幅を奪わない。
+        display: side === 'right' ? { xs: 'none', sm: 'flex' } : 'flex',
         flexDirection: 'column',
         flexShrink: 0,
       }}
@@ -186,7 +196,8 @@ export function YearAxis({
         }}
       >
         {ticks.map((year) => {
-          const y = ((year - yearRange.min) / yearSpan) * contentSize;
+          const y = mapYearToPosition(year, yearRange, contentSize, yearScale);
+          const labelTop = Math.max(0, Math.min(Math.max(0, contentSize - 16), y - 8));
           const isEmphasized = year % 10 === 0 || interval >= 10;
           const label = formatYearLabel(year, interval);
 
@@ -198,7 +209,7 @@ export function YearAxis({
                 position: 'absolute',
                 left: 4,
                 right: 4,
-                top: `${y - 8}px`,
+                top: `${labelTop}px`,
                 height: '16px',
                 display: 'flex',
                 alignItems: 'center',

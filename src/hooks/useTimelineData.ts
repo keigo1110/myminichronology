@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { TimelineData, PositionedEvent, TimelineOrientation } from '../lib/types';
+import type { TimelineData, PositionedEvent, TimelineOrientation } from '../lib/types';
 import { computeLayout, calculateTimelineHeight, calculateTimelineWidth } from '../lib/computeLayout';
 import { chronologyLaneBackgrounds } from '../lib/colorPalette';
 

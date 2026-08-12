@@ -25,6 +25,13 @@ export const MAX_FONT_SIZE_PX = 48;
 /** 画像 URL の最大長 */
 export const MAX_IMAGE_URL_LENGTH = 2048;
 
+/** 年表入力として解釈する列数（A〜G）。それ以降の列は利用者の補助情報として無視する。 */
+const INPUT_COLUMN_COUNT = 7;
+
+function isBlankCell(value: unknown): boolean {
+  return value === undefined || value === null || String(value).trim() === '';
+}
+
 function parseYearValue(value: unknown): number | null {
   if (value === undefined || value === null || value === '') {
     return null;
@@ -264,17 +271,21 @@ export async function parseExcel(file: File): Promise<ParseResult> {
         const row = jsonData[i];
         const rowNumber = i + 1;
 
-        if (!row || row.length < 2) {
-          if (row && row.some((cell) => cell !== null && cell !== undefined && cell !== '')) {
-            pushWarning(
-              warnings,
-              'missing-columns',
-              'parse.missingColumns',
-              { sheet: sheetName, row: rowNumber },
-              sheetName,
-              rowNumber
-            );
-          }
+        // 書式だけが設定された行や、H列以降に補助情報だけがある行は入力行ではない。
+        // Excel の使用範囲（!ref）が広い場合も、空行を大量の必須項目エラーにしない。
+        if (!row || row.slice(0, INPUT_COLUMN_COUNT).every(isBlankCell)) {
+          continue;
+        }
+
+        if (row.length < 2) {
+          pushWarning(
+            warnings,
+            'missing-columns',
+            'parse.missingColumns',
+            { sheet: sheetName, row: rowNumber },
+            sheetName,
+            rowNumber
+          );
           continue;
         }
 
@@ -286,14 +297,7 @@ export async function parseExcel(file: File): Promise<ParseResult> {
         const displayStyleRaw = row[5];
         const imageUrlRaw = row[6];
 
-        if (
-          startYearRaw === undefined ||
-          startYearRaw === null ||
-          startYearRaw === '' ||
-          labelRaw === undefined ||
-          labelRaw === null ||
-          String(labelRaw).trim() === ''
-        ) {
+        if (isBlankCell(startYearRaw) || isBlankCell(labelRaw)) {
           pushWarning(
             warnings,
             'missing-columns',

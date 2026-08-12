@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { getYearTickInterval, getYearTicks, formatYearLabel } from '../lib/yearTicks';
+import {
+  getYearTickInterval,
+  getYearTicks,
+  getYearTicksForPositions,
+  getSmallestYearTickInterval,
+  formatYearLabel,
+} from '../lib/yearTicks';
 import { validateExcelFile, isXlsxFileName } from '../lib/fileValidation';
 
 describe('yearTicks', () => {
@@ -26,6 +32,36 @@ describe('yearTicks', () => {
     expect(formatYearLabel(1985, 1)).toBe('85');
     expect(formatYearLabel(1990, 1)).toBe('1990');
     expect(formatYearLabel(2000, 10)).toBe('2000');
+  });
+
+  it('adds finer ticks only where the rendered axis has room', () => {
+    const positionForYear = (year: number) =>
+      year <= 2000 ? (year - 1900) * 2 : 200 + (year - 2000) * 40;
+    const ticks = getYearTicksForPositions(1900, 2005, positionForYear, 30);
+
+    expect(ticks).toContain(1925);
+    expect(ticks).toContain(2002);
+    expect(ticks).not.toContain(1901);
+    expect(getSmallestYearTickInterval(ticks)).toBeLessThan(25);
+
+    const positions = ticks.map(positionForYear);
+    for (let index = 1; index < positions.length; index += 1) {
+      expect(positions[index] - positions[index - 1]).toBeGreaterThanOrEqual(30);
+    }
+  });
+
+  it('reserves spacing around both edge labels', () => {
+    const ticks = getYearTicksForPositions(1640, 2030, (year) => (year - 1640) * 24, 64);
+
+    expect(ticks).toContain(1640);
+    expect(ticks).toContain(2030);
+    expect(ticks).not.toContain(1641);
+    expect(ticks).not.toContain(2029);
+
+    const positions = ticks.map((year) => (year - 1640) * 24);
+    for (let index = 1; index < positions.length; index += 1) {
+      expect(positions[index] - positions[index - 1]).toBeGreaterThanOrEqual(64);
+    }
   });
 });
 

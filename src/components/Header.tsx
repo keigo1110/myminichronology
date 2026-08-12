@@ -30,7 +30,7 @@ import {
 } from '@mui/icons-material';
 import { DraggableLaneList } from './DraggableLaneList';
 import { CopyableAlert } from './CopyableAlert';
-import { LayoutMode, TimelineOrientation } from '../lib/types';
+import type { LayoutMode, TimelineOrientation } from '../lib/types';
 import { isXlsxFileName } from '../lib/fileValidation';
 import { useColorMode } from '../app/providers';
 import { useT, useLocale } from '../i18n/LocaleProvider';
@@ -244,7 +244,18 @@ export function Header({
         py: 1,
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2 }}>
+      <Box
+        data-testid="header-toolbar"
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'stretch', sm: 'center' },
+          justifyContent: 'space-between',
+          gap: { xs: 0.5, sm: 1 },
+          px: { xs: 1, sm: 2 },
+          minWidth: 0,
+        }}
+      >
         <Box
           component="img"
           src="/minikuro-title.jpg"
@@ -253,10 +264,21 @@ export function Header({
             height: { xs: 32, sm: 36, md: 40 },
             width: 'auto',
             objectFit: 'contain',
+            alignSelf: 'flex-start',
           }}
         />
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            flexWrap: 'wrap',
+            gap: { xs: 0.25, sm: 1 },
+            width: { xs: '100%', sm: 'auto' },
+            minWidth: 0,
+          }}
+        >
           {hasData && (
             <Tooltip
               title={
@@ -265,7 +287,16 @@ export function Header({
                   : t('header.yearHeight')
               }
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 140 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  flex: { xs: '1 1 170px', sm: '0 1 190px' },
+                  minWidth: 140,
+                  maxWidth: { xs: '100%', sm: 220 },
+                }}
+              >
                 <Height
                   sx={{
                     fontSize: 16,

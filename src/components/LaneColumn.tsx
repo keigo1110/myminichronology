@@ -2,13 +2,18 @@
 
 import React from 'react';
 import { Box, Typography } from '@mui/material';
-import { Lane, PositionedEvent, TimelineOrientation } from '../lib/types';
+import type {
+  AdaptiveYearScale,
+  Lane,
+  PositionedEvent,
+  TimelineOrientation,
+} from '../lib/types';
 import { EventItem, EVENT_ITEM_MIN_HEIGHT } from './EventItem';
 import { getYearTicks } from '../lib/yearTicks';
 import { DEFAULT_EVENT_COLOR } from '../lib/parseExcel';
 import { getEventDomId } from '../lib/eventDomId';
 import { laneOverlayColors } from '../lib/colorPalette';
-import { LANE_LABEL_WIDTH_HORIZONTAL } from '../lib/computeLayout';
+import { LANE_LABEL_WIDTH_HORIZONTAL, mapYearToPosition } from '../lib/computeLayout';
 
 interface LaneColumnProps {
   lane: Lane;
@@ -24,6 +29,10 @@ interface LaneColumnProps {
   orientation?: TimelineOrientation;
   showLaneLabel?: boolean;
   laneLabelWidth?: number;
+  yearTicks?: number[];
+  yearScale?: AdaptiveYearScale;
+  /** horizontal 時: 右端ラベル余白を除いた年代軸幅 */
+  yearContentWidth?: number;
 }
 
 export function LaneColumn({
@@ -40,9 +49,11 @@ export function LaneColumn({
   orientation = 'vertical',
   showLaneLabel = false,
   laneLabelWidth = LANE_LABEL_WIDTH_HORIZONTAL,
+  yearTicks,
+  yearScale,
+  yearContentWidth,
 }: LaneColumnProps) {
-  const yearSpan = Math.max(1, yearRange.max - yearRange.min);
-  const ticks = getYearTicks(yearRange.min, yearRange.max);
+  const ticks = yearTicks ?? getYearTicks(yearRange.min, yearRange.max);
   const isHorizontal = orientation === 'horizontal';
   const rowHeight = isHorizontal ? laneHeight ?? timelineHeight : timelineHeight;
   const overlay = laneOverlayColors(laneColor);
@@ -113,7 +124,12 @@ export function LaneColumn({
         }}
       >
         {ticks.map((year) => {
-          const pos = ((year - yearRange.min) / yearSpan) * (isHorizontal ? laneWidth : rowHeight);
+          const pos = mapYearToPosition(
+            year,
+            yearRange,
+            isHorizontal ? yearContentWidth ?? laneWidth : rowHeight,
+            isHorizontal ? undefined : yearScale
+          );
           const isDecade = year % 10 === 0;
 
           return (

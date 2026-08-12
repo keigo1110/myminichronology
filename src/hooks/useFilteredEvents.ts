@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
-import {
+import type {
   TimelineData,
   PositionedEvent,
   LayoutMode,
   DynamicLayoutConfig,
   TimelineOrientation,
 } from '../lib/types';
-import { computeLayout } from '../lib/computeLayout';
+import { computeLayout, layoutOccupancyEnd } from '../lib/computeLayout';
 
 export interface FilterState {
   yearRange: [number, number];
@@ -29,29 +29,33 @@ export function useFilteredEvents(
   baseYearRange: { min: number; max: number } = { min: 0, max: 0 },
   orientation: TimelineOrientation = 'vertical'
 ): FilteredEventsResult {
-  const yearRangeKey = `${filters.yearRange[0]}:${filters.yearRange[1]}`;
-  const selectedLanesKey = selectedLanes.join('|');
+  const [filterStart, filterEnd] = filters.yearRange;
+  const { min: baseMinYear, max: baseMaxYear } = baseYearRange;
+  // レーン名自体に区切り文字が含まれても依存キーが衝突しない形式にする。
+  const selectedLanesKey = JSON.stringify(selectedLanes);
 
   return useMemo(() => {
     if (!data) {
       return {
         filteredData: null,
         filteredPositionedEvents: [],
-        yearRange: baseYearRange,
+        yearRange: { min: baseMinYear, max: baseMaxYear },
       };
     }
 
     const filteredData: TimelineData = [];
+    const selectedLaneSet = new Set<string>(JSON.parse(selectedLanesKey));
 
     data.forEach((lane) => {
-      if (!selectedLanes.includes(lane.name)) {
+      if (!selectedLaneSet.has(lane.name)) {
         return;
       }
 
       const filteredLaneEvents = lane.events.filter((event) => {
         const eventStart = event.start;
-        const eventEnd = event.end || event.start;
-        return !(eventEnd < filters.yearRange[0] || eventStart > filters.yearRange[1]);
+        // label は表示上ポイントなので、C列の終了年だけを理由に残さない。
+        const eventEnd = layoutOccupancyEnd(event);
+        return !(eventEnd < filterStart || eventStart > filterEnd);
       });
 
       if (filteredLaneEvents.length > 0) {
@@ -66,7 +70,7 @@ export function useFilteredEvents(
       return {
         filteredData,
         filteredPositionedEvents: [],
-        yearRange: baseYearRange,
+        yearRange: { min: baseMinYear, max: baseMaxYear },
       };
     }
 
@@ -75,11 +79,11 @@ export function useFilteredEvents(
     const overrideRange =
       layoutMode === 'zoom'
         ? {
-            min: Math.floor(filters.yearRange[0] / 10) * 10,
-            max: Math.ceil(filters.yearRange[1] / 10) * 10,
+            min: Math.floor(filterStart / 10) * 10,
+            max: Math.ceil(filterEnd / 10) * 10,
           }
-        : baseYearRange.min > 0 && baseYearRange.max > 0
-          ? baseYearRange
+        : baseMinYear > 0 && baseMaxYear > 0
+          ? { min: baseMinYear, max: baseMaxYear }
           : undefined;
 
     const {
@@ -92,8 +96,22 @@ export function useFilteredEvents(
       filteredData,
       filteredPositionedEvents: recomputedEvents,
       layoutConfig: recomputedLayout,
-      yearRange: layoutMode === 'zoom' ? recomputedYearRange : (baseYearRange.min > 0 ? baseYearRange : recomputedYearRange),
+      yearRange:
+        layoutMode === 'zoom'
+          ? recomputedYearRange
+          : baseMinYear > 0
+            ? { min: baseMinYear, max: baseMaxYear }
+            : recomputedYearRange,
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, yearRangeKey, selectedLanesKey, layoutMode, yearHeightScale, baseYearRange.min, baseYearRange.max, orientation]);
+  }, [
+    data,
+    filterStart,
+    filterEnd,
+    selectedLanesKey,
+    layoutMode,
+    yearHeightScale,
+    baseMinYear,
+    baseMaxYear,
+    orientation,
+  ]);
 }

@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react';
 import { useFilteredEvents } from '../hooks/useFilteredEvents';
-import { TimelineData } from '../lib/types';
-import { FilterState } from '../hooks/useFilteredEvents';
+import type { TimelineData } from '../lib/types';
+import type { FilterState } from '../hooks/useFilteredEvents';
 
 describe('useFilteredEvents', () => {
   const mockData: TimelineData = [
@@ -121,6 +121,38 @@ describe('useFilteredEvents', () => {
     expect(result.current.filteredData).toHaveLength(1);
     expect(result.current.filteredData![0].events).toHaveLength(1);
     expect(result.current.filteredData![0].events[0].label).toBe('東日本大震災');
+  });
+
+  it('treats label style as a point when filtering even if it has an end year', () => {
+    const labelData: TimelineData = [
+      {
+        name: 'ラベル',
+        events: [
+          {
+            start: 1950,
+            end: 2000,
+            label: '1950年の縦ラベル',
+            displayStyle: 'label',
+          },
+          { start: 1990, end: 2000, label: '実際の期間' },
+        ],
+      },
+    ];
+    const { result } = renderHook(() =>
+      useFilteredEvents(
+        labelData,
+        [],
+        { yearRange: [1990, 2000] },
+        ['ラベル'],
+        'filter',
+        1,
+        { min: 1950, max: 2000 }
+      )
+    );
+
+    expect(result.current.filteredData?.[0].events.map((event) => event.label)).toEqual([
+      '実際の期間',
+    ]);
   });
 
   it('should recalculate layout in zoom mode', () => {

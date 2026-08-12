@@ -24,6 +24,7 @@ export function LaneHeaderRow({
 
   return (
     <Box
+      data-lane-header-row=""
       sx={{
         display: 'flex',
         position: 'sticky',

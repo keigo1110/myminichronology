@@ -136,6 +136,21 @@ describe('parseExcel', () => {
     expect(result.warnings.some((w) => w.type === 'missing-columns')).toBe(true);
   });
 
+  it('should silently ignore rows with no input in columns A through G', async () => {
+    const file = createWorkbookFile({
+      政治: [
+        ['年', '出来事', '(いつまで)', 'フォントサイズ', '色', '表示スタイル', '画像リンク', 'メモ'],
+        [2020, '有効', null, null, null, null, null, null],
+        [null, null, null, null, null, null, null, '年表入力ではない補助情報'],
+        [null, null, null, null, null, null, null, null],
+      ],
+    });
+
+    const result = await parseExcel(file);
+    expect(result.lanes[0].events).toHaveLength(1);
+    expect(result.warnings.filter((warning) => warning.type === 'missing-columns')).toHaveLength(0);
+  });
+
   it('should warn and skip invalid year values', async () => {
     const file = createWorkbookFile({
       政治: [

@@ -35,6 +35,17 @@ export interface PositionedEvent extends Event {
   height: number;
 }
 
+/**
+ * 縦型年表の密度連動スケール。
+ * positions[0] は minYear、末尾は maxYear + 1 の描画位置を表す。
+ */
+export interface AdaptiveYearScale {
+  minYear: number;
+  maxYear: number;
+  positions: number[];
+  contentSize: number;
+}
+
 export interface DynamicLayoutConfig {
   laneWidths: number[];
   laneWidthByName: Record<string, number>;
@@ -46,9 +57,13 @@ export interface DynamicLayoutConfig {
   yearAxisHeight?: number;
   /** horizontal 時: 左のレーン名レール幅 */
   laneLabelWidth?: number;
+  /** horizontal 時: 余白を除いた年代軸の実幅 */
+  yearContentWidth?: number;
   totalWidth: number;
   timelineHeight?: number;
   orientation?: TimelineOrientation;
+  /** 縦型のみ: イベント密度に応じた年→px変換 */
+  yearScale?: AdaptiveYearScale;
 }
 
 export type LayoutMode = 'zoom' | 'filter';

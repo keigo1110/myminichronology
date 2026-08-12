@@ -13,6 +13,7 @@ import { usePdfExport } from '../hooks/usePdfExport';
 import { LayoutMode, TimelineOrientation } from '../lib/types';
 import { validateExcelFile } from '../lib/fileValidation';
 import { getEventDomId } from '../lib/eventDomId';
+import { scrollTimelineEventIntoView } from '../lib/timelineScroll';
 import { useT } from '../i18n/LocaleProvider';
 import { useIsomorphicLayoutEffect } from '../hooks/useIsomorphicLayoutEffect';
 import type { MessageKey } from '../i18n/messages';
@@ -41,6 +42,8 @@ export default function Home() {
   const [warningsDismissed, setWarningsDismissed] = useState(false);
   const dragDepthRef = useRef(0);
   const chromeRef = useRef<HTMLDivElement>(null);
+  const timelineViewportRef = useRef<HTMLDivElement>(null);
+  const searchScrollFrameRef = useRef<number | null>(null);
   const theme = useTheme();
 
   const [selectedLanes, setSelectedLanes] = useState<string[]>(data?.map((lane) => lane.name) || []);
@@ -224,14 +227,35 @@ export default function Home() {
     return ids;
   }, [searchQuery, displayData, displayEvents]);
 
+  const scheduleScrollToEvent = useCallback((eventId: string) => {
+    if (searchScrollFrameRef.current != null) {
+      cancelAnimationFrame(searchScrollFrameRef.current);
+    }
+    searchScrollFrameRef.current = requestAnimationFrame(() => {
+      searchScrollFrameRef.current = null;
+      scrollTimelineEventIntoView(eventId);
+    });
+  }, []);
+
   React.useEffect(() => {
     setSearchMatchIndex(0);
     if (searchMatches.length > 0) {
-      setHighlightedEventId(searchMatches[0]);
+      const firstMatch = searchMatches[0];
+      setHighlightedEventId(firstMatch);
+      scheduleScrollToEvent(firstMatch);
     } else {
       setHighlightedEventId(null);
     }
-  }, [searchMatches]);
+  }, [scheduleScrollToEvent, searchMatches]);
+
+  React.useEffect(
+    () => () => {
+      if (searchScrollFrameRef.current != null) {
+        cancelAnimationFrame(searchScrollFrameRef.current);
+      }
+    },
+    []
+  );
 
   const jumpToMatch = useCallback(
     (index: number) => {
@@ -240,15 +264,9 @@ export default function Home() {
       const id = searchMatches[normalized];
       setSearchMatchIndex(normalized);
       setHighlightedEventId(id);
-      requestAnimationFrame(() => {
-        document.getElementById(id)?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-          inline: orientation === 'horizontal' ? 'center' : 'nearest',
-        });
-      });
+      scheduleScrollToEvent(id);
     },
-    [searchMatches, orientation]
+    [scheduleScrollToEvent, searchMatches]
   );
 
   const handleSearchNext = useCallback(() => {
@@ -258,6 +276,18 @@ export default function Home() {
   const handleSearchPrev = useCallback(() => {
     jumpToMatch(searchMatchIndex - 1);
   }, [jumpToMatch, searchMatchIndex]);
+
+  const handleOrientationChange = useCallback((nextOrientation: TimelineOrientation) => {
+    if (searchScrollFrameRef.current != null) {
+      cancelAnimationFrame(searchScrollFrameRef.current);
+      searchScrollFrameRef.current = null;
+    }
+
+    // 座標系を変える前に旧スクロール位置を破棄する。深い年を表示したまま
+    // DOM を組み替えると、ブラウザがその位置を新しい横軸へ引き継ぐため。
+    timelineViewportRef.current?.scrollTo({ left: 0, top: 0, behavior: 'auto' });
+    setOrientation(nextOrientation);
+  }, []);
 
   const warningMessages = warnings.map((w) => t(w.code as MessageKey, w.params));
   const warningSummary =
@@ -272,17 +302,24 @@ export default function Home() {
   const displayError = error ? t(error.code, error.params) : null;
   const displayExportError = exportError ? t(exportError.code, exportError.params) : null;
 
-  React.useEffect(() => {
-    if (highlightedEventId && searchMatches.includes(highlightedEventId)) {
-      requestAnimationFrame(() => {
-        document.getElementById(highlightedEventId)?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-          inline: orientation === 'horizontal' ? 'center' : 'nearest',
-        });
-      });
-    }
-  }, [highlightedEventId, searchMatches, orientation]);
+  // 縦横で座標系が変わるため、ブラウザの scroll anchoring に任せず始点へ戻す。
+  useIsomorphicLayoutEffect(() => {
+    if (!data) return;
+    const viewport = timelineViewportRef.current;
+
+    const resetScrollPosition = () => {
+      if (viewport) {
+        viewport.scrollLeft = 0;
+        viewport.scrollTop = 0;
+      }
+    };
+
+    resetScrollPosition();
+    // 大きく寸法が変わる縦横切替では、初回レイアウト後にブラウザが
+    // scroll anchoring を再適用することがあるため、次フレームでも確定する。
+    const frameId = requestAnimationFrame(resetScrollPosition);
+    return () => cancelAnimationFrame(frameId);
+  }, [data, orientation]);
 
   useEffect(() => {
     const el = chromeRef.current;
@@ -341,7 +378,7 @@ export default function Home() {
           layoutMode={layoutMode}
           onLayoutModeChange={setLayoutMode}
           orientation={orientation}
-          onOrientationChange={setOrientation}
+          onOrientationChange={handleOrientationChange}
           searchQuery={searchQuery}
           onSearchQueryChange={setSearchQuery}
           searchMatchCount={searchMatches.length}
@@ -366,7 +403,15 @@ export default function Home() {
 
       <Box
         data-timeline-scroll=""
-        sx={{ flex: 1, overflow: 'auto', p: { xs: 1, md: 1.5 }, minHeight: 0 }}
+        data-timeline-viewport=""
+        ref={timelineViewportRef}
+        sx={{
+          flex: 1,
+          overflow: 'auto',
+          overflowAnchor: 'none',
+          p: { xs: 1, md: 1.5 },
+          minHeight: 0,
+        }}
       >
         {hasLoadedData && hasVisibleEvents && displayData ? (
           <Box
@@ -376,7 +421,15 @@ export default function Home() {
               minHeight: '100%',
             }}
           >
-            <Box data-timeline-scroll="" sx={{ flex: 1, overflowX: 'auto' }}>
+            <Box
+              data-timeline-scroll=""
+              sx={{
+                flex: 1,
+                minWidth: 0,
+                overflow: 'visible',
+                overflowAnchor: 'none',
+              }}
+            >
               <Timeline
                 data={displayData}
                 positionedEvents={displayEvents}

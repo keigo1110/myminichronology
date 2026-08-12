@@ -8,7 +8,7 @@ const A4_LANDSCAPE_HEIGHT_MM = 210;
 const MAX_CANVAS_DIMENSION = 8192;
 const MAX_CANVAS_PIXELS = 16_777_216; // ~16MP
 
-function computeSafeScale(width: number, height: number, preferredScale = 3): number {
+export function computeSafeScale(width: number, height: number, preferredScale = 3): number {
   if (width <= 0 || height <= 0) return 1;
 
   const maxByDimension = Math.min(
@@ -17,7 +17,7 @@ function computeSafeScale(width: number, height: number, preferredScale = 3): nu
   );
   const maxByPixels = Math.sqrt(MAX_CANVAS_PIXELS / (width * height));
 
-  return Math.max(1, Math.min(preferredScale, maxByDimension, maxByPixels));
+  return Math.min(preferredScale, maxByDimension, maxByPixels);
 }
 
 /**
@@ -112,19 +112,51 @@ function buildPdfPages(
  * 年表のスクロール位置を先頭に戻す。
  * 対象は年表要素の祖先スクロールコンテナ（`[data-timeline-scroll]`）。
  */
-function resetTimelineScroll(element: HTMLElement): void {
-  const targets = new Set<Element>();
+function resetTimelineScroll(element: HTMLElement): () => void {
+  const targets = new Set<HTMLElement>();
 
-  const closest = element.closest('[data-timeline-scroll]');
+  const closest = element.closest<HTMLElement>('[data-timeline-scroll]');
   if (closest) targets.add(closest);
   document
-    .querySelectorAll('[data-timeline-scroll]')
+    .querySelectorAll<HTMLElement>('[data-timeline-scroll]')
     .forEach((target) => targets.add(target));
+
+  const positions = Array.from(targets, (target) => ({
+    target,
+    top: target.scrollTop,
+    left: target.scrollLeft,
+  }));
 
   targets.forEach((target) => {
     target.scrollTop = 0;
     target.scrollLeft = 0;
   });
+
+  return () => {
+    positions.forEach(({ target, top, left }) => {
+      target.scrollTop = top;
+      target.scrollLeft = left;
+    });
+  };
+}
+
+/**
+ * html2canvas が生成した複製 DOM では sticky の基準が表示画面のまま残ることがある。
+ * 年代軸を文書フローへ戻し、画面幅に関係なく印刷版の実端へ配置する。
+ */
+export function normalizeTimelineCloneForPdf(element: HTMLElement): void {
+  element.querySelectorAll<HTMLElement>('[data-year-axis]').forEach((axis) => {
+    axis.style.position = 'relative';
+    axis.style.top = 'auto';
+    axis.style.right = 'auto';
+    axis.style.bottom = 'auto';
+    axis.style.left = 'auto';
+  });
+
+  const rightAxis = element.querySelector<HTMLElement>('[data-year-axis="right"]');
+  if (rightAxis) {
+    rightAxis.style.display = 'flex';
+  }
 }
 
 export async function exportPdf(elementId: string): Promise<void> {
@@ -133,15 +165,18 @@ export async function exportPdf(elementId: string): Promise<void> {
     import('jspdf'),
   ]);
 
+  let element: HTMLElement | null = null;
+  let restoreTimelineScroll: (() => void) | null = null;
+
   try {
-    const element = document.getElementById(elementId);
+    element = document.getElementById(elementId);
     if (!element) {
       throw new AppMessageError('pdf.elementMissing');
     }
 
     element.classList.add('pdf-export');
 
-    resetTimelineScroll(element);
+    restoreTimelineScroll = resetTimelineScroll(element);
 
     const scale = computeSafeScale(element.scrollWidth, element.scrollHeight, 3);
 
@@ -153,9 +188,13 @@ export async function exportPdf(elementId: string): Promise<void> {
       backgroundColor: '#ffffff',
       logging: false,
       ignoreElements: (el) => el.classList.contains('pdf-export-ignore'),
+      onclone: (clonedDocument) => {
+        const clonedElement = clonedDocument.getElementById(elementId);
+        if (clonedElement) {
+          normalizeTimelineCloneForPdf(clonedElement);
+        }
+      },
     });
-
-    element.classList.remove('pdf-export');
 
     const pdf = new jsPDF({
       orientation: 'landscape',
@@ -168,9 +207,6 @@ export async function exportPdf(elementId: string): Promise<void> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     pdf.save(`timeline-export-${timestamp}.pdf`);
   } catch (error) {
-    const element = document.getElementById(elementId);
-    element?.classList.remove('pdf-export');
-
     if (error instanceof AppMessageError) {
       throw error;
     }
@@ -178,5 +214,8 @@ export async function exportPdf(elementId: string): Promise<void> {
       throw new AppMessageError('pdf.exportFailed', { detail: error.message });
     }
     throw new AppMessageError('pdf.exportFailedGeneric');
+  } finally {
+    element?.classList.remove('pdf-export');
+    restoreTimelineScroll?.();
   }
 }

@@ -2,7 +2,12 @@
 
 import React from 'react';
 import { Box, useTheme } from '@mui/material';
-import { TimelineData, PositionedEvent, DynamicLayoutConfig, TimelineOrientation } from '../lib/types';
+import type {
+  TimelineData,
+  PositionedEvent,
+  DynamicLayoutConfig,
+  TimelineOrientation,
+} from '../lib/types';
 import { LaneColumn } from './LaneColumn';
 import { LaneHeaderRow } from './LaneHeaderRow';
 import { YearAxis } from './YearAxis';
@@ -11,7 +16,9 @@ import {
   YEAR_AXIS_HEIGHT_HORIZONTAL,
   LANE_LABEL_WIDTH_HORIZONTAL,
   MIN_LANE_ROW_HEIGHT,
+  mapYearToPosition,
 } from '../lib/computeLayout';
+import { getYearTicksForPositions } from '../lib/yearTicks';
 
 interface TimelineProps {
   data: TimelineData;
@@ -24,6 +31,24 @@ interface TimelineProps {
   highlightedEventId?: string | null;
   orientation?: TimelineOrientation;
 }
+
+/**
+ * html2canvas は要素全体を描画しても sticky の基準を画面幅のまま扱う。
+ * PDF 書き出し中だけ軸を通常の flex 配置へ戻し、途中のレーンへ重ならないようにする。
+ */
+const PDF_AXIS_RESET_STYLES = {
+  '&.pdf-export [data-year-axis]': {
+    position: 'relative',
+    top: 'auto',
+    right: 'auto',
+    bottom: 'auto',
+    left: 'auto',
+  },
+  // モバイル幅から書き出しても、印刷版では右軸を年表の実端へ復元する。
+  '&.pdf-export [data-year-axis="right"]': {
+    display: 'flex',
+  },
+} as const;
 
 export function Timeline({
   data,
@@ -52,6 +77,7 @@ export function Timeline({
     laneWidths,
     laneHeightByName,
     laneHeights,
+    yearContentWidth: configuredYearContentWidth,
   } = layoutConfig;
 
   const headerHeight = TIMELINE_HEADER_HEIGHT;
@@ -67,6 +93,24 @@ export function Timeline({
   );
   const laneColors = data.map((lane) => laneColorByName[lane.name] || '#E3EEF7');
   const contentWidth = resolvedLaneWidths[0] ?? Math.max(640, totalWidth - laneLabelWidth);
+  const yearContentWidth = configuredYearContentWidth ?? contentWidth;
+  const yearScale = isHorizontal ? undefined : layoutConfig.yearScale;
+  const axisContentSize = isHorizontal ? yearContentWidth : contentHeight;
+  const mobileTimelineWidth = Math.max(0, totalWidth - yearAxisWidth);
+  const minYear = yearRange.min;
+  const maxYear = yearRange.max;
+  const yearTicks = React.useMemo(
+    () => {
+      const activeRange = { min: minYear, max: maxYear };
+      return getYearTicksForPositions(
+        minYear,
+        maxYear,
+        (year) => mapYearToPosition(year, activeRange, axisContentSize, yearScale),
+        isHorizontal ? 64 : 30
+      );
+    },
+    [axisContentSize, isHorizontal, maxYear, minYear, yearScale]
+  );
 
   if (isHorizontal) {
     return (
@@ -91,17 +135,20 @@ export function Timeline({
             overflow: 'visible',
             height: 'auto',
             maxHeight: 'none',
+            width: `${totalWidth}px`,
           },
+          ...PDF_AXIS_RESET_STYLES,
         }}
       >
         <YearAxis
           side="top"
           orientation="horizontal"
           yearRange={yearRange}
-          contentSize={contentWidth}
+          contentSize={yearContentWidth}
           thickness={yearAxisHeight}
           trackSize={totalWidth}
           labelOffset={laneLabelWidth}
+          ticks={yearTicks}
         />
 
         <Box
@@ -128,6 +175,8 @@ export function Timeline({
               orientation="horizontal"
               showLaneLabel
               laneLabelWidth={laneLabelWidth}
+              yearTicks={yearTicks}
+              yearContentWidth={yearContentWidth}
             />
           ))}
         </Box>
@@ -136,10 +185,11 @@ export function Timeline({
           side="bottom"
           orientation="horizontal"
           yearRange={yearRange}
-          contentSize={contentWidth}
+          contentSize={yearContentWidth}
           thickness={yearAxisHeight}
           trackSize={totalWidth}
           labelOffset={laneLabelWidth}
+          ticks={yearTicks}
         />
       </Box>
     );
@@ -149,7 +199,8 @@ export function Timeline({
     <Box
       id="timelineRoot"
       sx={{
-        width: `${totalWidth}px`,
+        // 600px 未満では重複する右軸を隠し、その分の空白も残さない。
+        width: { xs: `${mobileTimelineWidth}px`, sm: `${totalWidth}px` },
         minHeight: timelineHeight,
         backgroundColor: sheet,
         borderRadius: 0,
@@ -166,7 +217,9 @@ export function Timeline({
           overflow: 'visible',
           height: 'auto',
           maxHeight: 'none',
+          width: `${totalWidth}px`,
         },
+        ...PDF_AXIS_RESET_STYLES,
       }}
     >
       <YearAxis
@@ -176,6 +229,8 @@ export function Timeline({
         headerHeight={headerHeight}
         thickness={yearAxisWidth}
         trackSize={timelineHeight}
+        ticks={yearTicks}
+        yearScale={yearScale}
       />
 
       <Box
@@ -222,6 +277,8 @@ export function Timeline({
               timelineHeight={contentHeight}
               highlightedEventId={highlightedEventId}
               orientation="vertical"
+              yearTicks={yearTicks}
+              yearScale={yearScale}
             />
           ))}
         </Box>
@@ -234,6 +291,8 @@ export function Timeline({
         headerHeight={headerHeight}
         thickness={yearAxisWidth}
         trackSize={timelineHeight}
+        ticks={yearTicks}
+        yearScale={yearScale}
       />
     </Box>
   );
