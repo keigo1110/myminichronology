@@ -1,291 +1,760 @@
 import { scaleLinear } from 'd3-scale';
-import { TimelineData, PositionedEvent, DynamicLayoutConfig } from './types';
+import { Event, TimelineData, PositionedEvent, DynamicLayoutConfig, TimelineOrientation } from './types';
 
-const MIN_LANE_WIDTH = 300;
-const MAX_LANE_WIDTH = 500;
-const TIMELINE_PADDING = 4;  // 余白を最小化
-const EVENT_VERTICAL_SPACING = 4;  // イベント間の最小垂直間隔
-const MIN_EVENT_HEIGHT = 12; // 最小イベント高さ
-const MIN_YEAR_HEIGHT = 24; // 1年あたりの最小高さ
+const MIN_LANE_WIDTH = 280;
+const MAX_LANE_WIDTH = 640;
+const TIMELINE_PADDING = 4;
+const EVENT_VERTICAL_SPACING = 4;
+const EVENT_COLUMN_GAP = 6;
+const MIN_EVENT_HEIGHT = 22;
+const MIN_YEAR_HEIGHT = 24;
+const FONT_LINE_HEIGHT = 1.25;
+const FONT_HEIGHT_PADDING = 6;
+const LABEL_HEIGHT_PADDING = 12;
+const COLLISION_MAX_ATTEMPTS = 80;
 
-// テキストの幅を推定する関数（文字数ベース）
-function estimateTextWidth(text: string): number {
-  // 日本語文字は英数字の約2倍の幅として計算
-  const japaneseCharCount = (text.match(/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/g) || []).length;
-  const otherCharCount = text.length - japaneseCharCount;
-  return japaneseCharCount * 10 + otherCharCount * 8; // 日本語10px、英数字8px
+export const TIMELINE_HEADER_HEIGHT = 52;
+
+/** EventItem の期間バー幅（細い線。縦labelボックスと区別する） */
+export const RANGE_BAR_WIDTH_PX = 2;
+export const RANGE_BAR_WIDTH_VERTICAL_PX = 2;
+/** この高さ以上で縦書き（layout / EventItem 共通） */
+export const VERTICAL_RANGE_HEIGHT_THRESHOLD = 72;
+
+/** G列画像の固定表示枠（実寸に依存せずレイアウトを安定させる） */
+export const EVENT_IMAGE_MAX_WIDTH = 72;
+export const EVENT_IMAGE_MAX_HEIGHT = 54;
+export const EVENT_IMAGE_GAP = 4;
+
+type Rect = { x: number; y: number; width: number; height: number };
+
+/**
+ * 画像スロットをサイズに足す。
+ * beside: 横に並べる / below: 下に積む
+ * expandPrimary: true なら主軸も画像枠に合わせて広げる（点イベント向け）。
+ * false なら期間バー寸法を保ち、画像分だけ副軸を伸ばす。
+ */
+export function applyImageSlot(
+  size: { width: number; height: number },
+  hasImage: boolean,
+  placement: 'beside' | 'below' = 'beside',
+  expandPrimary = true
+): { width: number; height: number } {
+  if (!hasImage) return size;
+  if (placement === 'below') {
+    return {
+      width: expandPrimary ? Math.max(size.width, EVENT_IMAGE_MAX_WIDTH) : size.width,
+      height: size.height + EVENT_IMAGE_GAP + EVENT_IMAGE_MAX_HEIGHT,
+    };
+  }
+  return {
+    width: size.width + EVENT_IMAGE_GAP + EVENT_IMAGE_MAX_WIDTH,
+    height: expandPrimary ? Math.max(size.height, EVENT_IMAGE_MAX_HEIGHT) : size.height,
+  };
 }
 
-// レーンの最適な幅を計算
-function calculateOptimalLaneWidth(events: { start: number; end?: number; label: string }[]): number {
-  let maxTextWidth = 0;
+/** label は表示上ポイント扱い（C列の期間はサイズ・密度に使わない） */
+export function layoutOccupancyEnd(event: Event): number {
+  if (event.displayStyle === 'label') return event.start;
+  return event.end ?? event.start;
+}
 
-  events.forEach(event => {
-    const eventLabel = event.end
-      ? `${event.start}年-${event.end}年：${event.label}`
-      : `${event.start}年：${event.label}`;
-    const textWidth = estimateTextWidth(eventLabel);
-    maxTextWidth = Math.max(maxTextWidth, textWidth);
+/** フォントが切れない最低高さ */
+export function minHeightForFont(fontSizePx: number, yearHeightScale = 1): number {
+  const textHeight = Math.ceil(fontSizePx * FONT_LINE_HEIGHT) + FONT_HEIGHT_PADDING;
+  return Math.max(MIN_EVENT_HEIGHT * yearHeightScale, textHeight);
+}
+
+function estimateTextWidth(text: string, fontSizePx = 11): number {
+  const wideCharCount = (text.match(/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\uFF00-\uFFEF]/g) || []).length;
+  const otherCharCount = text.length - wideCharCount;
+  const wide = fontSizePx * 1.05;
+  const narrow = fontSizePx * 0.62;
+  return wideCharCount * wide + otherCharCount * narrow;
+}
+
+/** label スタイル: 期間ではなく文字サイズでボックス寸法を決める（縦書き1列） */
+export function estimateLabelBoxDimensions(event: {
+  label: string;
+  fontSize?: number;
+}): { width: number; height: number } {
+  const fontSize = event.fontSize ?? 12;
+  const lineHeight = fontSize * FONT_LINE_HEIGHT;
+  const charCount = Math.max(1, event.label.length);
+  return {
+    width: Math.max(MIN_EVENT_HEIGHT, fontSize + 10, fontSize * 1.35 + 8),
+    height: Math.max(MIN_EVENT_HEIGHT, charCount * lineHeight + LABEL_HEIGHT_PADDING),
+  };
+}
+
+function defaultFontSize(event: Event, forVertical = false): number {
+  if (event.fontSize != null) return event.fontSize;
+  if (event.displayStyle === 'label' || forVertical) return 12;
+  return 11;
+}
+
+/**
+ * イベントの表示サイズ（衝突判定・描画で共通）。
+ * yearPxPerYear が分かっているときは期間イベントの高さを年スケールで決める。
+ */
+export function measureEventSize(
+  event: Event,
+  options: {
+    yearPxPerYear?: number;
+    yearHeightScale?: number;
+    provisionalRangeHeight?: number;
+    /** 画像を下に積む（横型の期間イベント向け） */
+    imagePlacement?: 'beside' | 'below';
+    /** 期間ラベルを縦書きとして幅を狭く測る */
+    preferVerticalLabel?: boolean;
+  } = {}
+): { width: number; height: number } {
+  const yearHeightScale = options.yearHeightScale ?? 1;
+  const hasImage = Boolean(event.imageUrl);
+  const imagePlacement = options.imagePlacement ?? 'beside';
+
+  if (event.displayStyle === 'label') {
+    return applyImageSlot(estimateLabelBoxDimensions(event), hasImage, 'beside');
+  }
+
+  const fontSize = defaultFontSize(event);
+  const minH = minHeightForFont(fontSize, yearHeightScale);
+
+  if (event.end != null) {
+    const spanYears = Math.max(0, event.end - event.start);
+    const rangeHeight =
+      options.provisionalRangeHeight ??
+      (options.yearPxPerYear != null
+        ? Math.max(minH, spanYears * options.yearPxPerYear)
+        : minH);
+    const height = Math.max(minH, rangeHeight);
+    const useVertical =
+      options.preferVerticalLabel ?? height >= VERTICAL_RANGE_HEIGHT_THRESHOLD;
+    const textWidth = useVertical
+      ? fontSize + 2
+      : estimateTextWidth(event.label, fontSize);
+    const width = RANGE_BAR_WIDTH_PX + 6 + textWidth + 8;
+    // 期間バーの見た目寸法は崩さない
+    return applyImageSlot({ width, height }, hasImage, imagePlacement, false);
+  }
+
+  return applyImageSlot(
+    {
+      width: estimateTextWidth(event.label, fontSize) + 12,
+      height: minH,
+    },
+    hasImage,
+    imagePlacement,
+    true
+  );
+}
+
+function estimateMaxSimultaneousColumns(events: Event[]): number {
+  if (events.length === 0) return 1;
+
+  type Edge = { year: number; delta: number };
+  const edges: Edge[] = [];
+
+  events.forEach((event) => {
+    const start = event.start;
+    const end = layoutOccupancyEnd(event);
+    edges.push({ year: start, delta: 1 });
+    edges.push({ year: end + 1, delta: -1 });
   });
 
-  // パディングとアイコン幅を考慮
-  const requiredWidth = maxTextWidth + 80; // 左右パディング + アイコン幅
+  edges.sort((a, b) => a.year - b.year || a.delta - b.delta);
+
+  let active = 0;
+  let maxActive = 0;
+  for (const edge of edges) {
+    active += edge.delta;
+    maxActive = Math.max(maxActive, active);
+  }
+  return Math.max(1, maxActive);
+}
+
+function calculateOptimalLaneWidth(events: Event[]): number {
+  let maxItemWidth = 0;
+  events.forEach((event) => {
+    const size = measureEventSize(event, { yearHeightScale: 1, provisionalRangeHeight: VERTICAL_RANGE_HEIGHT_THRESHOLD });
+    maxItemWidth = Math.max(maxItemWidth, size.width);
+  });
+
+  const columns = estimateMaxSimultaneousColumns(events);
+  // 横に並ぶ想定幅 + 余白。上限内で可能な限り確保
+  const packedWidth =
+    TIMELINE_PADDING * 2 +
+    columns * maxItemWidth +
+    Math.max(0, columns - 1) * EVENT_COLUMN_GAP +
+    24;
+
+  const textDriven = maxItemWidth + 80;
+  const requiredWidth = Math.max(textDriven, packedWidth);
   return Math.min(MAX_LANE_WIDTH, Math.max(MIN_LANE_WIDTH, requiredWidth));
 }
 
-// 年代ごとのイベント密度を分析
-function analyzeEventDensity(data: TimelineData, yearRange: { min: number; max: number }) {
-  const yearEventCounts = new Map<number, number>();
-  const yearMaxEventsPerLane = new Map<number, number>();
+/**
+ * 年ごとの必要高さ: その年に「視覚的に掛かる」イベントの最大高さを考慮。
+ * label は開始年付近のみ（期間は無視）。
+ */
+function calculateDynamicHeight(
+  data: TimelineData,
+  yearRange: { min: number; max: number },
+  yearHeightScale: number = 1
+): number {
+  const yearCount = Math.max(1, yearRange.max - yearRange.min);
+  // 暫定: 均等配分で yearPx を見積もり、視覚高さを年バケットに分配
+  const provisionalContent = Math.max(
+    800 - TIMELINE_HEADER_HEIGHT,
+    yearCount * MIN_YEAR_HEIGHT * yearHeightScale
+  );
+  const yearPxPerYear = provisionalContent / yearCount;
 
-  // 各年代のイベント数をカウント
+  const yearBudgets = new Map<number, number>();
   for (let year = yearRange.min; year <= yearRange.max; year++) {
-    yearEventCounts.set(year, 0);
-    yearMaxEventsPerLane.set(year, 0);
+    yearBudgets.set(year, MIN_YEAR_HEIGHT * yearHeightScale);
   }
 
   data.forEach((lane) => {
-    const laneYearCounts = new Map<number, number>();
+    lane.events.forEach((event) => {
+      const size = measureEventSize(event, { yearPxPerYear, yearHeightScale });
+      const start = event.start;
+      const end = layoutOccupancyEnd(event);
 
-    lane.events.forEach(event => {
-      const startYear = event.start;
-      const endYear = event.end || event.start;
-
-      // 期間イベントの場合、各年にカウント
-      for (let year = startYear; year <= endYear; year++) {
-        const currentCount = yearEventCounts.get(year) || 0;
-        yearEventCounts.set(year, currentCount + 1);
-
-        const laneCount = laneYearCounts.get(year) || 0;
-        laneYearCounts.set(year, laneCount + 1);
+      if (event.displayStyle === 'label' || event.end == null) {
+        // ポイント的: 開始年を中心に高さを配分
+        const coverYears = Math.max(1, Math.ceil(size.height / Math.max(yearPxPerYear, 1)));
+        for (let i = 0; i < coverYears; i++) {
+          const year = start + i;
+          if (year < yearRange.min || year > yearRange.max) continue;
+          const share = size.height / coverYears;
+          yearBudgets.set(year, Math.max(yearBudgets.get(year) || 0, share));
+        }
+      } else {
+        for (let year = start; year <= end; year++) {
+          if (year < yearRange.min || year > yearRange.max) continue;
+          // 期間バーは年あたり yearPx。フォント最低高さも確保
+          yearBudgets.set(
+            year,
+            Math.max(yearBudgets.get(year) || 0, Math.max(MIN_YEAR_HEIGHT * yearHeightScale, yearPxPerYear))
+          );
+        }
+        // 短い期間でもフォント分は開始年に確保
+        const fontSize = defaultFontSize(event);
+        yearBudgets.set(
+          start,
+          Math.max(yearBudgets.get(start) || 0, minHeightForFont(fontSize, yearHeightScale))
+        );
       }
-    });
-
-    // このレーンでの最大重複数を記録
-    laneYearCounts.forEach((count, year) => {
-      const currentMax = yearMaxEventsPerLane.get(year) || 0;
-      yearMaxEventsPerLane.set(year, Math.max(currentMax, count));
     });
   });
 
-  return { yearEventCounts, yearMaxEventsPerLane };
-}
-
-// 動的高さ計算
-function calculateDynamicHeight(data: TimelineData, yearRange: { min: number; max: number }, yearHeightScale: number = 1): number {
-  const { yearMaxEventsPerLane } = analyzeEventDensity(data, yearRange);
-
-  let totalRequiredHeight = 0;
-  const yearSpan = yearRange.max - yearRange.min;
-
+  let total = 0;
   for (let year = yearRange.min; year <= yearRange.max; year++) {
-    const maxEventsInYear = yearMaxEventsPerLane.get(year) || 0;
-
-    // この年に必要な高さ = 基本高さ + (重複イベント数 × スペーシング)
-    const yearHeight = Math.max(
-      MIN_YEAR_HEIGHT * yearHeightScale,
-      (MIN_EVENT_HEIGHT + (maxEventsInYear - 1) * (MIN_EVENT_HEIGHT + EVENT_VERTICAL_SPACING)) * yearHeightScale
-    );
-
-    totalRequiredHeight += yearHeight;
+    total += yearBudgets.get(year) || MIN_YEAR_HEIGHT * yearHeightScale;
   }
 
-  // 最小高さを保証し、適度な余白を追加
-  const calculatedHeight = totalRequiredHeight + TIMELINE_PADDING * 2;
-  return Math.max(800, calculatedHeight);
+  // ヘッダー分を足したうえでコンテンツが足りるよう
+  return Math.max(800, total + TIMELINE_PADDING * 2 + TIMELINE_HEADER_HEIGHT);
 }
 
-// 改良されたイベント配置システム
-function resolveEventCollisions(events: PositionedEvent[], laneWidth: number, yearRange: { min: number; max: number }, contentHeight: number, yearHeightScale: number = 1): PositionedEvent[] {
-  // 年代でソート
+function boxesOverlap(a: Rect, b: Rect): boolean {
+  return !(
+    a.x + a.width <= b.x ||
+    b.x + b.width <= a.x ||
+    a.y + a.height <= b.y ||
+    b.y + b.height <= a.y
+  );
+}
+
+function layoutSortKey(event: Event): { start: number; duration: number; label: string } {
+  const end = layoutOccupancyEnd(event);
+  return {
+    start: event.start,
+    duration: end - event.start,
+    label: event.label,
+  };
+}
+
+/**
+ * レーン内で矩形が重なるイベントを横に並べ、収まらなければ下へ退避。
+ * x はレーン相対座標。
+ */
+export function resolveEventCollisions(
+  events: PositionedEvent[],
+  laneWidth: number,
+  contentHeight: number
+): PositionedEvent[] {
   const sortedEvents = [...events].sort((a, b) => {
-    if (a.start !== b.start) return a.start - b.start;
-    return (a.end || a.start) - (b.end || b.start);
+    const ka = layoutSortKey(a);
+    const kb = layoutSortKey(b);
+    if (ka.start !== kb.start) return ka.start - kb.start;
+    if (ka.duration !== kb.duration) return kb.duration - ka.duration;
+    // 期間バーを左、点・label を右寄りに
+    const aIsRange = a.displayStyle !== 'label' && a.end != null;
+    const bIsRange = b.displayStyle !== 'label' && b.end != null;
+    if (aIsRange !== bIsRange) return aIsRange ? -1 : 1;
+    return ka.label.localeCompare(kb.label);
   });
 
-  const resolvedEvents: PositionedEvent[] = [];
-  const yearSlots = new Map<number, number[]>(); // 年代ごとの使用済みY位置
+  const resolved: PositionedEvent[] = [];
+  const usableWidth = Math.max(40, laneWidth - TIMELINE_PADDING);
 
-  sortedEvents.forEach(event => {
-    const startYear = event.start;
-    const endYear = event.end || event.start;
+  sortedEvents.forEach((event) => {
+    const width = Math.min(event.width, usableWidth - TIMELINE_PADDING);
+    const height = Math.min(Math.max(event.height, MIN_EVENT_HEIGHT), contentHeight);
+    let bestX = TIMELINE_PADDING;
+    let bestY = Math.max(0, Math.min(event.y, Math.max(0, contentHeight - height)));
 
-    // この期間で使用可能な最初のスロットを見つける
-    let bestY = event.y;
-    let conflictFound = true;
-    let attempts = 0;
+    let placed = false;
+    for (let attempt = 0; attempt < COLLISION_MAX_ATTEMPTS && !placed; attempt++) {
+      const candidate: Rect = { x: bestX, y: bestY, width, height };
+      let blocker: PositionedEvent | null = null;
 
-    while (conflictFound && attempts < 20) {
-      conflictFound = false;
-
-      // 期間全体でチェック
-      for (let year = startYear; year <= endYear; year++) {
-        const slots = yearSlots.get(year) || [];
-
-        for (const usedY of slots) {
-          if (Math.abs(bestY - usedY) < (MIN_EVENT_HEIGHT + EVENT_VERTICAL_SPACING) * yearHeightScale) {
-            conflictFound = true;
-            bestY = usedY + (MIN_EVENT_HEIGHT + EVENT_VERTICAL_SPACING) * yearHeightScale;
-            break;
-          }
+      for (const other of resolved) {
+        if (boxesOverlap(candidate, other)) {
+          blocker = other;
+          break;
         }
-
-        if (conflictFound) break;
       }
 
-      attempts++;
-    }
-
-    // スロットを予約
-    for (let year = startYear; year <= endYear; year++) {
-      if (!yearSlots.has(year)) {
-        yearSlots.set(year, []);
+      if (!blocker) {
+        placed = true;
+        break;
       }
-      yearSlots.get(year)!.push(bestY);
+
+      // 右へずらす
+      const nextX = blocker.x + blocker.width + EVENT_COLUMN_GAP;
+      if (nextX + width <= usableWidth) {
+        bestX = nextX;
+        continue;
+      }
+
+      // レーン幅に収まらない → 衝突している全矩形の下端の下へ
+      bestX = TIMELINE_PADDING;
+      let clearY = blocker.y + blocker.height + EVENT_VERTICAL_SPACING;
+      for (const other of resolved) {
+        const sameBand = !(
+          bestY + height <= other.y ||
+          other.y + other.height <= bestY
+        );
+        // 現在行付近と重なり得るものも考慮して下端を取る
+        if (boxesOverlap({ x: bestX, y: bestY, width: usableWidth, height }, other) || sameBand) {
+          clearY = Math.max(clearY, other.y + other.height + EVENT_VERTICAL_SPACING);
+        }
+      }
+      bestY = Math.min(clearY, Math.max(0, contentHeight - height));
+
+      // これ以上下がれない場合は右端寄せで最小重なりを試す
+      if (bestY === Math.max(0, contentHeight - height) && clearY > bestY) {
+        bestX = Math.max(TIMELINE_PADDING, usableWidth - width);
+      }
     }
 
-    resolvedEvents.push({
+    // 最終位置でも重なりがあれば、全 resolved の最大下端へ強制退避
+    let finalRect: Rect = { x: bestX, y: bestY, width, height };
+    const stillOverlapping = resolved.some((other) => boxesOverlap(finalRect, other));
+    if (stillOverlapping) {
+      const maxBottom = resolved.reduce(
+        (max, other) => Math.max(max, other.y + other.height),
+        0
+      );
+      bestX = TIMELINE_PADDING;
+      bestY = Math.min(maxBottom + EVENT_VERTICAL_SPACING, Math.max(0, contentHeight - height));
+      finalRect = { x: bestX, y: bestY, width, height };
+    }
+
+    resolved.push({
       ...event,
-      y: bestY
+      x: finalRect.x,
+      y: finalRect.y,
+      width: finalRect.width,
+      height: finalRect.height,
     });
   });
 
-  return resolvedEvents;
+  return resolved;
 }
 
-export function computeLayout(data: TimelineData, yearHeightScale: number = 1): {
-  positionedEvents: PositionedEvent[][],
-  layoutConfig: DynamicLayoutConfig
+function deriveYearRange(data: TimelineData): { min: number; max: number } {
+  let minYear = Infinity;
+  let maxYear = -Infinity;
+
+  data.forEach((lane) => {
+    lane.events.forEach((event) => {
+      minYear = Math.min(minYear, event.start);
+      // 年レンジには end を含める（フィルタ用）。label でもデータ上の end は残す
+      maxYear = Math.max(maxYear, event.end ?? event.start);
+    });
+  });
+
+  if (!Number.isFinite(minYear) || !Number.isFinite(maxYear)) {
+    return { min: 0, max: 0 };
+  }
+
+  return {
+    min: Math.floor(minYear / 10) * 10,
+    max: Math.ceil(maxYear / 10) * 10,
+  };
+}
+
+export function computeLayout(
+  data: TimelineData,
+  yearHeightScale: number = 1,
+  yearRangeOverride?: { min: number; max: number },
+  orientation: TimelineOrientation = 'vertical'
+): {
+  positionedEvents: PositionedEvent[][];
+  layoutConfig: DynamicLayoutConfig;
+  yearRange: { min: number; max: number };
+} {
+  if (orientation === 'horizontal') {
+    return computeLayoutHorizontal(data, yearHeightScale, yearRangeOverride);
+  }
+  return computeLayoutVertical(data, yearHeightScale, yearRangeOverride);
+}
+
+function computeLayoutVertical(
+  data: TimelineData,
+  yearHeightScale: number = 1,
+  yearRangeOverride?: { min: number; max: number }
+): {
+  positionedEvents: PositionedEvent[][];
+  layoutConfig: DynamicLayoutConfig;
+  yearRange: { min: number; max: number };
 } {
   if (data.length === 0) {
     return {
       positionedEvents: [],
-      layoutConfig: { laneWidths: [], yearAxisWidth: 60, totalWidth: 120 }
+      layoutConfig: {
+        laneWidths: [],
+        laneWidthByName: {},
+        yearAxisWidth: 60,
+        totalWidth: 120,
+        orientation: 'vertical',
+      },
+      yearRange: { min: 0, max: 0 },
     };
   }
 
-  // 全イベントから年範囲を計算
-  let minYear = Infinity;
-  let maxYear = -Infinity;
-
-  data.forEach(lane => {
-    lane.events.forEach(event => {
-      minYear = Math.min(minYear, event.start);
-      if (event.end) {
-        maxYear = Math.max(maxYear, event.end);
-      } else {
-        maxYear = Math.max(maxYear, event.start);
-      }
-    });
+  const yearRange = yearRangeOverride ?? deriveYearRange(data);
+  const laneWidths = data.map((lane) => calculateOptimalLaneWidth(lane.events));
+  const laneWidthByName: Record<string, number> = {};
+  data.forEach((lane, index) => {
+    laneWidthByName[lane.name] = laneWidths[index];
   });
 
-  // 年範囲を少し拡張
-  minYear = Math.floor(minYear / 10) * 10;
-  maxYear = Math.ceil(maxYear / 10) * 10;
-
-  const yearRange = { min: minYear, max: maxYear };
-
-  // 各レーンの最適な幅を計算
-  const laneWidths = data.map(lane => calculateOptimalLaneWidth(lane.events));
-
-  // 年代軸の幅を動的に調整（最小120px、最大200px）- 4桁の数字を保証
   const maxLaneWidth = Math.max(...laneWidths);
-  const yearAxisWidth = Math.min(200, Math.max(60, maxLaneWidth * 0.1));
+  const yearAxisWidth = Math.min(72, Math.max(48, maxLaneWidth * 0.08));
+  const totalWidth = yearAxisWidth * 2 + laneWidths.reduce((sum, width) => sum + width, 0);
 
-  // 総幅を計算
-  const totalWidth = yearAxisWidth + laneWidths.reduce((sum, width) => sum + width, 0);
-
-  // 動的高さを計算（スケールファクター適用）
   const timelineHeight = calculateDynamicHeight(data, yearRange, yearHeightScale);
-  const headerHeight = 60; // 余白削減
-  const contentHeight = timelineHeight - headerHeight;
+  const contentHeight = Math.max(100, timelineHeight - TIMELINE_HEADER_HEIGHT);
+  const yearSpan = Math.max(1, yearRange.max - yearRange.min);
+  const yearPxPerYear = contentHeight / yearSpan;
 
-  // Y軸のスケールを作成（年 → ピクセル）
   const yScale = scaleLinear()
-    .domain([minYear, maxYear])
+    .domain([yearRange.min, yearRange.max])
     .range([0, contentHeight]);
 
   const positionedEvents: PositionedEvent[][] = [];
-  let currentX = 0; // レーンの累積X位置
 
   data.forEach((lane, laneIndex) => {
     const laneWidth = laneWidths[laneIndex];
     const laneEvents: PositionedEvent[] = [];
 
-    lane.events.forEach(event => {
+    lane.events.forEach((event) => {
       const y = yScale(event.start);
+      let size: { width: number; height: number };
 
-      if (event.end) {
-        // 期間イベント（縦バー）
+      if (event.displayStyle === 'label') {
+        size = measureEventSize(event, { yearHeightScale });
+      } else if (event.end != null) {
         const endY = yScale(event.end);
-        laneEvents.push({
-          ...event,
-          x: currentX + TIMELINE_PADDING,
-          y,
-          width: laneWidth - TIMELINE_PADDING * 2,
-          height: Math.max(MIN_EVENT_HEIGHT * yearHeightScale, endY - y)
+        const rangeHeight = Math.max(
+          minHeightForFont(defaultFontSize(event), yearHeightScale),
+          Math.max(endY - y, yearPxPerYear * Math.max(0.5, event.end - event.start))
+        );
+        size = measureEventSize(event, {
+          yearHeightScale,
+          provisionalRangeHeight: rangeHeight,
+          preferVerticalLabel: rangeHeight >= VERTICAL_RANGE_HEIGHT_THRESHOLD,
         });
+        // 期間の高さは年スケール優先。画像は副軸方向にのみ加算済み
+        size = { ...size, height: Math.max(size.height, rangeHeight) };
       } else {
-        // 点イベント（円）
-        laneEvents.push({
-          ...event,
-          x: currentX + TIMELINE_PADDING,
-          y,
-          width: laneWidth - TIMELINE_PADDING * 2,
-          height: MIN_EVENT_HEIGHT * yearHeightScale
-        });
+        size = measureEventSize(event, { yearHeightScale });
       }
+
+      laneEvents.push({
+        ...event,
+        x: TIMELINE_PADDING,
+        y,
+        width: Math.min(size.width, Math.max(24, laneWidth - TIMELINE_PADDING * 2)),
+        height: size.height,
+      });
     });
 
-    // 改良されたイベントの重複解決（スケールファクター適用）
-    const resolvedEvents = resolveEventCollisions(laneEvents, laneWidth, yearRange, contentHeight, yearHeightScale);
-    positionedEvents.push(resolvedEvents);
-
-    currentX += laneWidth;
+    positionedEvents.push(resolveEventCollisions(laneEvents, laneWidth, contentHeight));
   });
 
   return {
     positionedEvents,
     layoutConfig: {
       laneWidths,
+      laneWidthByName,
       yearAxisWidth,
       totalWidth,
-      timelineHeight // 動的高さを追加
-    }
+      timelineHeight,
+      orientation: 'vertical',
+    },
+    yearRange,
   };
 }
 
-// 年表の高さを計算（動的レイアウト対応）
-export function calculateTimelineHeight(data: TimelineData, yearHeightScale: number = 1): number {
-  if (data.length === 0) return 800;
+const MIN_LANE_ROW_HEIGHT = 88;
+export { MIN_LANE_ROW_HEIGHT };
+/** 横型のテーマ名レール（縦書き1列分） */
+export const LANE_LABEL_WIDTH_HORIZONTAL = 44;
+const LANE_LABEL_FONT_PX = 13;
+/** 縦書きテーマ名が行高を押し上げる上限（超えたら2列幅にする） */
+const MAX_VERTICAL_LABEL_ROW_HEIGHT = 200;
+export const YEAR_AXIS_HEIGHT_HORIZONTAL = 44;
 
-  let minYear = Infinity;
-  let maxYear = -Infinity;
+/** 縦書きテーマ名が切れない最低行高（columns 列に折り返す想定） */
+export function minHeightForVerticalLaneLabel(name: string, columns = 1): number {
+  const charCount = Math.max(1, name.length);
+  const charsPerCol = Math.ceil(charCount / Math.max(1, columns));
+  return Math.ceil(charsPerCol * LANE_LABEL_FONT_PX * 1.28) + 20;
+}
 
-  data.forEach(lane => {
-    lane.events.forEach(event => {
-      minYear = Math.min(minYear, event.start);
-      if (event.end) {
-        maxYear = Math.max(maxYear, event.end);
+function resolveHorizontalLaneLabelWidth(data: TimelineData): {
+  laneLabelWidth: number;
+  labelColumns: number;
+} {
+  const singleColHeights = data.map((lane) => minHeightForVerticalLaneLabel(lane.name, 1));
+  const needsTwoCols = singleColHeights.some((h) => h > MAX_VERTICAL_LABEL_ROW_HEIGHT);
+  const labelColumns = needsTwoCols ? 2 : 1;
+  return {
+    laneLabelWidth: LANE_LABEL_WIDTH_HORIZONTAL * labelColumns,
+    labelColumns,
+  };
+}
+
+/**
+ * 横型: 横=年代（左が古・右が新）、縦=テーマ（レーン行）。
+ */
+function computeLayoutHorizontal(
+  data: TimelineData,
+  yearHeightScale: number = 1,
+  yearRangeOverride?: { min: number; max: number }
+): {
+  positionedEvents: PositionedEvent[][];
+  layoutConfig: DynamicLayoutConfig;
+  yearRange: { min: number; max: number };
+} {
+  if (data.length === 0) {
+    return {
+      positionedEvents: [],
+      layoutConfig: {
+        laneWidths: [],
+        laneWidthByName: {},
+        laneHeights: [],
+        laneHeightByName: {},
+        yearAxisWidth: 0,
+        yearAxisHeight: YEAR_AXIS_HEIGHT_HORIZONTAL,
+        laneLabelWidth: LANE_LABEL_WIDTH_HORIZONTAL,
+        totalWidth: 120,
+        timelineHeight: 200,
+        orientation: 'horizontal',
+      },
+      yearRange: { min: 0, max: 0 },
+    };
+  }
+
+  const yearRange = yearRangeOverride ?? deriveYearRange(data);
+  const yearSpan = Math.max(1, yearRange.max - yearRange.min);
+  // 横型のスライダーは「年あたりの幅」のみ。イベント高さには使わない
+  const yearPxPerYear = Math.max(8, 24 * yearHeightScale);
+  const contentWidth = Math.max(640, yearSpan * yearPxPerYear);
+  const yearAxisHeight = YEAR_AXIS_HEIGHT_HORIZONTAL;
+  const { laneLabelWidth, labelColumns } = resolveHorizontalLaneLabelWidth(data);
+
+  const xScale = scaleLinear()
+    .domain([yearRange.min, yearRange.max])
+    .range([0, contentWidth]);
+
+  const positionedEvents: PositionedEvent[][] = [];
+  const laneHeights: number[] = [];
+  const laneHeightByName: Record<string, number> = {};
+  const laneWidths: number[] = [];
+  const laneWidthByName: Record<string, number> = {};
+
+  data.forEach((lane) => {
+    const laneEvents: PositionedEvent[] = [];
+
+    lane.events.forEach((event) => {
+      const x = xScale(event.start);
+      let width: number;
+      let height: number;
+
+      if (event.displayStyle === 'label') {
+        const size = measureEventSize(event, {
+          yearHeightScale: 1,
+          imagePlacement: 'beside',
+        });
+        width = size.width;
+        height = size.height;
+      } else if (event.end != null) {
+        const endX = xScale(event.end);
+        const fontSize = defaultFontSize(event);
+        const rangeWidth = Math.max(
+          minHeightForFont(fontSize, 1),
+          Math.max(endX - x, yearPxPerYear * Math.max(0.5, event.end - event.start))
+        );
+        const textHeight = minHeightForFont(fontSize, 1) + 6;
+        const textWidth = estimateTextWidth(event.label, fontSize) + 12;
+        const contentBox = {
+          width: Math.max(rangeWidth, textWidth),
+          height: textHeight,
+        };
+        const sized = applyImageSlot(contentBox, Boolean(event.imageUrl), 'below', false);
+        width = sized.width;
+        height = sized.height;
       } else {
-        maxYear = Math.max(maxYear, event.start);
+        const size = measureEventSize(event, {
+          yearHeightScale: 1,
+          imagePlacement: 'beside',
+        });
+        width = size.width;
+        height = size.height;
       }
+
+      laneEvents.push({
+        ...event,
+        x,
+        y: TIMELINE_PADDING,
+        width: Math.min(width, contentWidth - TIMELINE_PADDING),
+        height,
+      });
+    });
+
+    const packed = resolveHorizontalCollisions(laneEvents, contentWidth);
+    const maxBottom = packed.reduce(
+      (max, e) => Math.max(max, e.y + e.height),
+      TIMELINE_PADDING
+    );
+    const labelMin = Math.min(
+      MAX_VERTICAL_LABEL_ROW_HEIGHT * labelColumns,
+      minHeightForVerticalLaneLabel(lane.name, labelColumns)
+    );
+    const laneHeight = Math.max(
+      MIN_LANE_ROW_HEIGHT,
+      maxBottom + TIMELINE_PADDING + 8,
+      labelMin
+    );
+    laneHeights.push(laneHeight);
+    laneHeightByName[lane.name] = laneHeight;
+    laneWidths.push(contentWidth);
+    laneWidthByName[lane.name] = contentWidth;
+    positionedEvents.push(packed);
+  });
+
+  const timelineHeight =
+    yearAxisHeight * 2 + laneHeights.reduce((sum, h) => sum + h, 0);
+  const totalWidth = laneLabelWidth + contentWidth;
+
+  return {
+    positionedEvents,
+    layoutConfig: {
+      laneWidths,
+      laneWidthByName,
+      laneHeights,
+      laneHeightByName,
+      yearAxisWidth: 0,
+      yearAxisHeight,
+      laneLabelWidth,
+      totalWidth,
+      timelineHeight,
+      orientation: 'horizontal',
+    },
+    yearRange,
+  };
+}
+
+/** 横型レーン内: 年位置を保ちつつ下へ積んで衝突回避 */
+function resolveHorizontalCollisions(
+  events: PositionedEvent[],
+  contentWidth: number
+): PositionedEvent[] {
+  const sortedEvents = [...events].sort((a, b) => {
+    const ka = layoutSortKey(a);
+    const kb = layoutSortKey(b);
+    if (ka.start !== kb.start) return ka.start - kb.start;
+    if (ka.duration !== kb.duration) return kb.duration - ka.duration;
+    const aIsRange = a.displayStyle !== 'label' && a.end != null;
+    const bIsRange = b.displayStyle !== 'label' && b.end != null;
+    if (aIsRange !== bIsRange) return aIsRange ? -1 : 1;
+    return ka.label.localeCompare(kb.label);
+  });
+
+  const resolved: PositionedEvent[] = [];
+
+  sortedEvents.forEach((event) => {
+    const width = Math.min(event.width, Math.max(20, contentWidth - event.x - TIMELINE_PADDING));
+    const height = Math.max(event.height, MIN_EVENT_HEIGHT);
+    const bestX = Math.max(0, Math.min(event.x, Math.max(0, contentWidth - width)));
+    let bestY = TIMELINE_PADDING;
+
+    let placed = false;
+    for (let attempt = 0; attempt < COLLISION_MAX_ATTEMPTS && !placed; attempt++) {
+      const candidate: Rect = { x: bestX, y: bestY, width, height };
+      let blocker: PositionedEvent | null = null;
+      for (const other of resolved) {
+        if (boxesOverlap(candidate, other)) {
+          blocker = other;
+          break;
+        }
+      }
+      if (!blocker) {
+        placed = true;
+        break;
+      }
+      // 下へ
+      bestY = blocker.y + blocker.height + EVENT_VERTICAL_SPACING;
+    }
+
+    if (!placed) {
+      const maxBottom = resolved.reduce((m, o) => Math.max(m, o.y + o.height), 0);
+      bestY = maxBottom + EVENT_VERTICAL_SPACING;
+    }
+
+    resolved.push({
+      ...event,
+      x: bestX,
+      y: bestY,
+      width,
+      height,
     });
   });
 
-  minYear = Math.floor(minYear / 10) * 10;
-  maxYear = Math.ceil(maxYear / 10) * 10;
-
-  return calculateDynamicHeight(data, { min: minYear, max: maxYear }, yearHeightScale);
+  return resolved;
 }
 
-// 年表の幅を計算（動的レイアウト対応）
+export function calculateTimelineHeight(data: TimelineData, yearHeightScale: number = 1): number {
+  if (data.length === 0) return 800;
+  const yearRange = deriveYearRange(data);
+  return calculateDynamicHeight(data, yearRange, yearHeightScale);
+}
+
 export function calculateTimelineWidth(data: TimelineData): number {
   if (data.length === 0) return 120;
 
-  const laneWidths = data.map(lane => calculateOptimalLaneWidth(lane.events));
+  const laneWidths = data.map((lane) => calculateOptimalLaneWidth(lane.events));
   const maxLaneWidth = Math.max(...laneWidths);
-  const yearAxisWidth = Math.min(200, Math.max(60, maxLaneWidth * 0.1));
+  const yearAxisWidth = Math.min(72, Math.max(48, maxLaneWidth * 0.08));
 
-  return yearAxisWidth + laneWidths.reduce((sum, width) => sum + width, 0);
+  return yearAxisWidth * 2 + laneWidths.reduce((sum, width) => sum + width, 0);
 }
+
+export { deriveYearRange };

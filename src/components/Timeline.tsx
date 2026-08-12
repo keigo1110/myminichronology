@@ -1,54 +1,167 @@
-import React, { useRef } from 'react';
-import { Box, Typography } from '@mui/material';
-import { TimelineData, PositionedEvent, DynamicLayoutConfig } from '../lib/types';
+'use client';
+
+import React from 'react';
+import { Box, useTheme } from '@mui/material';
+import { TimelineData, PositionedEvent, DynamicLayoutConfig, TimelineOrientation } from '../lib/types';
 import { LaneColumn } from './LaneColumn';
 import { LaneHeaderRow } from './LaneHeaderRow';
+import { YearAxis } from './YearAxis';
+import {
+  TIMELINE_HEADER_HEIGHT,
+  YEAR_AXIS_HEIGHT_HORIZONTAL,
+  LANE_LABEL_WIDTH_HORIZONTAL,
+  MIN_LANE_ROW_HEIGHT,
+} from '../lib/computeLayout';
 
 interface TimelineProps {
   data: TimelineData;
   positionedEvents: PositionedEvent[][];
   layoutConfig: DynamicLayoutConfig;
-  laneColors: string[];
-  eventColors: string[];
+  laneColorByName: Record<string, string>;
+  eventColorByName: Record<string, string>;
   yearRange: { min: number; max: number };
   onEventClick?: (event: PositionedEvent) => void;
+  highlightedEventId?: string | null;
+  orientation?: TimelineOrientation;
 }
 
 export function Timeline({
   data,
   positionedEvents,
   layoutConfig,
-  laneColors,
-  eventColors,
+  laneColorByName,
+  eventColorByName,
   yearRange,
-  onEventClick
+  onEventClick,
+  highlightedEventId = null,
+  orientation = 'vertical',
 }: TimelineProps) {
-  const timelineRef = useRef<HTMLDivElement>(null);
+  const theme = useTheme();
+  const sheet = theme.palette.chronology.sheet;
+  const border = theme.palette.chronology.hairlineStrong;
+  const isHorizontal = orientation === 'horizontal';
 
-  // 動的高さを使用（レイアウト設定から取得、フォールバックあり）
-  const timelineHeight = layoutConfig.timelineHeight || Math.max(800, (yearRange.max - yearRange.min) * 8);
-  const { yearAxisWidth, totalWidth, laneWidths } = layoutConfig;
+  const timelineHeight =
+    layoutConfig.timelineHeight || Math.max(800, (yearRange.max - yearRange.min) * 8);
+  const {
+    yearAxisWidth,
+    yearAxisHeight = YEAR_AXIS_HEIGHT_HORIZONTAL,
+    laneLabelWidth = LANE_LABEL_WIDTH_HORIZONTAL,
+    totalWidth,
+    laneWidthByName,
+    laneWidths,
+    laneHeightByName,
+    laneHeights,
+  } = layoutConfig;
 
-  // 年軸のヘッダー高さを考慮した位置計算
-  const headerHeight = 60;
-  const contentHeight = timelineHeight - headerHeight;
+  const headerHeight = TIMELINE_HEADER_HEIGHT;
+  const contentHeight = isHorizontal
+    ? timelineHeight - yearAxisHeight * 2
+    : timelineHeight - headerHeight;
+  const resolvedLaneWidths = data.map(
+    (lane, index) => laneWidthByName[lane.name] ?? laneWidths[index] ?? 300
+  );
+  const resolvedLaneHeights = data.map(
+    (lane, index) =>
+      laneHeightByName?.[lane.name] ?? laneHeights?.[index] ?? MIN_LANE_ROW_HEIGHT
+  );
+  const laneColors = data.map((lane) => laneColorByName[lane.name] || '#E3EEF7');
+  const contentWidth = resolvedLaneWidths[0] ?? Math.max(640, totalWidth - laneLabelWidth);
+
+  if (isHorizontal) {
+    return (
+      <Box
+        id="timelineRoot"
+        sx={{
+          width: `${totalWidth}px`,
+          minHeight: timelineHeight,
+          backgroundColor: sheet,
+          borderRadius: 0,
+          border: `1px solid ${border}`,
+          overflow: 'visible',
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow:
+            theme.palette.mode === 'dark'
+              ? '0 1px 0 rgba(255,255,255,0.04)'
+              : '0 1px 4px rgba(0,0,0,0.06)',
+          margin: '0 auto',
+          '&.pdf-export': {
+            overflow: 'visible',
+            height: 'auto',
+            maxHeight: 'none',
+          },
+        }}
+      >
+        <YearAxis
+          side="top"
+          orientation="horizontal"
+          yearRange={yearRange}
+          contentSize={contentWidth}
+          thickness={yearAxisHeight}
+          trackSize={totalWidth}
+          labelOffset={laneLabelWidth}
+        />
+
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            minHeight: contentHeight,
+          }}
+        >
+          {data.map((lane, index) => (
+            <LaneColumn
+              key={lane.name}
+              lane={lane}
+              events={positionedEvents[index] || []}
+              laneColor={laneColorByName[lane.name] || '#E3EEF7'}
+              eventColor={eventColorByName[lane.name] || '#1565C0'}
+              laneWidth={resolvedLaneWidths[index]}
+              laneHeight={resolvedLaneHeights[index]}
+              onEventClick={onEventClick}
+              yearRange={yearRange}
+              timelineHeight={resolvedLaneHeights[index]}
+              highlightedEventId={highlightedEventId}
+              orientation="horizontal"
+              showLaneLabel
+              laneLabelWidth={laneLabelWidth}
+            />
+          ))}
+        </Box>
+
+        <YearAxis
+          side="bottom"
+          orientation="horizontal"
+          yearRange={yearRange}
+          contentSize={contentWidth}
+          thickness={yearAxisHeight}
+          trackSize={totalWidth}
+          labelOffset={laneLabelWidth}
+        />
+      </Box>
+    );
+  }
 
   return (
     <Box
       id="timelineRoot"
-      ref={timelineRef}
       sx={{
         width: `${totalWidth}px`,
         minHeight: timelineHeight,
-        backgroundColor: '#F7F7F7',
-        borderRadius: 1,
-        border: '1px solid rgba(0,0,0,0.1)',
-        overflow: 'visible', // 内部スクロール削除
+        backgroundColor: sheet,
+        borderRadius: 0,
+        border: `1px solid ${border}`,
+        overflow: 'visible',
         position: 'relative',
         display: 'flex',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        maxWidth: '100%',
-        // PDFエクスポート用のスタイル
+        boxShadow:
+          theme.palette.mode === 'dark'
+            ? '0 1px 0 rgba(255,255,255,0.04)'
+            : '0 1px 4px rgba(0,0,0,0.06)',
+        margin: '0 auto',
         '&.pdf-export': {
           overflow: 'visible',
           height: 'auto',
@@ -56,100 +169,24 @@ export function Timeline({
         },
       }}
     >
-      {/* 固定年代軸 - ページスクロールでも固定 */}
-      <Box
-        data-year-axis="true"
-        sx={{
-          position: 'sticky', // ページスクロールでも固定
-          left: 0,
-          top: 0,
-          width: yearAxisWidth,
-          minHeight: timelineHeight,
-          backgroundColor: 'rgba(255,255,255,0.95)',
-          borderRight: '1px solid rgba(0,0,0,0.1)', // 1pxに統一
-          zIndex: 200,
-          display: 'flex',
-          flexDirection: 'column',
-          minWidth: '60px',
-        }}
-      >
-        {/* 年代軸ヘッダー */}
-        <Box
-          sx={{
-            height: headerHeight,
-            backgroundColor: 'rgba(255,255,255,0.95)',
-            borderBottom: '1px solid rgba(0,0,0,0.1)', // 1pxに統一
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'sticky',
-            top: 0,
-            zIndex: 201,
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          }}
-        >
-          <Typography
-            variant="h6"
-            sx={{
-              color: '#212121',
-              fontWeight: 'bold',
-              fontSize: '1rem'
-            }}
-          >
-            年代
-          </Typography>
-        </Box>
+      <YearAxis
+        side="left"
+        yearRange={yearRange}
+        contentSize={contentHeight}
+        headerHeight={headerHeight}
+        thickness={yearAxisWidth}
+        trackSize={timelineHeight}
+      />
 
-        {/* 固定年代ラベル */}
-        <Box
-          sx={{
-            position: 'relative',
-            flex: 1,
-            minHeight: contentHeight,
-          }}
-        >
-          {Array.from({ length: Math.floor((yearRange.max - yearRange.min) / 10) + 1 }, (_, i) => {
-            const year = yearRange.min + i * 10;
-            // LaneColumnのグリッド線と同じ計算方法を使用
-            const y = ((year - yearRange.min) / (yearRange.max - yearRange.min)) * contentHeight;
-
-            return (
-              <Box
-                key={year}
-                sx={{
-                  position: 'absolute',
-                  left: '8px',
-                  top: `${y}px`,
-                  width: 'calc(100% - 16px)',
-                  height: '20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  fontSize: '0.75rem',
-                  fontWeight: 'bold',
-                  color: '#666',
-                  backgroundColor: 'rgba(255,255,255,0.9)',
-                  borderRadius: '2px',
-                  paddingLeft: '4px',
-                  zIndex: 15,
-                }}
-              >
-                {year}
-              </Box>
-            );
-          })}
-        </Box>
-      </Box>
-
-      {/* メインコンテンツ領域 */}
       <Box
         sx={{
           flex: 1,
           minHeight: timelineHeight,
           display: 'flex',
           flexDirection: 'column',
+          minWidth: 0,
         }}
       >
-        {/* 固定レーンヘッダー - ページスクロールでも固定 */}
         <Box
           sx={{
             position: 'sticky',
@@ -159,12 +196,12 @@ export function Timeline({
         >
           <LaneHeaderRow
             data={data}
-            laneWidths={laneWidths}
+            laneWidths={resolvedLaneWidths}
             headerHeight={headerHeight}
+            laneColors={laneColors}
           />
         </Box>
 
-        {/* イベント表示領域 - スクロール無し */}
         <Box
           sx={{
             display: 'flex',
@@ -177,18 +214,27 @@ export function Timeline({
               key={lane.name}
               lane={lane}
               events={positionedEvents[index] || []}
-              laneColor={laneColors[index]}
-              eventColor={eventColors[index]}
-              laneWidth={laneWidths[index] || 300}
+              laneColor={laneColorByName[lane.name] || '#E3EEF7'}
+              eventColor={eventColorByName[lane.name] || '#1565C0'}
+              laneWidth={resolvedLaneWidths[index]}
               onEventClick={onEventClick}
               yearRange={yearRange}
-              timelineHeight={contentHeight} // ヘッダーを除いた高さ
-              scrollPosition={0} // スクロール位置は使用しない
-              showHeader={false} // ヘッダーは表示しない
+              timelineHeight={contentHeight}
+              highlightedEventId={highlightedEventId}
+              orientation="vertical"
             />
           ))}
         </Box>
       </Box>
+
+      <YearAxis
+        side="right"
+        yearRange={yearRange}
+        contentSize={contentHeight}
+        headerHeight={headerHeight}
+        thickness={yearAxisWidth}
+        trackSize={timelineHeight}
+      />
     </Box>
   );
 }

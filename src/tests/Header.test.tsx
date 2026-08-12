@@ -2,25 +2,41 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
 import { Header } from '../components/Header';
+import { ThemeProvider } from '../app/providers';
 
-// DraggableLaneListのモック
+function renderHeader(ui: React.ReactElement) {
+  return render(<ThemeProvider>{ui}</ThemeProvider>);
+}
+
 vi.mock('../components/DraggableLaneList', () => ({
-  DraggableLaneList: ({ lanes, selectedLanes, onLaneSelectionChange, onLaneOrderChange }: any) => (
+  DraggableLaneList: ({
+    lanes,
+    selectedLanes,
+    onLaneSelectionChange,
+  }: {
+    lanes: string[];
+    selectedLanes: string[];
+    onLaneSelectionChange: (lanes: string[]) => void;
+    onLaneOrderChange?: (lanes: string[]) => void;
+  }) => (
     <div data-testid="draggable-lane-list">
       {lanes.map((lane: string) => (
         <button
           key={lane}
-          onClick={() => onLaneSelectionChange(selectedLanes.includes(lane)
-            ? selectedLanes.filter((l: string) => l !== lane)
-            : [...selectedLanes, lane]
-          )}
+          onClick={() =>
+            onLaneSelectionChange(
+              selectedLanes.includes(lane)
+                ? selectedLanes.filter((l: string) => l !== lane)
+                : [...selectedLanes, lane]
+            )
+          }
           data-testid={`lane-${lane}`}
         >
           {lane}
         </button>
       ))}
     </div>
-  )
+  ),
 }));
 
 describe('Header', () => {
@@ -37,7 +53,7 @@ describe('Header', () => {
     onLaneSelectionChange: vi.fn(),
     onLaneOrderChange: vi.fn(),
     yearRange: { min: 1900, max: 2100 },
-    onYearRangeChange: vi.fn()
+    onYearRangeChange: vi.fn(),
   };
 
   beforeEach(() => {
@@ -45,147 +61,163 @@ describe('Header', () => {
   });
 
   it('should render header with title', () => {
-    render(<Header {...mockProps} />);
+    renderHeader(<Header {...mockProps} />);
     expect(screen.getByAltText('ミニクロ')).toBeInTheDocument();
   });
 
   it('should render year height adjustment when data is available', () => {
-    render(<Header {...mockProps} />);
+    renderHeader(<Header {...mockProps} />);
     expect(screen.getByTestId('HeightIcon')).toBeInTheDocument();
   });
 
   it('should automatically expand filter options when data is available', () => {
-    render(<Header {...mockProps} />);
-
-    // データがある場合は自動で展開される
+    renderHeader(<Header {...mockProps} />);
     expect(screen.getByText('年代範囲:')).toBeInTheDocument();
     expect(screen.getByLabelText('開始年')).toBeInTheDocument();
     expect(screen.getByLabelText('終了年')).toBeInTheDocument();
   });
 
   it('should not expand filter options when no data is available', () => {
-    render(<Header {...mockProps} hasData={false} />);
-
-    // データがない場合は展開されない
+    renderHeader(<Header {...mockProps} hasData={false} />);
     expect(screen.queryByText('年代範囲:')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('開始年')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('終了年')).not.toBeInTheDocument();
   });
 
   it('should toggle filter options when expand button is clicked', () => {
-    render(<Header {...mockProps} />);
-
-    // 最初は展開されている
+    renderHeader(<Header {...mockProps} />);
     expect(screen.getByText('年代範囲:')).toBeInTheDocument();
-
-    // ボタンをクリックして折りたたむ
     const expandButton = screen.getByTestId('ExpandLessIcon').closest('button');
     fireEvent.click(expandButton!);
-
-    // ボタンが展開アイコンに変わることを確認
     expect(screen.getByTestId('ExpandMoreIcon')).toBeInTheDocument();
   });
 
   it('should render year range input fields', () => {
-    render(<Header {...mockProps} />);
-
-    const startYearInput = screen.getByLabelText('開始年');
-    const endYearInput = screen.getByLabelText('終了年');
-
-    expect(startYearInput).toBeInTheDocument();
-    expect(endYearInput).toBeInTheDocument();
-    expect(startYearInput).toHaveValue(1900);
-    expect(endYearInput).toHaveValue(2100);
+    renderHeader(<Header {...mockProps} />);
+    expect(screen.getByLabelText('開始年')).toHaveValue(1900);
+    expect(screen.getByLabelText('終了年')).toHaveValue(2100);
   });
 
   it('should call onYearRangeChange when year range is modified', () => {
-    render(<Header {...mockProps} />);
-
+    renderHeader(<Header {...mockProps} />);
     const startYearInput = screen.getByLabelText('開始年');
     fireEvent.change(startYearInput, { target: { value: '1950' } });
     fireEvent.blur(startYearInput);
-
     expect(mockProps.onYearRangeChange).toHaveBeenCalledWith([1950, 2100]);
   });
 
   it('should render year range reset button', () => {
-    render(<Header {...mockProps} />);
-
-    const resetButtons = screen.getAllByTestId('RestartAltIcon');
-    expect(resetButtons.length).toBeGreaterThan(0);
+    renderHeader(<Header {...mockProps} />);
+    expect(screen.getAllByTestId('RestartAltIcon').length).toBeGreaterThan(0);
   });
 
   it('should render DraggableLaneList in the right section', () => {
-    render(<Header {...mockProps} />);
-
+    renderHeader(<Header {...mockProps} />);
     expect(screen.getByTestId('draggable-lane-list')).toBeInTheDocument();
   });
 
   it('should render lane selection reset button', () => {
-    render(<Header {...mockProps} />);
-
-    const resetButtons = screen.getAllByTestId('RestartAltIcon');
-    expect(resetButtons.length).toBeGreaterThan(1); // 年代範囲とレーン選択の2つのリセットボタン
+    renderHeader(<Header {...mockProps} />);
+    expect(screen.getAllByTestId('RestartAltIcon').length).toBeGreaterThan(1);
   });
 
   it('should render lane selection label', () => {
-    render(<Header {...mockProps} />);
+    renderHeader(<Header {...mockProps} />);
+    expect(screen.getByText('レーン:')).toBeInTheDocument();
+  });
 
-    expect(screen.getByText('表示するレーン:')).toBeInTheDocument();
+  it('should render search in the filter row', () => {
+    renderHeader(<Header {...mockProps} searchQuery="" onSearchQueryChange={vi.fn()} />);
+    expect(screen.getByLabelText('表示中の出来事を検索')).toBeInTheDocument();
+  });
+
+  it('should render year-range display mode with clear labels', () => {
+    renderHeader(<Header {...mockProps} />);
+    expect(screen.getByLabelText('年代範囲の見せ方')).toBeInTheDocument();
+    expect(screen.getByText('拡大して再配置')).toBeInTheDocument();
   });
 
   it('should not show year height adjustment when no data is available', () => {
-    render(<Header {...mockProps} hasData={false} />);
+    renderHeader(<Header {...mockProps} hasData={false} />);
     expect(screen.queryByTestId('HeightIcon')).not.toBeInTheDocument();
   });
 
   it('should render file upload button', () => {
-    render(<Header {...mockProps} />);
+    renderHeader(<Header {...mockProps} />);
     expect(screen.getByTestId('CloudUploadIcon')).toBeInTheDocument();
   });
 
   it('should render PDF export button when data is available', () => {
-    render(<Header {...mockProps} />);
+    renderHeader(<Header {...mockProps} />);
     expect(screen.getByTestId('PictureAsPdfIcon')).toBeInTheDocument();
   });
 
+  it('should render color mode toggle', () => {
+    renderHeader(<Header {...mockProps} />);
+    expect(screen.getByLabelText('ダークモードに切替')).toBeInTheDocument();
+  });
+
+  it('should render orientation swap button when data is available', () => {
+    const onOrientationChange = vi.fn();
+    renderHeader(
+      <Header
+        {...mockProps}
+        orientation="vertical"
+        onOrientationChange={onOrientationChange}
+      />
+    );
+    const swap = screen.getByRole('button', { name: '縦横入れ替え' });
+    expect(swap).toBeInTheDocument();
+    fireEvent.click(swap);
+    expect(onOrientationChange).toHaveBeenCalledWith('horizontal');
+  });
+
+  it('should not render orientation swap when no data', () => {
+    renderHeader(<Header {...mockProps} hasData={false} />);
+    expect(screen.queryByRole('button', { name: '縦横入れ替え' })).not.toBeInTheDocument();
+  });
+
   it('should render help button', () => {
-    render(<Header {...mockProps} />);
-    expect(screen.getByTestId('HelpOutlineIcon')).toBeInTheDocument();
+    renderHeader(<Header {...mockProps} />);
+    expect(screen.getByRole('link', { name: '使い方ガイド' })).toBeInTheDocument();
+  });
+
+  it('should render language toggle', () => {
+    renderHeader(<Header {...mockProps} />);
+    expect(screen.getByLabelText('Switch to English')).toBeInTheDocument();
   });
 
   it('should render expand/collapse button', () => {
-    render(<Header {...mockProps} />);
-    expect(screen.getByTestId('ExpandLessIcon')).toBeInTheDocument(); // データがある場合は折りたたみアイコン
+    renderHeader(<Header {...mockProps} />);
+    expect(screen.getByTestId('ExpandLessIcon')).toBeInTheDocument();
   });
 
   it('should show expand icon when no data is available', () => {
-    render(<Header {...mockProps} hasData={false} />);
-    expect(screen.getByTestId('ExpandMoreIcon')).toBeInTheDocument(); // データがない場合は展開アイコン
+    renderHeader(<Header {...mockProps} hasData={false} />);
+    expect(screen.getByTestId('ExpandMoreIcon')).toBeInTheDocument();
   });
 
   it('should handle file size validation through onFileDrop', () => {
-    const mockOnFileDrop = vi.fn().mockReturnValue('ファイルサイズが大きすぎます（10MB以下にしてください）');
-    render(<Header {...mockProps} onFileDrop={mockOnFileDrop} />);
-
-    const fileInput = screen.getByRole('button', { name: /excel ファイルをアップロード/i });
-    const file = new File(['test content'], 'test.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-
+    const mockOnFileDrop = vi
+      .fn()
+      .mockReturnValue('ファイルサイズが大きすぎます（10MB以下にしてください）');
+    renderHeader(<Header {...mockProps} onFileDrop={mockOnFileDrop} />);
+    const fileInput = screen.getByRole('button', { name: /Excelファイルをアップロード/i });
+    const file = new File(['test content'], 'test.xlsx', {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
     fireEvent.change(fileInput.querySelector('input')!, { target: { files: [file] } });
-
     expect(mockOnFileDrop).toHaveBeenCalledWith(file);
-    // エラーメッセージが表示されることを期待（実際の実装では状態更新が必要）
   });
 
   it('should handle successful file drop through onFileDrop', () => {
-    const mockOnFileDrop = vi.fn().mockReturnValue(null); // 成功
-    render(<Header {...mockProps} onFileDrop={mockOnFileDrop} />);
-
-    const fileInput = screen.getByRole('button', { name: /excel ファイルをアップロード/i });
-    const file = new File(['test content'], 'test.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-
+    const mockOnFileDrop = vi.fn().mockReturnValue(null);
+    renderHeader(<Header {...mockProps} onFileDrop={mockOnFileDrop} />);
+    const fileInput = screen.getByRole('button', { name: /Excelファイルをアップロード/i });
+    const file = new File(['test content'], 'test.xlsx', {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
     fireEvent.change(fileInput.querySelector('input')!, { target: { files: [file] } });
-
     expect(mockOnFileDrop).toHaveBeenCalledWith(file);
   });
 });

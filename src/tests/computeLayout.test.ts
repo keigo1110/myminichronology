@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { computeLayout, calculateTimelineHeight, calculateTimelineWidth } from '../lib/computeLayout';
+import {
+  computeLayout,
+  calculateTimelineHeight,
+  calculateTimelineWidth,
+  LANE_LABEL_WIDTH_HORIZONTAL,
+  MIN_LANE_ROW_HEIGHT,
+} from '../lib/computeLayout';
 import { useFilteredEvents, FilterState } from '../hooks/useFilteredEvents';
 import { TimelineData, PositionedEvent } from '../lib/types';
 
@@ -114,10 +120,189 @@ describe('computeLayout', () => {
     expect(result.positionedEvents).toHaveLength(2);
     expect(result.layoutConfig.laneWidths).toHaveLength(2);
 
-    // レーン2のX位置はレーン1の幅分ずれているはず
-    const lane1Width = result.layoutConfig.laneWidths[0];
-    const lane2X = result.positionedEvents[1][0]?.x || 0;
-    expect(lane2X).toBeGreaterThanOrEqual(lane1Width);
+    // 各レーン内の x はレーン相対（左端付近から開始）
+    expect(result.positionedEvents[0][0]?.x).toBeGreaterThanOrEqual(0);
+    expect(result.positionedEvents[1][0]?.x).toBeGreaterThanOrEqual(0);
+    expect(result.positionedEvents[0][0]?.width).toBeGreaterThan(0);
+  });
+
+  it('should pack overlapping range and point events horizontally', () => {
+    const data: TimelineData = [
+      {
+        name: 'Test Lane',
+        events: [
+          { start: 1956, end: 1998, label: 'gggg' },
+          { start: 1966, label: 'hhhh' },
+          { start: 1955, label: 'ffff' },
+        ],
+      },
+    ];
+
+    const result = computeLayout(data);
+    const events = result.positionedEvents[0];
+    const range = events.find((e) => e.label === 'gggg')!;
+    const point = events.find((e) => e.label === 'hhhh')!;
+
+    expect(range.end).toBe(1998);
+    expect(point.end).toBeUndefined();
+
+    // 期間が重なる点イベントは期間バーの右側へ
+    expect(point.x).toBeGreaterThanOrEqual(range.x + range.width);
+  });
+
+  it('should pack overlapping range events side by side without rectangle overlap', () => {
+    const data: TimelineData = [
+      {
+        name: 'Ranges',
+        events: [
+          { start: 1960, end: 1990, label: '期間A', color: '#1565C0' },
+          { start: 1970, end: 2000, label: '期間B', color: '#C45C26' },
+          { start: 1980, label: '点C', color: '#2E7D32' },
+        ],
+      },
+    ];
+
+    const result = computeLayout(data);
+    const events = result.positionedEvents[0];
+    const a = events.find((e) => e.label === '期間A')!;
+    const b = events.find((e) => e.label === '期間B')!;
+    const c = events.find((e) => e.label === '点C')!;
+
+    expect(a.height).toBeGreaterThan(c.height);
+    expect(b.height).toBeGreaterThan(c.height);
+
+    const rects = [a, b, c];
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const x = rects[i];
+        const y = rects[j];
+        const overlap = !(
+          x.x + x.width <= y.x ||
+          y.x + y.width <= x.x ||
+          x.y + x.height <= y.y ||
+          y.y + y.height <= x.y
+        );
+        expect(overlap, `${x.label} overlaps ${y.label}`).toBe(false);
+      }
+    }
+  });
+
+  it('should size label boxes by text, ignoring period span', () => {
+    const data: TimelineData = [
+      {
+        name: 'Labels',
+        events: [
+          {
+            start: 1910,
+            end: 1980,
+            label: '短',
+            displayStyle: 'label',
+            fontSize: 12,
+            color: '#C45C26',
+          },
+          {
+            start: 1920,
+            end: 1922,
+            label: 'とても長いラベル文言',
+            displayStyle: 'label',
+            fontSize: 12,
+            color: '#1565C0',
+          },
+        ],
+      },
+    ];
+
+    const result = computeLayout(data);
+    const events = result.positionedEvents[0];
+    const shortLabel = events.find((e) => e.label === '短')!;
+    const longLabel = events.find((e) => e.label.startsWith('とても長い'))!;
+
+    // 長い期間でも短い文言なら高さは小さい／長い文言は文字数で高くなる
+    expect(longLabel.height).toBeGreaterThan(shortLabel.height);
+    // 縦書き1列なので幅はほぼ同じ（文字幅）
+    expect(Math.abs(longLabel.width - shortLabel.width)).toBeLessThan(4);
+    // 期間 1910–1980 を高さに使っていない（文字1字分程度）
+    expect(shortLabel.height).toBeLessThan(80);
+  });
+
+  it('should give point events enough height for large font sizes', () => {
+    const data: TimelineData = [
+      {
+        name: 'Fonts',
+        events: [
+          { start: 1910, label: '最小フォント', fontSize: 8 },
+          { start: 1920, label: '最大フォント', fontSize: 48 },
+        ],
+      },
+    ];
+
+    const result = computeLayout(data);
+    const events = result.positionedEvents[0];
+    const small = events.find((e) => e.label === '最小フォント')!;
+    const large = events.find((e) => e.label === '最大フォント')!;
+
+    expect(large.height).toBeGreaterThanOrEqual(Math.ceil(48 * 1.25) + 6);
+    expect(large.height).toBeGreaterThan(small.height);
+  });
+
+  it('should ignore label end year for visual height and pack without overlapping tall ranges', () => {
+    const data: TimelineData = [
+      {
+        name: 'Mixed',
+        events: [
+          {
+            start: 1950,
+            end: 1980,
+            label: '長期間バー',
+            color: '#1565C0',
+          },
+          {
+            start: 1955,
+            end: 1975,
+            label: 'ラベル短',
+            displayStyle: 'label',
+            fontSize: 12,
+            color: '#C45C26',
+          },
+          { start: 1960, label: '点A', fontSize: 14 },
+          { start: 1960, label: '点B', fontSize: 14 },
+          { start: 1960, label: '最大フォント混在', fontSize: 48 },
+        ],
+      },
+    ];
+
+    const result = computeLayout(data);
+    const events = result.positionedEvents[0];
+    const label = events.find((e) => e.label === 'ラベル短')!;
+    const range = events.find((e) => e.label === '長期間バー')!;
+    const largeFont = events.find((e) => e.label === '最大フォント混在')!;
+
+    // label は期間があっても文字高さ程度
+    expect(label.height).toBeLessThan(80);
+    expect(range.height).toBeGreaterThan(label.height * 2);
+    expect(largeFont.height).toBeGreaterThanOrEqual(Math.ceil(48 * 1.25) + 6);
+
+    // 矩形同士が重ならない
+    const rects = events.map((e) => ({
+      x: e.x,
+      y: e.y,
+      width: e.width,
+      height: e.height,
+      label: e.label,
+    }));
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i];
+        const b = rects[j];
+        const overlap = !(
+          a.x + a.width <= b.x ||
+          b.x + b.width <= a.x ||
+          a.y + a.height <= b.y ||
+          b.y + b.height <= a.y
+        );
+        expect(overlap, `${a.label} overlaps ${b.label}`).toBe(false);
+      }
+    }
   });
 });
 
@@ -268,18 +453,21 @@ describe('Integration: Filter and Layout Recalculation', () => {
   const originalLayout = computeLayout(testData);
   const originalPositioned: PositionedEvent[][] = originalLayout.positionedEvents;
 
-  it('should maintain layout consistency in filter mode', () => {
+  it('should repack layout in filter mode for visible events', () => {
     const filters: FilterState = { yearRange: [2000, 2020] };
     const selectedLanes = ['政治', '経済']; // 社会レーンを除外
 
     const { result } = renderHook(() =>
-      useFilteredEvents(testData, originalPositioned, filters, selectedLanes, 'filter')
+      useFilteredEvents(testData, originalPositioned, filters, selectedLanes, 'filter', 1, {
+        min: 1990,
+        max: 2020,
+      })
     );
 
-    // フィルタモードでは元のlayoutConfigは使われない（undefined）
-    expect(result.current.layoutConfig).toBeUndefined();
+    expect(result.current.layoutConfig).toBeDefined();
     expect(result.current.filteredData).toHaveLength(2);
     expect(result.current.filteredPositionedEvents).toHaveLength(2);
+    expect(result.current.yearRange).toEqual({ min: 1990, max: 2020 });
   });
 
   it('should recalculate layout correctly in zoom mode', () => {
@@ -296,9 +484,9 @@ describe('Integration: Filter and Layout Recalculation', () => {
     expect(result.current.filteredData).toHaveLength(2);
     expect(result.current.filteredPositionedEvents).toHaveLength(2);
 
-    // フィルタ済みデータのレイアウトは元より幅が狭いはず
-    const filteredTotalWidth = result.current.layoutConfig?.totalWidth || 0;
-    expect(filteredTotalWidth).toBeLessThan(originalLayout.layoutConfig.totalWidth);
+    // フィルタ済みデータのレーン数は元より少ない
+    expect(result.current.layoutConfig?.laneWidths).toHaveLength(2);
+    expect(originalLayout.layoutConfig.laneWidths.length).toBeGreaterThan(2);
   });
 
   it('should handle year range filtering correctly', () => {
@@ -373,5 +561,207 @@ describe('Integration: Filter and Layout Recalculation', () => {
     expect(result.current.filteredData).toEqual([]);
     expect(result.current.filteredPositionedEvents).toEqual([]);
     expect(result.current.layoutConfig).toBeUndefined();
+  });
+});
+describe('computeLayout horizontal', () => {
+  it('maps years to x (left=old, right=new) and stacks lanes as rows', () => {
+    const data: TimelineData = [
+      {
+        name: '政治',
+        events: [
+          { start: 2000, label: '古い' },
+          { start: 2010, label: '新しい' },
+        ],
+      },
+      {
+        name: '経済',
+        events: [{ start: 2005, label: '中間' }],
+      },
+    ];
+
+    const result = computeLayout(data, 1, undefined, 'horizontal');
+    expect(result.layoutConfig.orientation).toBe('horizontal');
+    expect(result.layoutConfig.laneHeights).toHaveLength(2);
+    expect(result.layoutConfig.laneLabelWidth).toBeGreaterThan(0);
+    expect(result.layoutConfig.yearAxisHeight).toBeGreaterThan(0);
+
+    const [oldEvent, newEvent] = result.positionedEvents[0];
+    expect(oldEvent.x).toBeLessThan(newEvent.x);
+
+    const rangeData: TimelineData = [
+      {
+        name: '期間',
+        events: [{ start: 2000, end: 2020, label: '長期' }],
+      },
+    ];
+    const rangeResult = computeLayout(rangeData, 1, undefined, 'horizontal');
+    const rangeEvent = rangeResult.positionedEvents[0][0];
+    expect(rangeEvent.width).toBeGreaterThan(rangeEvent.height);
+  });
+
+  it('packs overlapping horizontal events downward within a lane', () => {
+    const data: TimelineData = [
+      {
+        name: '重なり',
+        events: [
+          { start: 2000, end: 2020, label: '長い期間' },
+          { start: 2005, label: '点' },
+        ],
+      },
+    ];
+
+    const result = computeLayout(data, 1, undefined, 'horizontal');
+    const events = result.positionedEvents[0];
+    const range = events.find((e) => e.label === '長い期間')!;
+    const point = events.find((e) => e.label === '点')!;
+
+    expect(point.x).toBeGreaterThanOrEqual(range.x);
+    expect(point.x).toBeLessThan(range.x + range.width);
+    expect(point.y).toBeGreaterThanOrEqual(range.y + range.height - 1);
+  });
+
+  it('widens range events so long labels are not clipped', () => {
+    const spanYears = 2;
+    const build = (label: string): TimelineData => [
+      {
+        name: '期間',
+        events: [
+          { start: 2000, end: 2000 + spanYears, label },
+          { start: 2100, label: '端' },
+        ],
+      },
+    ];
+
+    const short = computeLayout(build('短'), 1, undefined, 'horizontal');
+    const long = computeLayout(
+      build('とても長い期間ラベルの説明文がここに入ります'),
+      1,
+      undefined,
+      'horizontal'
+    );
+
+    const shortRange = short.positionedEvents[0].find((e) => e.label === '短')!;
+    const longRange = long.positionedEvents[0].find((e) =>
+      e.label.startsWith('とても長い')
+    )!;
+
+    expect(longRange.width).toBeGreaterThan(shortRange.width);
+    // 期間の年スケール幅だけでなく、テキスト幅も確保されている
+    expect(longRange.width).toBeGreaterThan(spanYears * 24);
+  });
+
+  it('scales content width with yearHeightScale', () => {
+    const data: TimelineData = [
+      {
+        name: 'Scale',
+        events: [
+          { start: 2000, label: 'A' },
+          { start: 2050, label: 'B' },
+        ],
+      },
+    ];
+
+    const normal = computeLayout(data, 1, undefined, 'horizontal');
+    const wide = computeLayout(data, 2, undefined, 'horizontal');
+    expect(wide.layoutConfig.totalWidth).toBeGreaterThan(normal.layoutConfig.totalWidth);
+  });
+});
+
+describe('computeLayout with images', () => {
+  it('reserves image slot width for events with imageUrl', () => {
+    const without: TimelineData = [
+      { name: 'A', events: [{ start: 2000, label: '文字だけ' }] },
+    ];
+    const withImg: TimelineData = [
+      {
+        name: 'A',
+        events: [
+          {
+            start: 2000,
+            label: '文字だけ',
+            imageUrl: 'https://placehold.co/96x72/png',
+          },
+        ],
+      },
+    ];
+
+    const a = computeLayout(without);
+    const b = computeLayout(withImg);
+    expect(b.positionedEvents[0][0].width).toBeGreaterThan(a.positionedEvents[0][0].width);
+    expect(b.positionedEvents[0][0].height).toBeGreaterThanOrEqual(a.positionedEvents[0][0].height);
+  });
+
+  it('stacks image below range events in horizontal layout', () => {
+    const data: TimelineData = [
+      {
+        name: '期間',
+        events: [
+          {
+            start: 2000,
+            end: 2020,
+            label: '長期',
+            imageUrl: 'https://placehold.co/96x72/png',
+          },
+        ],
+      },
+    ];
+    const plain = computeLayout(
+      [{ name: '期間', events: [{ start: 2000, end: 2020, label: '長期' }] }],
+      1,
+      undefined,
+      'horizontal'
+    );
+    const withImg = computeLayout(data, 1, undefined, 'horizontal');
+    expect(withImg.positionedEvents[0][0].height).toBeGreaterThan(
+      plain.positionedEvents[0][0].height
+    );
+  });
+});
+
+describe('horizontal lane label height', () => {
+  it('grows row height so vertical theme labels are not clipped', () => {
+    const shortName = '政治';
+    const longName = '3_ラベルボックス';
+    const short = computeLayout(
+      [{ name: shortName, events: [{ start: 2000, label: 'A' }] }],
+      1,
+      undefined,
+      'horizontal'
+    );
+    const long = computeLayout(
+      [{ name: longName, events: [{ start: 2000, label: 'A' }] }],
+      1,
+      undefined,
+      'horizontal'
+    );
+    expect(long.layoutConfig.laneHeights?.[0] ?? 0).toBeGreaterThan(
+      short.layoutConfig.laneHeights?.[0] ?? 0
+    );
+    expect(long.layoutConfig.laneLabelWidth).toBe(LANE_LABEL_WIDTH_HORIZONTAL);
+  });
+
+  it('uses a two-column label rail for very long theme names', () => {
+    const veryLongName = 'とてもとても長いテーマ名の例です';
+    const result = computeLayout(
+      [{ name: veryLongName, events: [{ start: 2000, label: 'A' }] }],
+      1,
+      undefined,
+      'horizontal'
+    );
+
+    expect(result.layoutConfig.laneLabelWidth).toBe(LANE_LABEL_WIDTH_HORIZONTAL * 2);
+  });
+
+  it('keeps lane rows at least MIN_LANE_ROW_HEIGHT tall', () => {
+    const result = computeLayout(
+      [{ name: '短', events: [{ start: 2000, label: 'A' }] }],
+      1,
+      undefined,
+      'horizontal'
+    );
+
+    expect(result.layoutConfig.laneHeights?.[0] ?? 0).toBeGreaterThanOrEqual(
+      MIN_LANE_ROW_HEIGHT
+    );
   });
 });

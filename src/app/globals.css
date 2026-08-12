@@ -1,19 +1,25 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 247, 247, 247;
-  --background-end-rgb: 247, 247, 247;
+:root,
+html[data-color-mode='light'] {
+  --foreground-rgb: 33, 33, 33;
+  --background-start-rgb: 247, 244, 238;
+  --background-end-rgb: 247, 244, 238;
+  --paper-sheet: #fffefa;
+  --hairline: rgba(0, 0, 0, 0.12);
+  --scrollbar-track: rgba(0, 0, 0, 0.04);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.22);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.36);
+  --app-chrome-height: 120px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+html[data-color-mode='dark'] {
+  --foreground-rgb: 245, 242, 235;
+  --background-start-rgb: 28, 26, 23;
+  --background-end-rgb: 28, 26, 23;
+  --paper-sheet: #25221e;
+  --hairline: rgba(255, 255, 255, 0.12);
+  --scrollbar-track: rgba(255, 255, 255, 0.04);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.22);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.36);
 }
 
 * {
@@ -25,18 +31,12 @@
 html,
 body {
   max-width: 100vw;
-  overflow-x: hidden;
   height: 100%;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  background: rgb(var(--background-start-rgb));
 }
 
 a {
@@ -44,51 +44,26 @@ a {
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
-}
-
-/* スクロールバーのスタイル */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
+  background: var(--scrollbar-track);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--scrollbar-thumb-hover);
 }
 
-/* フルスクリーン表示のための設定 */
-#__next {
-  height: 100%;
-}
-
-/* 年表表示エリアの最適化 */
 .timeline-container {
   height: 100%;
   overflow: auto;
-}
-
-/* 最小マージン設定 */
-.MuiContainer-root {
-  padding-left: 8px !important;
-  padding-right: 8px !important;
-}
-
-/* ヘッダーの最適化 */
-.MuiBox-root {
-  margin: 0;
-  padding: 0;
 }

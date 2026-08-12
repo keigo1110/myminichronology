@@ -1,33 +1,33 @@
 import { describe, it, expect, vi } from 'vitest';
+import { validateExcelFile } from '../lib/fileValidation';
+import type { MessageKey } from '../i18n/messages';
 
-// page.tsxの handleFileDrop 関数をユニットテストとして抽出
-// 実際のファイルから関数をインポートできないため、ロジックを再現
-function createHandleFileDrop(mockClearData: () => void, mockLoadExcelFile: (file: File) => void) {
-  return (file: File): string | null => {
+/**
+ * page.tsx の handleFileDrop と同じ検証ロジックをテストする。
+ * 実際の読み込みコールバックはモックする。
+ * 戻り値は MessageKey（UI 側で t() する前提）。
+ */
+function createHandleFileDrop(
+  mockClearData: () => void,
+  mockLoadExcelFile: (file: File) => void
+) {
+  return (file: File): MessageKey | null => {
     try {
-      // ファイル形式チェック（大文字小文字を区別しない）
-      if (!file.name.toLowerCase().endsWith('.xlsx')) {
-        const errorMsg = 'Excelファイル（.xlsx）を選択してください';
-        return errorMsg;
-      }
-
-      // ファイルサイズチェック（10MB制限）
-      if (file.size > 10 * 1024 * 1024) {
-        const errorMsg = 'ファイルサイズが大きすぎます（10MB以下にしてください）';
-        return errorMsg;
+      const validationError = validateExcelFile(file);
+      if (validationError) {
+        return validationError;
       }
 
       mockClearData();
       mockLoadExcelFile(file);
-      return null; // 成功
-    } catch (err) {
-      const errorMsg = 'ファイルの処理中にエラーが発生しました';
-      return errorMsg;
+      return null;
+    } catch {
+      return 'error.fileProcess';
     }
   };
 }
 
-describe('page.tsx - handleFileDrop', () => {
+describe('file drop validation', () => {
   it('should reject non-xlsx files', () => {
     const mockClearData = vi.fn();
     const mockLoadExcelFile = vi.fn();
@@ -36,7 +36,7 @@ describe('page.tsx - handleFileDrop', () => {
     const file = new File(['content'], 'test.pdf', { type: 'application/pdf' });
     const result = handleFileDrop(file);
 
-    expect(result).toBe('Excelファイル（.xlsx）を選択してください');
+    expect(result).toBe('file.notXlsx');
     expect(mockClearData).not.toHaveBeenCalled();
     expect(mockLoadExcelFile).not.toHaveBeenCalled();
   });
@@ -46,17 +46,15 @@ describe('page.tsx - handleFileDrop', () => {
     const mockLoadExcelFile = vi.fn();
     const handleFileDrop = createHandleFileDrop(mockClearData, mockLoadExcelFile);
 
-    // 11MBのファイルを作成
     const largeSize = 11 * 1024 * 1024;
-    const file = new File(['x'.repeat(largeSize)], 'large.xlsx', {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    const file = new File(['x'], 'large.xlsx', {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
-
     Object.defineProperty(file, 'size', { value: largeSize });
 
     const result = handleFileDrop(file);
 
-    expect(result).toBe('ファイルサイズが大きすぎます（10MB以下にしてください）');
+    expect(result).toBe('file.tooLarge');
     expect(mockClearData).not.toHaveBeenCalled();
     expect(mockLoadExcelFile).not.toHaveBeenCalled();
   });
@@ -67,12 +65,12 @@ describe('page.tsx - handleFileDrop', () => {
     const handleFileDrop = createHandleFileDrop(mockClearData, mockLoadExcelFile);
 
     const file = new File(['content'], 'valid.xlsx', {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
 
     const result = handleFileDrop(file);
 
-    expect(result).toBeNull(); // 成功
+    expect(result).toBeNull();
     expect(mockClearData).toHaveBeenCalledOnce();
     expect(mockLoadExcelFile).toHaveBeenCalledWith(file);
   });
@@ -82,16 +80,15 @@ describe('page.tsx - handleFileDrop', () => {
     const mockLoadExcelFile = vi.fn();
     const handleFileDrop = createHandleFileDrop(mockClearData, mockLoadExcelFile);
 
-    const exactSize = 10 * 1024 * 1024; // 正確に10MB
+    const exactSize = 10 * 1024 * 1024;
     const file = new File(['content'], 'exact.xlsx', {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
-
     Object.defineProperty(file, 'size', { value: exactSize });
 
     const result = handleFileDrop(file);
 
-    expect(result).toBeNull(); // 成功（10MB以下なので許可）
+    expect(result).toBeNull();
     expect(mockClearData).toHaveBeenCalledOnce();
     expect(mockLoadExcelFile).toHaveBeenCalledWith(file);
   });
@@ -104,12 +101,12 @@ describe('page.tsx - handleFileDrop', () => {
     const handleFileDrop = createHandleFileDrop(mockClearData, mockLoadExcelFile);
 
     const file = new File(['content'], 'test.xlsx', {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
 
     const result = handleFileDrop(file);
 
-    expect(result).toBe('ファイルの処理中にエラーが発生しました');
+    expect(result).toBe('error.fileProcess');
     expect(mockClearData).toHaveBeenCalledOnce();
     expect(mockLoadExcelFile).toHaveBeenCalledWith(file);
   });
@@ -119,15 +116,13 @@ describe('page.tsx - handleFileDrop', () => {
     const mockLoadExcelFile = vi.fn();
     const handleFileDrop = createHandleFileDrop(mockClearData, mockLoadExcelFile);
 
-    // 大文字の拡張子
     const file = new File(['content'], 'test.XLSX', {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
 
     const result = handleFileDrop(file);
 
-    // 大文字小文字を区別しないため、成功する
-    expect(result).toBeNull(); // 成功
+    expect(result).toBeNull();
     expect(mockClearData).toHaveBeenCalledOnce();
     expect(mockLoadExcelFile).toHaveBeenCalledWith(file);
   });

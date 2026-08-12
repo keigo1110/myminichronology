@@ -1,7 +1,14 @@
+'use client';
+
 import React from 'react';
 import { Box, Typography } from '@mui/material';
-import { Lane, PositionedEvent } from '../lib/types';
-import { EventItem } from './EventItem';
+import { Lane, PositionedEvent, TimelineOrientation } from '../lib/types';
+import { EventItem, EVENT_ITEM_MIN_HEIGHT } from './EventItem';
+import { getYearTicks } from '../lib/yearTicks';
+import { DEFAULT_EVENT_COLOR } from '../lib/parseExcel';
+import { getEventDomId } from '../lib/eventDomId';
+import { laneOverlayColors } from '../lib/colorPalette';
+import { LANE_LABEL_WIDTH_HORIZONTAL } from '../lib/computeLayout';
 
 interface LaneColumnProps {
   lane: Lane;
@@ -9,11 +16,14 @@ interface LaneColumnProps {
   laneColor: string;
   eventColor: string;
   laneWidth: number;
+  laneHeight?: number;
   onEventClick?: (event: PositionedEvent) => void;
   yearRange: { min: number; max: number };
   timelineHeight: number;
-  scrollPosition: number;
-  showHeader?: boolean; // ヘッダー表示制御
+  highlightedEventId?: string | null;
+  orientation?: TimelineOrientation;
+  showLaneLabel?: boolean;
+  laneLabelWidth?: number;
 }
 
 export function LaneColumn({
@@ -22,57 +32,69 @@ export function LaneColumn({
   laneColor,
   eventColor,
   laneWidth,
+  laneHeight,
   onEventClick,
   yearRange,
   timelineHeight,
-  scrollPosition,
-  showHeader = true // デフォルトはヘッダー表示
+  highlightedEventId = null,
+  orientation = 'vertical',
+  showLaneLabel = false,
+  laneLabelWidth = LANE_LABEL_WIDTH_HORIZONTAL,
 }: LaneColumnProps) {
-  // 年軸のヘッダー高さを考慮した位置計算
-  const headerHeight = 60;
+  const yearSpan = Math.max(1, yearRange.max - yearRange.min);
+  const ticks = getYearTicks(yearRange.min, yearRange.max);
+  const isHorizontal = orientation === 'horizontal';
+  const rowHeight = isHorizontal ? laneHeight ?? timelineHeight : timelineHeight;
+  const overlay = laneOverlayColors(laneColor);
+  /** テーマ名レールが2列幅なら縦書きでも折り返してよい */
+  const laneLabelWraps = laneLabelWidth >= LANE_LABEL_WIDTH_HORIZONTAL * 2;
 
   return (
     <Box
       sx={{
         position: 'relative',
-        width: laneWidth,
-        minHeight: timelineHeight, // minHeightに変更
-        backgroundColor: laneColor,
-        borderRight: '1px solid rgba(0,0,0,0.1)',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'row',
+        width: isHorizontal ? laneLabelWidth + laneWidth : laneWidth,
+        minHeight: rowHeight,
+        height: isHorizontal ? rowHeight : undefined,
+        borderRight: isHorizontal ? undefined : `1px solid ${overlay.hairline}`,
+        borderBottom: isHorizontal ? `1px solid ${overlay.hairline}` : undefined,
       }}
     >
-      {/* レーンタイトル（条件付き表示） */}
-      {showHeader && (
+      {showLaneLabel && (
         <Box
-          data-lane-title="true"
           sx={{
-            position: 'sticky', // stickyで固定
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: headerHeight,
-            zIndex: 99, // 年代軸より少し低く
-            backgroundColor: 'rgba(255,255,255,0.95)',
-            borderBottom: '2px solid rgba(0,0,0,0.2)',
+            width: laneLabelWidth,
+            flexShrink: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            px: 0.5,
+            py: 1,
+            backgroundColor: laneColor,
+            borderRight: `1px solid ${overlay.hairline}`,
+            position: 'sticky',
+            left: 0,
+            zIndex: 120,
+            boxSizing: 'border-box',
           }}
+          title={lane.name}
         >
           <Typography
-            variant="body1"
+            component="span"
             sx={{
-              color: '#212121',
-              fontWeight: 'bold',
-              fontSize: '0.9rem',
+              fontWeight: 700,
+              fontSize: '0.8rem',
               textAlign: 'center',
-              maxWidth: '90%',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
+              color: overlay.ink,
+              writingMode: 'vertical-rl',
+              textOrientation: 'mixed',
+              letterSpacing: '0.12em',
+              lineHeight: 1.2,
+              maxHeight: '100%',
+              overflow: 'visible',
+              whiteSpace: laneLabelWraps ? 'normal' : 'nowrap',
             }}
           >
             {lane.name}
@@ -80,56 +102,65 @@ export function LaneColumn({
         </Box>
       )}
 
-      {/* イベントコンテンツエリア */}
       <Box
         sx={{
           position: 'relative',
-          flex: 1, // flexで残り全体を占有
-          minHeight: timelineHeight, // 最小高さを保証
+          flex: 1,
+          width: laneWidth,
+          minHeight: rowHeight,
+          height: isHorizontal ? rowHeight : undefined,
+          backgroundColor: laneColor,
         }}
       >
-        {/* グリッド線の描画 */}
-        {Array.from({ length: Math.floor((yearRange.max - yearRange.min) / 10) + 1 }, (_, i) => {
-          const year = yearRange.min + i * 10;
-          // 年代ラベルと同じ計算方法を使用（contentHeightベース）
-          const contentHeight = timelineHeight - (showHeader ? 60 : 0);
-          const y = ((year - yearRange.min) / (yearRange.max - yearRange.min)) * contentHeight;
+        {ticks.map((year) => {
+          const pos = ((year - yearRange.min) / yearSpan) * (isHorizontal ? laneWidth : rowHeight);
+          const isDecade = year % 10 === 0;
 
           return (
             <Box
-              key={`grid-${year}`}
+              key={`grid-${lane.name}-${year}`}
               sx={{
                 position: 'absolute',
-                left: 0,
-                top: `${y}px`,
-                width: '100%',
-                height: '1px',
-                backgroundColor: 'rgba(0,0,0,0.1)',
-                zIndex: 1
+                ...(isHorizontal
+                  ? {
+                      left: `${pos}px`,
+                      top: 0,
+                      width: '1px',
+                      height: '100%',
+                    }
+                  : {
+                      left: 0,
+                      top: `${pos}px`,
+                      width: '100%',
+                      height: '1px',
+                    }),
+                backgroundColor: isDecade ? overlay.gridDecade : overlay.grid,
+                zIndex: 1,
               }}
             />
           );
         })}
 
-        {/* イベントの描画 */}
         {events.map((event, index) => {
-          // スクロール位置の影響を削除（固定位置で表示）
-          const eventTop = event.y;
-          const eventHeight = event.height;
+          const color = event.color || eventColor || DEFAULT_EVENT_COLOR;
+          const eventId = getEventDomId(lane.name, event, index);
 
           return (
             <EventItem
-              key={`${event.label}-${index}`}
+              key={eventId}
+              eventId={eventId}
               event={event}
-              color={eventColor}
+              color={color}
               onClick={onEventClick}
+              highlighted={highlightedEventId === eventId}
+              orientation={orientation}
               style={{
                 position: 'absolute',
-                top: `${eventTop}px`,
-                left: '4px',
-                right: '4px',
-                height: `${eventHeight}px`,
-                zIndex: 5
+                top: `${event.y}px`,
+                left: `${event.x}px`,
+                width: `${Math.max(event.width, 1)}px`,
+                height: `${Math.max(event.height, EVENT_ITEM_MIN_HEIGHT)}px`,
+                zIndex: event.displayStyle === 'label' ? 7 : event.end ? 4 : 6,
               }}
             />
           );

@@ -2,9 +2,36 @@ import { describe, expect, it } from 'vitest';
 import {
   accessibleColorPalettes,
   calculateContrastRatio,
+  chronologyLaneBackgrounds,
+  laneOverlayColors,
   validatePaletteAccessibility,
   materialDesignColors
 } from '../lib/colorPalette';
+
+describe('laneOverlayColors', () => {
+  it('paints dark lines and ink on light lane backgrounds', () => {
+    chronologyLaneBackgrounds.forEach((background) => {
+      const overlay = laneOverlayColors(background);
+      expect(overlay.ink).toBe('#212121');
+      expect(overlay.grid).toContain('rgba(0,0,0');
+      expect(overlay.gridDecade).toContain('rgba(0,0,0');
+      expect(overlay.hairline).toContain('rgba(0,0,0');
+    });
+  });
+
+  it('paints light lines and ink on dark lane backgrounds', () => {
+    const overlay = laneOverlayColors('#1C1A17');
+    expect(overlay.ink).toBe('#FFFFFF');
+    expect(overlay.grid).toContain('rgba(255,255,255');
+    expect(overlay.gridDecade).toContain('rgba(255,255,255');
+    expect(overlay.hairline).toContain('rgba(255,255,255');
+  });
+
+  it('makes decade lines stronger than regular grid lines', () => {
+    const light = laneOverlayColors('#E3EEF7');
+    expect(light.gridDecade).not.toBe(light.grid);
+  });
+});
 
 describe('Color Palette Accessibility', () => {
   describe('calculateContrastRatio', () => {
@@ -54,16 +81,16 @@ describe('Color Palette Accessibility', () => {
   describe('Material Design Colors', () => {
     it('should have consistent color structure', () => {
       const colorKeys = ['blue', 'purple', 'green', 'brown', 'pink'];
-      const shadeKeys = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
+      const shadeKeys = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
 
       colorKeys.forEach(colorKey => {
         const colorSet = materialDesignColors[colorKey as keyof typeof materialDesignColors];
         expect(colorSet).toBeDefined();
 
         shadeKeys.forEach(shade => {
-          expect(colorSet[shade as keyof typeof colorSet]).toBeDefined();
-          expect(typeof colorSet[shade as keyof typeof colorSet]).toBe('string');
-          expect(colorSet[shade as keyof typeof colorSet]).toMatch(/^#[0-9A-F]{6}$/i);
+          expect(colorSet[shade]).toBeDefined();
+          expect(typeof colorSet[shade]).toBe('string');
+          expect(colorSet[shade]).toMatch(/^#[0-9A-F]{6}$/i);
         });
       });
     });

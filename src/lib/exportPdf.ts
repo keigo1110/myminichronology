@@ -1,117 +1,182 @@
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import { AppMessageError } from '../i18n/errors';
 
 // A4 landscape dimensions in mm
 const A4_LANDSCAPE_WIDTH_MM = 297;
 const A4_LANDSCAPE_HEIGHT_MM = 210;
 
+/** ブラウザのキャンバス上限を考慮した目標ピクセル予算 */
+const MAX_CANVAS_DIMENSION = 8192;
+const MAX_CANVAS_PIXELS = 16_777_216; // ~16MP
+
+function computeSafeScale(width: number, height: number, preferredScale = 3): number {
+  if (width <= 0 || height <= 0) return 1;
+
+  const maxByDimension = Math.min(
+    MAX_CANVAS_DIMENSION / width,
+    MAX_CANVAS_DIMENSION / height
+  );
+  const maxByPixels = Math.sqrt(MAX_CANVAS_PIXELS / (width * height));
+
+  return Math.max(1, Math.min(preferredScale, maxByDimension, maxByPixels));
+}
+
+/**
+ * 縦長年表は縦方向にページ分割、横長年表は横方向にページ分割する。
+ */
+function buildPdfPages(
+  canvas: HTMLCanvasElement,
+  pdf: import('jspdf').jsPDF
+): void {
+  const canvasWidth = canvas.width;
+  const canvasHeight = canvas.height;
+  const pageAspect = A4_LANDSCAPE_WIDTH_MM / A4_LANDSCAPE_HEIGHT_MM;
+  const canvasAspect = canvasWidth / canvasHeight;
+
+  const pageHorizontally = canvasAspect > pageAspect * 1.15;
+
+  const tempCanvas = document.createElement('canvas');
+  const tempCtx = tempCanvas.getContext('2d');
+  if (!tempCtx) {
+    throw new AppMessageError('pdf.canvasFailed');
+  }
+
+  if (pageHorizontally) {
+    const imageHeightOnPdf = A4_LANDSCAPE_HEIGHT_MM;
+    const imageWidthOnPdf = imageHeightOnPdf * canvasAspect;
+    const totalPages = Math.ceil(imageWidthOnPdf / A4_LANDSCAPE_WIDTH_MM);
+    let widthLeft = imageWidthOnPdf;
+
+    for (let i = 0; i < totalPages; i++) {
+      if (i > 0) pdf.addPage();
+
+      const pageImageWidth = Math.min(A4_LANDSCAPE_WIDTH_MM, widthLeft);
+      const imageSrcX = i * A4_LANDSCAPE_WIDTH_MM * (canvasWidth / imageWidthOnPdf);
+      const imageSrcWidth = pageImageWidth * (canvasWidth / imageWidthOnPdf);
+
+      tempCanvas.width = Math.max(1, Math.ceil(imageSrcWidth));
+      tempCanvas.height = canvasHeight;
+      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+      tempCtx.drawImage(
+        canvas,
+        imageSrcX,
+        0,
+        imageSrcWidth,
+        canvasHeight,
+        0,
+        0,
+        imageSrcWidth,
+        canvasHeight
+      );
+
+      const imgData = tempCanvas.toDataURL('image/jpeg', 0.92);
+      pdf.addImage(imgData, 'JPEG', 0, 0, pageImageWidth, imageHeightOnPdf, undefined, 'FAST');
+      widthLeft -= A4_LANDSCAPE_WIDTH_MM;
+    }
+    return;
+  }
+
+  const imageWidthOnPdf = A4_LANDSCAPE_WIDTH_MM;
+  const imageHeightOnPdf = imageWidthOnPdf / canvasAspect;
+  const totalPages = Math.ceil(imageHeightOnPdf / A4_LANDSCAPE_HEIGHT_MM);
+  let heightLeft = imageHeightOnPdf;
+
+  for (let i = 0; i < totalPages; i++) {
+    if (i > 0) pdf.addPage();
+
+    const pageImageHeight = Math.min(A4_LANDSCAPE_HEIGHT_MM, heightLeft);
+    const imageSrcY = i * A4_LANDSCAPE_HEIGHT_MM * (canvasHeight / imageHeightOnPdf);
+    const imageSrcHeight = pageImageHeight * (canvasHeight / imageHeightOnPdf);
+
+    tempCanvas.width = canvasWidth;
+    tempCanvas.height = Math.max(1, Math.ceil(imageSrcHeight));
+    tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+    tempCtx.drawImage(
+      canvas,
+      0,
+      imageSrcY,
+      canvasWidth,
+      imageSrcHeight,
+      0,
+      0,
+      canvasWidth,
+      imageSrcHeight
+    );
+
+    const imgData = tempCanvas.toDataURL('image/jpeg', 0.92);
+    pdf.addImage(imgData, 'JPEG', 0, 0, imageWidthOnPdf, pageImageHeight, undefined, 'FAST');
+    heightLeft -= A4_LANDSCAPE_HEIGHT_MM;
+  }
+}
+
+/**
+ * 年表のスクロール位置を先頭に戻す。
+ * 対象は年表要素の祖先スクロールコンテナ（`[data-timeline-scroll]`）。
+ */
+function resetTimelineScroll(element: HTMLElement): void {
+  const targets = new Set<Element>();
+
+  const closest = element.closest('[data-timeline-scroll]');
+  if (closest) targets.add(closest);
+  document
+    .querySelectorAll('[data-timeline-scroll]')
+    .forEach((target) => targets.add(target));
+
+  targets.forEach((target) => {
+    target.scrollTop = 0;
+    target.scrollLeft = 0;
+  });
+}
+
 export async function exportPdf(elementId: string): Promise<void> {
+  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+    import('html2canvas'),
+    import('jspdf'),
+  ]);
+
   try {
     const element = document.getElementById(elementId);
     if (!element) {
-      throw new Error('Timeline element not found for PDF export.');
+      throw new AppMessageError('pdf.elementMissing');
     }
 
-    // Temporarily modify styles for capture
     element.classList.add('pdf-export');
 
-    // 年代ラベルの表示状態を確認
-    const yearLabels = element.querySelectorAll('[data-year-label]');
-    console.log('Year labels found:', yearLabels.length);
+    resetTimelineScroll(element);
 
-    // Ensure scroll position is at the top for consistent capture
-    const timelineContainer = element.querySelector('.timeline-container');
-    if (timelineContainer) {
-      timelineContainer.scrollTop = 0;
-    }
+    const scale = computeSafeScale(element.scrollWidth, element.scrollHeight, 3);
 
-    console.log('Starting PDF export process...');
-    console.log('PDF export class added:', element.classList.contains('pdf-export'));
-
-    // Capture the entire element with its natural dimensions
     const canvas = await html2canvas(element, {
-      scale: 3, // Higher scale for better quality
+      scale,
       useCORS: true,
-      allowTaint: true,
+      // taint されたキャンバスは toDataURL が失敗するため許可しない
+      allowTaint: false,
       backgroundColor: '#ffffff',
-      logging: true,
-      // 年代ラベルが確実にキャプチャされるようにする
-      ignoreElements: (el) => {
-        // 不要な要素のみ除外
-        return el.classList.contains('pdf-export-ignore');
-      },
-      // フォントの読み込みを待つ
-      onclone: (clonedDoc) => {
-        console.log('Cloned document for PDF export');
-      }
+      logging: false,
+      ignoreElements: (el) => el.classList.contains('pdf-export-ignore'),
     });
 
-    console.log(`Canvas created with dimensions: ${canvas.width}x${canvas.height}`);
-
-    // Restore original styles
     element.classList.remove('pdf-export');
 
-    // Create a new PDF in landscape mode
     const pdf = new jsPDF({
       orientation: 'landscape',
       unit: 'mm',
       format: 'a4',
     });
 
-    const canvasWidth = canvas.width;
-    const canvasHeight = canvas.height;
+    buildPdfPages(canvas, pdf);
 
-    // Calculate the aspect ratio
-    const canvasAspectRatio = canvasWidth / canvasHeight;
-
-    // Calculate the height of the image on the PDF page, fitting the width
-    const imageWidthOnPdf = A4_LANDSCAPE_WIDTH_MM;
-    const imageHeightOnPdf = imageWidthOnPdf / canvasAspectRatio;
-
-    // Calculate how many pages are needed
-    const totalPages = Math.ceil(imageHeightOnPdf / A4_LANDSCAPE_HEIGHT_MM);
-    console.log(`PDF will have ${totalPages} pages.`);
-
-    let heightLeft = imageHeightOnPdf;
-
-    // Add the image to the PDF, splitting it across pages if necessary
-    for (let i = 0; i < totalPages; i++) {
-      if (i > 0) {
-        pdf.addPage();
-      }
-      // Calculate the position and height of the slice to draw
-      const pageImageHeight = Math.min(A4_LANDSCAPE_HEIGHT_MM, heightLeft);
-      const imageSrcY = i * A4_LANDSCAPE_HEIGHT_MM * (canvasHeight / imageHeightOnPdf);
-      const imageSrcHeight = pageImageHeight * (canvasHeight / imageHeightOnPdf);
-
-      // Create a temporary canvas for the slice
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = canvasWidth;
-      tempCanvas.height = imageSrcHeight;
-      const tempCtx = tempCanvas.getContext('2d');
-
-      if (tempCtx) {
-        // Draw the slice from the original canvas to the temporary canvas
-        tempCtx.drawImage(canvas, 0, imageSrcY, canvasWidth, imageSrcHeight, 0, 0, canvasWidth, imageSrcHeight);
-        const imgData = tempCanvas.toDataURL('image/png', 1.0);
-
-        // Add the image slice to the PDF page
-        pdf.addImage(imgData, 'PNG', 0, 0, imageWidthOnPdf, pageImageHeight, undefined, 'SLOW');
-      }
-
-      heightLeft -= A4_LANDSCAPE_HEIGHT_MM;
-    }
-
-    // Generate filename and save
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `timeline-export-${timestamp}.pdf`;
-    pdf.save(filename);
-
-    console.log('PDF export successful.');
-
+    pdf.save(`timeline-export-${timestamp}.pdf`);
   } catch (error) {
-    console.error('PDF export failed:', error);
-    // Re-throw the error to be caught by the calling hook
-    throw new Error('Failed to export PDF. See console for details.');
+    const element = document.getElementById(elementId);
+    element?.classList.remove('pdf-export');
+
+    if (error instanceof AppMessageError) {
+      throw error;
+    }
+    if (error instanceof Error) {
+      throw new AppMessageError('pdf.exportFailed', { detail: error.message });
+    }
+    throw new AppMessageError('pdf.exportFailedGeneric');
   }
 }

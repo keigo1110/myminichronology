@@ -1,5 +1,8 @@
+'use client';
+
 import React, { useState } from 'react';
-import { Box, Typography, Chip } from '@mui/material';
+import { Box, Chip } from '@mui/material';
+import { useT } from '../i18n/LocaleProvider';
 
 interface DraggableLaneListProps {
   lanes: string[];
@@ -23,52 +26,53 @@ function SortableLaneChip({
   onClick,
   onDragStart,
   onDragOver,
-  onDrop
+  onDrop,
 }: SortableLaneChipProps) {
   const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent default drag behavior if it's also a click
-    e.stopPropagation(); // Stop event from bubbling up to parent drag handlers
-    onClick();
-  };
-
-  const handleDragStart = (e: React.DragEvent) => {
-    onDragStart(e, lane);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault(); // Necessary to allow dropping
-    onDragOver(e);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    onDrop(e, lane);
+    e.stopPropagation();
+    onClick();
   };
 
   return (
     <Chip
       label={lane}
       onClick={handleClick}
-      draggable // Enable native drag and drop
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      color={isSelected ? 'primary' : 'default'}
+      draggable
+      onDragStart={(e) => onDragStart(e, lane)}
+      onDragOver={(e) => {
+        e.preventDefault();
+        onDragOver(e);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDrop(e, lane);
+      }}
       variant={isSelected ? 'filled' : 'outlined'}
+      color={isSelected ? 'primary' : 'default'}
       size="small"
       sx={{
-        cursor: 'pointer', // Indicate it's clickable
-        fontSize: '0.7rem',
-        height: 20,
+        cursor: 'grab',
+        fontSize: '0.75rem',
+        height: 28,
+        minHeight: 28,
+        borderRadius: '2px',
         '& .MuiChip-label': {
-          px: 0.75,
-          py: 0.25
+          px: 1,
+          py: 0.25,
         },
+        ...(isSelected
+          ? {}
+          : {
+              borderColor: 'divider',
+              color: 'text.primary',
+              backgroundColor: 'transparent',
+            }),
         '&:hover': {
-          backgroundColor: isSelected ? 'primary.light' : 'action.hover',
+          backgroundColor: isSelected ? 'primary.dark' : 'action.hover',
         },
         '&:active': {
-          cursor: 'grabbing', // Indicate it's draggable when active
+          cursor: 'grabbing',
         },
       }}
     />
@@ -81,16 +85,17 @@ export function DraggableLaneList({
   onLaneSelectionChange,
   onLaneOrderChange,
 }: DraggableLaneListProps) {
+  const t = useT();
   const [draggedLane, setDraggedLane] = useState<string | null>(null);
 
   const handleDragStart = (e: React.DragEvent, lane: string) => {
     setDraggedLane(lane);
-    e.dataTransfer.effectAllowed = 'move'; // Specify the drag effect
+    e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault(); // Necessary to allow dropping
-    e.dataTransfer.dropEffect = 'move'; // Visual feedback for drop
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
   };
 
   const handleDrop = (e: React.DragEvent, targetLane: string) => {
@@ -99,27 +104,24 @@ export function DraggableLaneList({
     if (draggedLane && draggedLane !== targetLane) {
       const oldIndex = lanes.indexOf(draggedLane);
       const newIndex = lanes.indexOf(targetLane);
-
       const newLanes = [...lanes];
       const [removed] = newLanes.splice(oldIndex, 1);
       newLanes.splice(newIndex, 0, removed);
-
       onLaneOrderChange(newLanes);
     }
 
-    setDraggedLane(null); // Reset dragged lane state
+    setDraggedLane(null);
   };
 
   const toggleLane = (lane: string) => {
     const newSelectedLanes = selectedLanes.includes(lane)
-      ? selectedLanes.filter(l => l !== lane)
+      ? selectedLanes.filter((l) => l !== lane)
       : [...selectedLanes, lane];
-
     onLaneSelectionChange(newSelectedLanes);
   };
 
   return (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.25 }}>
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }} role="group" aria-label={t('header.laneSelectAria')}>
       {lanes.map((lane) => (
         <SortableLaneChip
           key={lane}

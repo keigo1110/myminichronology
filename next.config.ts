@@ -11,6 +11,15 @@ const nextConfig: NextConfig = {
     };
     return config;
   },
+  async rewrites() {
+    // 旧来の /favicon.ico リクエストは public/favicon.jpg で応答する
+    return [
+      {
+        source: '/favicon.ico',
+        destination: '/favicon.jpg',
+      },
+    ];
+  },
   async headers() {
     return [
       {
@@ -23,19 +32,6 @@ const nextConfig: NextConfig = {
           {
             key: 'Content-Type',
             value: 'image/jpeg',
-          },
-        ],
-      },
-      {
-        source: '/favicon.ico',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
-          },
-          {
-            key: 'Content-Type',
-            value: 'image/x-icon',
           },
         ],
       },

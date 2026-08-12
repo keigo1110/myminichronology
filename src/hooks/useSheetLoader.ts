@@ -1,52 +1,54 @@
 import { useState, useCallback } from 'react';
-import { TimelineData } from '../lib/types';
+import { TimelineData, ParseWarning } from '../lib/types';
 import { parseExcel } from '../lib/parseExcel';
+import { isXlsxFile } from '../lib/fileValidation';
+import { AppMessageError, isAppMessageError, type StoredAppError } from '../i18n/errors';
 
 export function useSheetLoader() {
   const [data, setData] = useState<TimelineData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<StoredAppError | null>(null);
+  const [warnings, setWarnings] = useState<ParseWarning[]>([]);
 
   const loadExcelFile = useCallback(async (file: File) => {
     setLoading(true);
     setError(null);
+    setWarnings([]);
 
     try {
-      // ファイル形式チェック
-      if (!file.name.endsWith('.xlsx')) {
-        throw new Error('Unsupported file. Please upload .xlsx.');
+      if (!isXlsxFile(file)) {
+        throw new AppMessageError('file.notXlsxPeriod');
       }
 
-      const timelineData = await parseExcel(file);
-
-      // レーン数チェック
-      if (timelineData.length > 5) {
-        throw new Error('Maximum 5 sheets/lane supported.');
-      }
-
-      setData(timelineData);
+      const result = await parseExcel(file);
+      setData(result.lanes);
+      setWarnings(result.warnings);
     } catch (err) {
       console.error('Excel file load error:', err);
-      const message = err instanceof Error ? err.message : 'Failed to load Excel file.';
-      setError(message);
+      if (isAppMessageError(err)) {
+        setError({ code: err.code, params: err.params });
+      } else {
+        setError({ code: 'error.loadFailed' });
+      }
       setData(null);
+      setWarnings([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
-
-
   const clearData = useCallback(() => {
     setData(null);
     setError(null);
+    setWarnings([]);
   }, []);
 
   return {
     data,
     loading,
     error,
+    warnings,
     loadExcelFile,
-    clearData
+    clearData,
   };
 }
