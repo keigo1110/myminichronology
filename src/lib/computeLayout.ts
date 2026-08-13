@@ -5,6 +5,7 @@ import type {
   PositionedEvent,
   DynamicLayoutConfig,
   TimelineOrientation,
+  EventLabelOrientation,
   AdaptiveYearScale,
 } from './types';
 
@@ -19,7 +20,9 @@ const FONT_LINE_HEIGHT = 1.25;
 const FONT_HEIGHT_PADDING = 6;
 const LABEL_HEIGHT_PADDING = 12;
 const YEAR_BAND_EDGE_PADDING = 4;
-const TEXT_WIDTH_SAFETY_PADDING = 8;
+const TEXT_WIDTH_SAFETY_PADDING = 16;
+/** Canvasを使わない概算とブラウザの太字実寸との差を吸収する。 */
+const HORIZONTAL_LABEL_WIDTH_SAFETY_PADDING = 24;
 const SINGLE_YEAR_CONTEXT_SPAN = 10;
 const MAX_ADAPTIVE_FEEDBACK_PASSES = 8;
 
@@ -77,20 +80,43 @@ export function minHeightForFont(fontSizePx: number, yearHeightScale = 1): numbe
 
 function estimateTextWidth(text: string, fontSizePx = 11): number {
   const wideCharCount = (text.match(/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\uFF00-\uFFEF]/g) || []).length;
-  const otherCharCount = text.length - wideCharCount;
+  // 太字の M/W や記号は平均的なラテン文字よりかなり広い。
+  const wideLatinCount = (text.match(/[MWmw@#%&]/g) || []).length;
+  const otherCharCount = text.length - wideCharCount - wideLatinCount;
   const wide = fontSizePx * 1.05;
+  const wideLatin = fontSizePx * 0.9;
   const narrow = fontSizePx * 0.62;
-  return wideCharCount * wide + otherCharCount * narrow;
+  return (
+    wideCharCount * wide +
+    wideLatinCount * wideLatin +
+    otherCharCount * narrow
+  );
 }
 
-/** label スタイル: 期間ではなく文字サイズでボックス寸法を決める（縦書き1列） */
-export function estimateLabelBoxDimensions(event: {
-  label: string;
-  fontSize?: number;
-}): { width: number; height: number } {
+/** label スタイル: 期間ではなく文字列と書字方向からボックス寸法を決める。 */
+export function estimateLabelBoxDimensions(
+  event: {
+    label: string;
+    fontSize?: number;
+  },
+  labelOrientation: EventLabelOrientation = 'vertical'
+): { width: number; height: number } {
   const fontSize = event.fontSize ?? 12;
   const lineHeight = fontSize * FONT_LINE_HEIGHT;
   const charCount = Math.max(1, event.label.length);
+
+  if (labelOrientation === 'horizontal') {
+    return {
+      width: Math.max(
+        MIN_EVENT_HEIGHT,
+        Math.ceil(estimateTextWidth(event.label, fontSize)) +
+          LABEL_HEIGHT_PADDING +
+          HORIZONTAL_LABEL_WIDTH_SAFETY_PADDING
+      ),
+      height: Math.max(MIN_EVENT_HEIGHT, Math.ceil(lineHeight) + LABEL_HEIGHT_PADDING),
+    };
+  }
+
   return {
     width: Math.max(MIN_EVENT_HEIGHT, fontSize + 10, fontSize * 1.35 + 8),
     height: Math.max(MIN_EVENT_HEIGHT, charCount * lineHeight + LABEL_HEIGHT_PADDING),
@@ -107,19 +133,28 @@ function fitPointEventToWidth(
   event: Event,
   size: { width: number; height: number },
   maxWidth: number,
-  yearHeightScale: number
+  yearHeightScale: number,
+  labelOrientation: EventLabelOrientation = 'vertical'
 ): { width: number; height: number } {
-  if (event.displayStyle === 'label' || event.end != null || size.width <= maxWidth) {
+  const isHorizontalLabel =
+    event.displayStyle === 'label' && labelOrientation === 'horizontal';
+  const isVerticalLabel = event.displayStyle === 'label' && !isHorizontalLabel;
+  const isRangeEvent = event.displayStyle !== 'label' && event.end != null;
+  const keepsVerticalRangeText = isRangeEvent && labelOrientation === 'vertical';
+
+  if (isVerticalLabel || keepsVerticalRangeText || size.width <= maxWidth) {
     return size;
   }
 
   const fontSize = defaultFontSize(event);
   const imageWidth = event.imageUrl ? EVENT_IMAGE_MAX_WIDTH + EVENT_IMAGE_GAP : 0;
-  const textWidth = estimateTextWidth(event.label, fontSize) + 12;
+  const textWidth =
+    estimateTextWidth(event.label, fontSize) + 12 + TEXT_WIDTH_SAFETY_PADDING;
   const availableTextWidth = Math.max(24, maxWidth - imageWidth - 12);
   const lineCount = Math.max(1, Math.ceil(textWidth / availableTextWidth));
   const wrappedTextHeight =
-    Math.ceil(lineCount * fontSize * FONT_LINE_HEIGHT) + FONT_HEIGHT_PADDING;
+    Math.ceil(lineCount * fontSize * FONT_LINE_HEIGHT) +
+    (isHorizontalLabel ? LABEL_HEIGHT_PADDING : FONT_HEIGHT_PADDING);
 
   return {
     width: maxWidth,
@@ -146,14 +181,21 @@ export function measureEventSize(
     imagePlacement?: 'beside' | 'below';
     /** 期間ラベルを縦書きとして幅を狭く測る */
     preferVerticalLabel?: boolean;
+    /** 縦書き可能な出来事ラベルの表示方向 */
+    labelOrientation?: EventLabelOrientation;
   } = {}
 ): { width: number; height: number } {
   const yearHeightScale = options.yearHeightScale ?? 1;
   const hasImage = Boolean(event.imageUrl);
   const imagePlacement = options.imagePlacement ?? 'beside';
+  const labelOrientation = options.labelOrientation ?? 'vertical';
 
   if (event.displayStyle === 'label') {
-    return applyImageSlot(estimateLabelBoxDimensions(event), hasImage, 'beside');
+    return applyImageSlot(
+      estimateLabelBoxDimensions(event, labelOrientation),
+      hasImage,
+      'beside'
+    );
   }
 
   const fontSize = defaultFontSize(event);
@@ -168,7 +210,8 @@ export function measureEventSize(
         : minH);
     const height = Math.max(minH, rangeHeight);
     const useVertical =
-      options.preferVerticalLabel ?? height >= VERTICAL_RANGE_HEIGHT_THRESHOLD;
+      labelOrientation === 'vertical' &&
+      (options.preferVerticalLabel ?? height >= VERTICAL_RANGE_HEIGHT_THRESHOLD);
     const textWidth = useVertical
       ? fontSize + 2
       : estimateTextWidth(event.label, fontSize);
@@ -213,10 +256,17 @@ function estimateMaxSimultaneousColumns(events: Event[]): number {
   return Math.max(1, maxActive);
 }
 
-function calculateOptimalLaneWidth(events: Event[]): number {
+function calculateOptimalLaneWidth(
+  events: Event[],
+  labelOrientation: EventLabelOrientation = 'vertical'
+): number {
   let maxItemWidth = 0;
   events.forEach((event) => {
-    const size = measureEventSize(event, { yearHeightScale: 1, provisionalRangeHeight: VERTICAL_RANGE_HEIGHT_THRESHOLD });
+    const size = measureEventSize(event, {
+      yearHeightScale: 1,
+      provisionalRangeHeight: VERTICAL_RANGE_HEIGHT_THRESHOLD,
+      labelOrientation,
+    });
     maxItemWidth = Math.max(maxItemWidth, size.width);
   });
 
@@ -240,7 +290,8 @@ function calculateOptimalLaneWidth(events: Event[]): number {
 function calculateStartYearBandHeight(
   events: Event[],
   laneWidth: number,
-  yearHeightScale: number
+  yearHeightScale: number,
+  labelOrientation: EventLabelOrientation
 ): number {
   if (events.length === 0) {
     return MIN_YEAR_HEIGHT * yearHeightScale;
@@ -258,8 +309,15 @@ function calculateStartYearBandHeight(
             ? minHeightForFont(fontSize, yearHeightScale)
             : undefined,
         preferVerticalLabel: false,
+        labelOrientation,
       });
-      return fitPointEventToWidth(event, size, usableWidth, yearHeightScale);
+      return fitPointEventToWidth(
+        event,
+        size,
+        usableWidth,
+        yearHeightScale,
+        labelOrientation
+      );
     })
     .sort((a, b) => b.height - a.height || b.width - a.width);
 
@@ -294,7 +352,8 @@ function createAdaptiveYearScale(
   data: TimelineData,
   laneWidths: number[],
   yearRange: { min: number; max: number },
-  yearHeightScale: number = 1
+  yearHeightScale: number = 1,
+  labelOrientation: EventLabelOrientation = 'vertical'
 ): AdaptiveYearScale {
   const minYear = Math.floor(yearRange.min);
   const maxYear = Math.ceil(yearRange.max);
@@ -324,7 +383,12 @@ function createAdaptiveYearScale(
       const index = year - minYear;
       yearBudgets[index] = Math.max(
         yearBudgets[index],
-        calculateStartYearBandHeight(events, laneWidths[laneIndex], yearHeightScale)
+        calculateStartYearBandHeight(
+          events,
+          laneWidths[laneIndex],
+          yearHeightScale,
+          labelOrientation
+        )
       );
     }
   });
@@ -370,6 +434,50 @@ export function mapYearToPosition(
 
   const yearSpan = Math.max(1, yearRange.max - yearRange.min);
   return ((year - yearRange.min) / yearSpan) * contentSize;
+}
+
+/** 描画位置から年代へ戻す。ラベル方向切替時の閲覧位置維持にも使用する。 */
+export function mapPositionToYear(
+  position: number,
+  yearRange: { min: number; max: number },
+  contentSize: number,
+  adaptiveScale?: AdaptiveYearScale
+): number {
+  if (
+    adaptiveScale &&
+    adaptiveScale.positions.length >= 2 &&
+    Number.isFinite(position)
+  ) {
+    const positions = adaptiveScale.positions;
+    const clampedPosition = Math.max(
+      positions[0],
+      Math.min(positions[positions.length - 1], position)
+    );
+
+    let low = 0;
+    let high = positions.length - 2;
+    while (low < high) {
+      const middle = Math.floor((low + high + 1) / 2);
+      if (positions[middle] <= clampedPosition) {
+        low = middle;
+      } else {
+        high = middle - 1;
+      }
+    }
+
+    const start = positions[low];
+    const end = positions[low + 1];
+    const fraction = end > start ? (clampedPosition - start) / (end - start) : 0;
+    return adaptiveScale.minYear + low + Math.max(0, Math.min(1, fraction));
+  }
+
+  if (!Number.isFinite(position) || contentSize <= 0) {
+    return yearRange.min;
+  }
+
+  const yearSpan = Math.max(1, yearRange.max - yearRange.min);
+  const fraction = Math.max(0, Math.min(1, position / contentSize));
+  return yearRange.min + fraction * yearSpan;
 }
 
 function layoutSortKey(event: Event): { start: number; duration: number; label: string } {
@@ -515,7 +623,8 @@ function positionVerticalEvents(
   laneWidths: number[],
   yearRange: { min: number; max: number },
   yearScale: AdaptiveYearScale,
-  yearHeightScale: number
+  yearHeightScale: number,
+  labelOrientation: EventLabelOrientation
 ): PositionedEvent[][] {
   const contentHeight = yearScale.contentSize;
   const yScale = (year: number) =>
@@ -528,7 +637,7 @@ function positionVerticalEvents(
       let size: { width: number; height: number };
 
       if (event.displayStyle === 'label') {
-        size = measureEventSize(event, { yearHeightScale });
+        size = measureEventSize(event, { yearHeightScale, labelOrientation });
       } else if (event.end != null) {
         const endY = yScale(event.end);
         const rangeHeight = Math.max(
@@ -539,18 +648,20 @@ function positionVerticalEvents(
           yearHeightScale,
           provisionalRangeHeight: rangeHeight,
           preferVerticalLabel: rangeHeight >= VERTICAL_RANGE_HEIGHT_THRESHOLD,
+          labelOrientation,
         });
         // 期間の高さは年スケール優先。画像は副軸方向にのみ加算済み
         size = { ...size, height: Math.max(size.height, rangeHeight) };
       } else {
-        size = measureEventSize(event, { yearHeightScale });
+        size = measureEventSize(event, { yearHeightScale, labelOrientation });
       }
 
       size = fitPointEventToWidth(
         event,
         size,
         Math.max(24, laneWidth - TIMELINE_PADDING * 2),
-        yearHeightScale
+        yearHeightScale,
+        labelOrientation
       );
 
       return {
@@ -611,22 +722,34 @@ export function computeLayout(
   data: TimelineData,
   yearHeightScale: number = 1,
   yearRangeOverride?: { min: number; max: number },
-  orientation: TimelineOrientation = 'vertical'
+  orientation: TimelineOrientation = 'vertical',
+  labelOrientation: EventLabelOrientation = 'vertical'
 ): {
   positionedEvents: PositionedEvent[][];
   layoutConfig: DynamicLayoutConfig;
   yearRange: { min: number; max: number };
 } {
   if (orientation === 'horizontal') {
-    return computeLayoutHorizontal(data, yearHeightScale, yearRangeOverride);
+    return computeLayoutHorizontal(
+      data,
+      yearHeightScale,
+      yearRangeOverride,
+      labelOrientation
+    );
   }
-  return computeLayoutVertical(data, yearHeightScale, yearRangeOverride);
+  return computeLayoutVertical(
+    data,
+    yearHeightScale,
+    yearRangeOverride,
+    labelOrientation
+  );
 }
 
 function computeLayoutVertical(
   data: TimelineData,
   yearHeightScale: number = 1,
-  yearRangeOverride?: { min: number; max: number }
+  yearRangeOverride?: { min: number; max: number },
+  labelOrientation: EventLabelOrientation = 'vertical'
 ): {
   positionedEvents: PositionedEvent[][];
   layoutConfig: DynamicLayoutConfig;
@@ -647,7 +770,9 @@ function computeLayoutVertical(
   }
 
   const yearRange = normalizeYearRange(yearRangeOverride ?? deriveYearRange(data));
-  const laneWidths = data.map((lane) => calculateOptimalLaneWidth(lane.events));
+  const laneWidths = data.map((lane) =>
+    calculateOptimalLaneWidth(lane.events, labelOrientation)
+  );
   const laneWidthByName: Record<string, number> = {};
   data.forEach((lane, index) => {
     laneWidthByName[lane.name] = laneWidths[index];
@@ -661,14 +786,16 @@ function computeLayoutVertical(
     data,
     laneWidths,
     yearRange,
-    yearHeightScale
+    yearHeightScale,
+    labelOrientation
   );
   let positionedEvents = positionVerticalEvents(
     data,
     laneWidths,
     yearRange,
     yearScale,
-    yearHeightScale
+    yearHeightScale,
+    labelOrientation
   );
 
   // 通常1回で収束する。異常入力でも再配置ループがブラウザを占有しないよう上限を持つ。
@@ -681,7 +808,8 @@ function computeLayoutVertical(
       laneWidths,
       yearRange,
       yearScale,
-      yearHeightScale
+      yearHeightScale,
+      labelOrientation
     );
   }
 
@@ -738,7 +866,8 @@ function resolveHorizontalLaneLabelWidth(data: TimelineData): {
 function computeLayoutHorizontal(
   data: TimelineData,
   yearHeightScale: number = 1,
-  yearRangeOverride?: { min: number; max: number }
+  yearRangeOverride?: { min: number; max: number },
+  labelOrientation: EventLabelOrientation = 'vertical'
 ): {
   positionedEvents: PositionedEvent[][];
   layoutConfig: DynamicLayoutConfig;
@@ -791,6 +920,7 @@ function computeLayoutHorizontal(
         const size = measureEventSize(event, {
           yearHeightScale: 1,
           imagePlacement: 'beside',
+          labelOrientation,
         });
         width = size.width;
         height = size.height;
@@ -813,6 +943,7 @@ function computeLayoutHorizontal(
         const size = measureEventSize(event, {
           yearHeightScale: 1,
           imagePlacement: 'beside',
+          labelOrientation,
         });
         width = size.width;
         height = size.height;
@@ -937,18 +1068,35 @@ function resolveHorizontalCollisions(
   return resolved;
 }
 
-export function calculateTimelineHeight(data: TimelineData, yearHeightScale: number = 1): number {
+export function calculateTimelineHeight(
+  data: TimelineData,
+  yearHeightScale: number = 1,
+  labelOrientation: EventLabelOrientation = 'vertical'
+): number {
   if (data.length === 0) return 800;
   const yearRange = deriveYearRange(data);
-  const laneWidths = data.map((lane) => calculateOptimalLaneWidth(lane.events));
-  const yearScale = createAdaptiveYearScale(data, laneWidths, yearRange, yearHeightScale);
+  const laneWidths = data.map((lane) =>
+    calculateOptimalLaneWidth(lane.events, labelOrientation)
+  );
+  const yearScale = createAdaptiveYearScale(
+    data,
+    laneWidths,
+    yearRange,
+    yearHeightScale,
+    labelOrientation
+  );
   return yearScale.contentSize + TIMELINE_HEADER_HEIGHT;
 }
 
-export function calculateTimelineWidth(data: TimelineData): number {
+export function calculateTimelineWidth(
+  data: TimelineData,
+  labelOrientation: EventLabelOrientation = 'vertical'
+): number {
   if (data.length === 0) return 120;
 
-  const laneWidths = data.map((lane) => calculateOptimalLaneWidth(lane.events));
+  const laneWidths = data.map((lane) =>
+    calculateOptimalLaneWidth(lane.events, labelOrientation)
+  );
   const maxLaneWidth = Math.max(...laneWidths);
   const yearAxisWidth = Math.min(72, Math.max(48, maxLaneWidth * 0.08));
 

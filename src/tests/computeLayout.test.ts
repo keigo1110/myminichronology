@@ -6,6 +6,7 @@ import {
   calculateTimelineWidth,
   LANE_LABEL_WIDTH_HORIZONTAL,
   MIN_LANE_ROW_HEIGHT,
+  mapPositionToYear,
   mapYearToPosition,
   measureEventSize,
   layoutOccupancyEnd,
@@ -228,6 +229,131 @@ describe('computeLayout', () => {
     expect(Math.abs(longLabel.width - shortLabel.width)).toBeLessThan(4);
     // 期間 1910–1980 を高さに使っていない（文字1字分程度）
     expect(shortLabel.height).toBeLessThan(80);
+  });
+
+  it('reflows label boxes horizontally without collisions or year-band spill', () => {
+    const data: TimelineData = [
+      {
+        name: 'Horizontal labels',
+        events: [
+          { start: 1990, label: '横書きにする長いラベルA', displayStyle: 'label' },
+          { start: 1990, label: '横書きにする長いラベルB', displayStyle: 'label' },
+          { start: 1990, label: '同年の通常イベント' },
+          { start: 2000, label: '次年代' },
+        ],
+      },
+    ];
+
+    const vertical = computeLayout(data);
+    const horizontal = computeLayout(
+      data,
+      1,
+      undefined,
+      'vertical',
+      'horizontal'
+    );
+    const verticalLabel = vertical.positionedEvents[0][0];
+    const horizontalLabel = horizontal.positionedEvents[0][0];
+
+    expect(horizontalLabel.width).toBeGreaterThan(verticalLabel.width);
+    expect(horizontalLabel.height).toBeLessThan(verticalLabel.height);
+
+    const positioned = horizontal.positionedEvents[0];
+    const contentHeight =
+      (horizontal.layoutConfig.timelineHeight ?? 800) - TIMELINE_HEADER_HEIGHT;
+    const year2000Y = mapYearToPosition(
+      2000,
+      horizontal.yearRange,
+      contentHeight,
+      horizontal.layoutConfig.yearScale
+    );
+
+    for (const event of positioned.filter((item) => item.start < 2000)) {
+      expect(event.y + event.height).toBeLessThanOrEqual(year2000Y);
+    }
+    for (let first = 0; first < positioned.length; first += 1) {
+      for (let second = first + 1; second < positioned.length; second += 1) {
+        const a = positioned[first];
+        const b = positioned[second];
+        const overlap = !(
+          a.x + a.width <= b.x ||
+          b.x + b.width <= a.x ||
+          a.y + a.height <= b.y ||
+          b.y + b.height <= a.y
+        );
+        expect(overlap, `${a.label} overlaps ${b.label}`).toBe(false);
+      }
+    }
+  });
+
+  it('wraps a long short-range event when labels are horizontal', () => {
+    const longLabel =
+      '短い期間に対して非常に長い説明を持つ出来事ラベル'.repeat(8);
+    const result = computeLayout(
+      [
+        {
+          name: 'Long range',
+          events: [
+            { start: 2000, end: 2001, label: longLabel },
+            { start: 2010, label: '境界確認' },
+          ],
+        },
+      ],
+      1,
+      undefined,
+      'vertical',
+      'horizontal'
+    );
+
+    const range = result.positionedEvents[0].find(
+      (event) => event.label === longLabel
+    )!;
+    const contentHeight =
+      (result.layoutConfig.timelineHeight ?? 800) - TIMELINE_HEADER_HEIGHT;
+    const endPosition = mapYearToPosition(
+      2001,
+      result.yearRange,
+      contentHeight,
+      result.layoutConfig.yearScale
+    );
+
+    expect(range.width).toBeLessThanOrEqual(
+      result.layoutConfig.laneWidths[0] - 8
+    );
+    expect(range.height).toBeGreaterThanOrEqual(40);
+    expect(range.y + range.height).toBeLessThanOrEqual(endPosition + 0.01);
+  });
+
+  it('round-trips adaptive year positions without losing the viewed year', () => {
+    const result = computeLayout([
+      {
+        name: 'Dense',
+        events: Array.from({ length: 12 }, (_, index) => ({
+          start: 1990,
+          label: `同年の長い縦ラベル${index}`,
+          displayStyle: 'label' as const,
+        })),
+      },
+    ]);
+    const contentHeight =
+      (result.layoutConfig.timelineHeight ?? 800) - TIMELINE_HEADER_HEIGHT;
+
+    for (const year of [1990, 1990.5, 1995, 2000]) {
+      const position = mapYearToPosition(
+        year,
+        result.yearRange,
+        contentHeight,
+        result.layoutConfig.yearScale
+      );
+      expect(
+        mapPositionToYear(
+          position,
+          result.yearRange,
+          contentHeight,
+          result.layoutConfig.yearScale
+        )
+      ).toBeCloseTo(year, 8);
+    }
   });
 
   it('should give point events enough height for large font sizes', () => {

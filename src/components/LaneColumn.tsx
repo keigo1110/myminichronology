@@ -7,6 +7,7 @@ import type {
   Lane,
   PositionedEvent,
   TimelineOrientation,
+  EventLabelOrientation,
 } from '../lib/types';
 import { EventItem, EVENT_ITEM_MIN_HEIGHT } from './EventItem';
 import { getYearTicks } from '../lib/yearTicks';
@@ -27,6 +28,7 @@ interface LaneColumnProps {
   timelineHeight: number;
   highlightedEventId?: string | null;
   orientation?: TimelineOrientation;
+  labelOrientation?: EventLabelOrientation;
   showLaneLabel?: boolean;
   laneLabelWidth?: number;
   yearTicks?: number[];
@@ -47,6 +49,7 @@ export function LaneColumn({
   timelineHeight,
   highlightedEventId = null,
   orientation = 'vertical',
+  labelOrientation = 'vertical',
   showLaneLabel = false,
   laneLabelWidth = LANE_LABEL_WIDTH_HORIZONTAL,
   yearTicks,
@@ -170,6 +173,7 @@ export function LaneColumn({
               onClick={onEventClick}
               highlighted={highlightedEventId === eventId}
               orientation={orientation}
+              labelOrientation={labelOrientation}
               style={{
                 position: 'absolute',
                 top: `${event.y}px`,

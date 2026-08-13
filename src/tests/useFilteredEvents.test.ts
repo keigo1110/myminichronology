@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react';
 import { useFilteredEvents } from '../hooks/useFilteredEvents';
-import type { TimelineData } from '../lib/types';
+import type { DynamicLayoutConfig, TimelineData } from '../lib/types';
 import type { FilterState } from '../hooks/useFilteredEvents';
 
 describe('useFilteredEvents', () => {
@@ -46,6 +46,35 @@ describe('useFilteredEvents', () => {
     expect(result.current.filteredData).toEqual(mockData);
     expect(result.current.filteredPositionedEvents).toHaveLength(2);
     expect(result.current.layoutConfig).toBeDefined();
+  });
+
+  it('reuses the base layout when the filters cover all data', () => {
+    const baseLayout: DynamicLayoutConfig = {
+      laneWidths: [300, 300],
+      laneWidthByName: { 政治: 300, 経済: 300 },
+      yearAxisWidth: 60,
+      totalWidth: 720,
+      timelineHeight: 900,
+      orientation: 'vertical',
+    };
+    const { result } = renderHook(() =>
+      useFilteredEvents(
+        mockData,
+        mockPositionedEvents,
+        { yearRange: [1900, 2100] },
+        ['政治', '経済'],
+        'zoom',
+        1,
+        { min: 1900, max: 2100 },
+        'vertical',
+        'vertical',
+        baseLayout
+      )
+    );
+
+    expect(result.current.filteredData).toBe(mockData);
+    expect(result.current.filteredPositionedEvents).toBe(mockPositionedEvents);
+    expect(result.current.layoutConfig).toBe(baseLayout);
   });
 
   it('should filter events by year range', () => {

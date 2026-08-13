@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Box,
   Typography,
@@ -11,6 +11,7 @@ import {
   FormControl,
   Select,
   MenuItem,
+  CircularProgress,
 } from '@mui/material';
 import {
   CloudUpload,
@@ -26,11 +27,17 @@ import {
   DarkMode,
   LightMode,
   SwapVert,
+  TextRotateVertical,
+  TextRotationNone,
   Translate,
 } from '@mui/icons-material';
 import { DraggableLaneList } from './DraggableLaneList';
 import { CopyableAlert } from './CopyableAlert';
-import type { LayoutMode, TimelineOrientation } from '../lib/types';
+import type {
+  EventLabelOrientation,
+  LayoutMode,
+  TimelineOrientation,
+} from '../lib/types';
 import { isXlsxFileName } from '../lib/fileValidation';
 import { useColorMode } from '../app/providers';
 import { useT, useLocale } from '../i18n/LocaleProvider';
@@ -54,17 +61,127 @@ interface HeaderProps {
   onLaneSelectionChange?: (selectedLanes: string[]) => void;
   onLaneOrderChange?: (orderedLanes: string[]) => void;
   yearRange?: { min: number; max: number };
+  activeYearRange?: [number, number];
   onYearRangeChange?: (yearRange: [number, number]) => void;
   layoutMode?: LayoutMode;
   onLayoutModeChange?: (mode: LayoutMode) => void;
   orientation?: TimelineOrientation;
   onOrientationChange?: (orientation: TimelineOrientation) => void;
+  labelOrientation?: EventLabelOrientation;
+  onLabelOrientationChange?: (orientation: EventLabelOrientation) => void;
+  labelOrientationPending?: boolean;
   searchQuery?: string;
   onSearchQueryChange?: (query: string) => void;
   searchMatchCount?: number;
   searchMatchIndex?: number;
   onSearchNext?: () => void;
   onSearchPrev?: () => void;
+  exportProgress?: { completed: number; total: number } | null;
+}
+
+interface YearRangeFieldsProps {
+  bounds: { min: number; max: number };
+  value: [number, number];
+  onChange?: (yearRange: [number, number]) => void;
+}
+
+function clampYearRange(
+  range: [number, number],
+  bounds: { min: number; max: number }
+): [number, number] {
+  let [start, end] = range;
+  start = Math.min(Math.max(start, bounds.min), bounds.max);
+  end = Math.min(Math.max(end, bounds.min), bounds.max);
+  return start <= end ? [start, end] : [end, start];
+}
+
+function YearRangeFields({ bounds, value, onChange }: YearRangeFieldsProps) {
+  const t = useT();
+  const [draft, setDraft] = useState<[number, number]>(() =>
+    clampYearRange(value, bounds)
+  );
+
+  const commit = useCallback(() => {
+    const normalized = clampYearRange(draft, bounds);
+    setDraft(normalized);
+    onChange?.(normalized);
+  }, [bounds, draft, onChange]);
+
+  const reset = useCallback(() => {
+    const fullRange: [number, number] = [bounds.min, bounds.max];
+    setDraft(fullRange);
+    onChange?.(fullRange);
+  }, [bounds.max, bounds.min, onChange]);
+
+  const isActive = draft[0] !== bounds.min || draft[1] !== bounds.max;
+
+  return (
+    <>
+      <TextField
+        size="small"
+        type="number"
+        label={t('header.startYear')}
+        value={draft[0]}
+        onChange={(e) => {
+          const next = Number.parseInt(e.target.value, 10);
+          if (!Number.isNaN(next)) setDraft([next, draft[1]]);
+        }}
+        onBlur={commit}
+        sx={{
+          width: 75,
+          '& .MuiInputLabel-root': { fontSize: '0.75rem' },
+          '& .MuiInputBase-input': {
+            fontSize: '0.75rem',
+            py: 0.5,
+            px: 1,
+            minWidth: 0,
+          },
+        }}
+        inputProps={{ min: bounds.min, max: bounds.max }}
+      />
+      <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+        -
+      </Typography>
+      <TextField
+        size="small"
+        type="number"
+        label={t('header.endYear')}
+        value={draft[1]}
+        onChange={(e) => {
+          const next = Number.parseInt(e.target.value, 10);
+          if (!Number.isNaN(next)) setDraft([draft[0], next]);
+        }}
+        onBlur={commit}
+        sx={{
+          width: 85,
+          '& .MuiInputLabel-root': { fontSize: '0.75rem' },
+          '& .MuiInputBase-input': {
+            fontSize: '0.75rem',
+            py: 0.5,
+            px: 1,
+            minWidth: 0,
+          },
+        }}
+        inputProps={{ min: bounds.min, max: bounds.max }}
+      />
+      <Tooltip title={t('header.resetDefault')}>
+        <span>
+          <IconButton
+            size="small"
+            onClick={reset}
+            disabled={!isActive}
+            sx={{
+              width: 28,
+              height: 28,
+              '&:disabled': { opacity: 0.3 },
+            }}
+          >
+            <RestartAlt sx={{ fontSize: 16 }} />
+          </IconButton>
+        </span>
+      </Tooltip>
+    </>
+  );
 }
 
 export function Header({
@@ -84,35 +201,32 @@ export function Header({
   onLaneSelectionChange,
   onLaneOrderChange,
   yearRange = { min: 1900, max: 2100 },
+  activeYearRange,
   onYearRangeChange,
   layoutMode = 'zoom',
   onLayoutModeChange,
   orientation = 'vertical',
   onOrientationChange,
+  labelOrientation = 'vertical',
+  onLabelOrientationChange,
+  labelOrientationPending = false,
   searchQuery = '',
   onSearchQueryChange,
   searchMatchCount = 0,
   searchMatchIndex = 0,
   onSearchNext,
   onSearchPrev,
+  exportProgress = null,
 }: HeaderProps) {
   const { mode, toggleColorMode } = useColorMode();
   const t = useT();
   const { locale, toggleLocale } = useLocale();
   const [isDragOver, setIsDragOver] = useState(false);
   const [expanded, setExpanded] = useState(hasData);
-  const [filterYearRange, setFilterYearRange] = useState<[number, number]>([
+  const committedYearRange: [number, number] = activeYearRange ?? [
     yearRange.min,
     yearRange.max,
-  ]);
-
-  useEffect(() => {
-    setFilterYearRange([yearRange.min, yearRange.max]);
-  }, [yearRange.min, yearRange.max]);
-
-  useEffect(() => {
-    setExpanded(hasData);
-  }, [hasData]);
+  ];
 
   const reportError = useCallback(
     (message: string | null) => {
@@ -197,43 +311,30 @@ export function Header({
     onYearHeightChange?.(24);
   }, [onYearHeightChange]);
 
-  const clampYearRange = useCallback(
-    (range: [number, number]): [number, number] => {
-      let [start, end] = range;
-      start = Math.min(Math.max(start, yearRange.min), yearRange.max);
-      end = Math.min(Math.max(end, yearRange.min), yearRange.max);
-      if (start > end) {
-        [start, end] = [end, start];
-      }
-      return [start, end];
-    },
-    [yearRange.min, yearRange.max]
-  );
-
-  const handleYearRangeCommit = useCallback(() => {
-    const normalized = clampYearRange(filterYearRange);
-    setFilterYearRange(normalized);
-    onYearRangeChange?.(normalized);
-  }, [filterYearRange, onYearRangeChange, clampYearRange]);
-
-  const handleResetYearRange = useCallback(() => {
-    const defaultRange: [number, number] = [yearRange.min, yearRange.max];
-    setFilterYearRange(defaultRange);
-    onYearRangeChange?.(defaultRange);
-  }, [yearRange.min, yearRange.max, onYearRangeChange]);
-
   const handleResetLaneSelection = useCallback(() => {
     onLaneSelectionChange?.(lanes);
   }, [lanes, onLaneSelectionChange]);
 
-  const isYearRangeActive =
-    filterYearRange[0] !== yearRange.min || filterYearRange[1] !== yearRange.max;
   const isLaneSelectionDefault = selectedLanes.length === lanes.length;
   const langToggleLabel = locale === 'ja' ? t('header.langToEn') : t('header.langToJa');
+  const pdfProgressPercent =
+    exportProgress && exportProgress.total > 0
+      ? Math.round((exportProgress.completed / exportProgress.total) * 100)
+      : null;
+  const pdfBusyLabel =
+    pdfProgressPercent == null
+      ? t('header.pdfBusy')
+      : t('header.pdfBusyProgress', { percent: pdfProgressPercent });
+  const labelOrientationToggleLabel =
+    labelOrientation === 'vertical'
+      ? t('header.labelsToHorizontal')
+      : t('header.labelsToVertical');
 
   return (
     <Box
       component="header"
+      aria-busy={exporting || labelOrientationPending || undefined}
+      inert={exporting || labelOrientationPending ? true : undefined}
       sx={{
         position: 'relative',
         zIndex: 100,
@@ -374,6 +475,35 @@ export function Header({
             </Tooltip>
           )}
 
+          {hasData && (
+            <Tooltip
+              title={labelOrientationToggleLabel}
+            >
+              <span>
+                <IconButton
+                  onClick={() =>
+                    onLabelOrientationChange?.(
+                      labelOrientation === 'vertical' ? 'horizontal' : 'vertical'
+                    )
+                  }
+                  size="small"
+                  aria-label={labelOrientationToggleLabel}
+                  aria-pressed={labelOrientation === 'horizontal'}
+                  disabled={labelOrientationPending || exporting}
+                  color={labelOrientation === 'horizontal' ? 'primary' : 'default'}
+                >
+                  {labelOrientationPending ? (
+                    <CircularProgress size={20} color="inherit" />
+                  ) : labelOrientation === 'vertical' ? (
+                    <TextRotationNone />
+                  ) : (
+                    <TextRotateVertical />
+                  )}
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
+
           <Tooltip title={t('header.upload')}>
             <span>
               <IconButton
@@ -411,14 +541,23 @@ export function Header({
           </Tooltip>
 
           {hasData && (
-            <Tooltip title={exporting ? t('header.pdfBusy') : t('header.pdf')}>
+            <Tooltip title={exporting ? pdfBusyLabel : t('header.pdf')}>
               <span>
                 <IconButton
                   onClick={onPdfExport}
                   disabled={exporting}
-                  aria-label={t('header.pdfAria')}
+                  aria-label={exporting ? pdfBusyLabel : t('header.pdfAria')}
                 >
-                  <PictureAsPdf />
+                  {exporting ? (
+                    <CircularProgress
+                      size={20}
+                      color="inherit"
+                      variant={pdfProgressPercent == null ? 'indeterminate' : 'determinate'}
+                      value={pdfProgressPercent ?? undefined}
+                    />
+                  ) : (
+                    <PictureAsPdf />
+                  )}
                 </IconButton>
               </span>
             </Tooltip>
@@ -569,73 +708,12 @@ export function Header({
                       {t('header.yearRange')}
                     </Typography>
                     <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-                      <TextField
-                        size="small"
-                        type="number"
-                        label={t('header.startYear')}
-                        value={filterYearRange[0]}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value, 10);
-                          if (!isNaN(value)) {
-                            setFilterYearRange([value, filterYearRange[1]]);
-                          }
-                        }}
-                        onBlur={handleYearRangeCommit}
-                        sx={{
-                          width: 75,
-                          '& .MuiInputLabel-root': { fontSize: '0.75rem' },
-                          '& .MuiInputBase-input': {
-                            fontSize: '0.75rem',
-                            py: 0.5,
-                            px: 1,
-                            minWidth: 0,
-                          },
-                        }}
-                        inputProps={{ min: yearRange.min, max: yearRange.max }}
+                      <YearRangeFields
+                        key={`${yearRange.min}:${yearRange.max}:${committedYearRange[0]}:${committedYearRange[1]}`}
+                        bounds={yearRange}
+                        value={committedYearRange}
+                        onChange={onYearRangeChange}
                       />
-                      <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
-                        -
-                      </Typography>
-                      <TextField
-                        size="small"
-                        type="number"
-                        label={t('header.endYear')}
-                        value={filterYearRange[1]}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value, 10);
-                          if (!isNaN(value)) {
-                            setFilterYearRange([filterYearRange[0], value]);
-                          }
-                        }}
-                        onBlur={handleYearRangeCommit}
-                        sx={{
-                          width: 85,
-                          '& .MuiInputLabel-root': { fontSize: '0.75rem' },
-                          '& .MuiInputBase-input': {
-                            fontSize: '0.75rem',
-                            py: 0.5,
-                            px: 1,
-                            minWidth: 0,
-                          },
-                        }}
-                        inputProps={{ min: yearRange.min, max: yearRange.max }}
-                      />
-                      <Tooltip title={t('header.resetDefault')}>
-                        <span>
-                          <IconButton
-                            size="small"
-                            onClick={handleResetYearRange}
-                            disabled={!isYearRangeActive}
-                            sx={{
-                              width: 28,
-                              height: 28,
-                              '&:disabled': { opacity: 0.3 },
-                            }}
-                          >
-                            <RestartAlt sx={{ fontSize: 16 }} />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
                     </Box>
                     <FormControl size="small" sx={{ minWidth: 128 }}>
                       <Select

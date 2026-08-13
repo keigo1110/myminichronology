@@ -53,6 +53,7 @@ describe('Header', () => {
     onLaneSelectionChange: vi.fn(),
     onLaneOrderChange: vi.fn(),
     yearRange: { min: 1900, max: 2100 },
+    activeYearRange: [1900, 2100] as [number, number],
     onYearRangeChange: vi.fn(),
   };
 
@@ -96,6 +97,22 @@ describe('Header', () => {
     renderHeader(<Header {...mockProps} />);
     expect(screen.getByLabelText('開始年')).toHaveValue(1900);
     expect(screen.getByLabelText('終了年')).toHaveValue(2100);
+  });
+
+  it('should follow a committed year range without effect-based state syncing', () => {
+    const { rerender } = renderHeader(
+      <Header {...mockProps} activeYearRange={[1950, 2000]} />
+    );
+    expect(screen.getByLabelText('開始年')).toHaveValue(1950);
+    expect(screen.getByLabelText('終了年')).toHaveValue(2000);
+
+    rerender(
+      <ThemeProvider>
+        <Header {...mockProps} activeYearRange={[1960, 1990]} />
+      </ThemeProvider>
+    );
+    expect(screen.getByLabelText('開始年')).toHaveValue(1960);
+    expect(screen.getByLabelText('終了年')).toHaveValue(1990);
   });
 
   it('should call onYearRangeChange when year range is modified', () => {
@@ -152,6 +169,28 @@ describe('Header', () => {
     expect(screen.getByTestId('PictureAsPdfIcon')).toBeInTheDocument();
   });
 
+  it('should show progress and disable PDF export while generating', () => {
+    renderHeader(<Header {...mockProps} exporting />);
+
+    const button = screen.getByRole('button', { name: 'PDFを生成中…' });
+    expect(button).toBeDisabled();
+    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    expect(screen.queryByTestId('PictureAsPdfIcon')).not.toBeInTheDocument();
+  });
+
+  it('should expose determinate PDF page progress', () => {
+    renderHeader(
+      <Header
+        {...mockProps}
+        exporting
+        exportProgress={{ completed: 2, total: 4 }}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'PDFを生成中… 50%' })).toBeDisabled();
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');
+  });
+
   it('should render color mode toggle', () => {
     renderHeader(<Header {...mockProps} />);
     expect(screen.getByLabelText('ダークモードに切替')).toBeInTheDocument();
@@ -175,6 +214,80 @@ describe('Header', () => {
   it('should not render orientation swap when no data', () => {
     renderHeader(<Header {...mockProps} hasData={false} />);
     expect(screen.queryByRole('button', { name: '縦横入れ替え' })).not.toBeInTheDocument();
+  });
+
+  it('should toggle event labels from vertical to horizontal with one button', () => {
+    const onLabelOrientationChange = vi.fn();
+    renderHeader(
+      <Header
+        {...mockProps}
+        labelOrientation="vertical"
+        onLabelOrientationChange={onLabelOrientationChange}
+      />
+    );
+
+    const toggle = screen.getByRole('button', {
+      name: '出来事ラベルを横書きに切替',
+    });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByTestId('TextRotationNoneIcon')).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+
+    expect(onLabelOrientationChange).toHaveBeenCalledWith('horizontal');
+  });
+
+  it('should toggle event labels from horizontal back to vertical', () => {
+    const onLabelOrientationChange = vi.fn();
+    renderHeader(
+      <Header
+        {...mockProps}
+        labelOrientation="horizontal"
+        onLabelOrientationChange={onLabelOrientationChange}
+      />
+    );
+
+    const toggle = screen.getByRole('button', {
+      name: '出来事ラベルを縦書きに切替',
+    });
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('TextRotateVerticalIcon')).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+
+    expect(onLabelOrientationChange).toHaveBeenCalledWith('vertical');
+  });
+
+  it('should prevent repeated label toggles while layout is pending', () => {
+    const onLabelOrientationChange = vi.fn();
+    renderHeader(
+      <Header
+        {...mockProps}
+        labelOrientation="vertical"
+        labelOrientationPending
+        onLabelOrientationChange={onLabelOrientationChange}
+      />
+    );
+
+    const toggle = screen.getByRole('button', {
+      name: '出来事ラベルを横書きに切替',
+    });
+    expect(toggle).toBeDisabled();
+    fireEvent.click(toggle);
+    expect(onLabelOrientationChange).not.toHaveBeenCalled();
+  });
+
+  it('should hide the event-label toggle when no data is loaded', () => {
+    renderHeader(<Header {...mockProps} hasData={false} />);
+    expect(
+      screen.queryByRole('button', { name: /出来事ラベルを.+書きに切替/ })
+    ).not.toBeInTheDocument();
+  });
+
+  it('should make the header inert while label layout is pending', () => {
+    renderHeader(<Header {...mockProps} labelOrientationPending />);
+    expect(screen.getByRole('banner')).toHaveAttribute('inert');
+    expect(screen.getByRole('banner')).toHaveAttribute('aria-busy', 'true');
   });
 
   it('should render help button', () => {

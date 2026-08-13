@@ -3,6 +3,9 @@ export type EventDisplayStyle = 'default' | 'label';
 /** vertical: 縦=年代 / 横=テーマ。horizontal: 縦=テーマ / 横=年代（左→右で新） */
 export type TimelineOrientation = 'vertical' | 'horizontal';
 
+/** 年表内の出来事ラベルの書字方向。テーマ名や年代軸には影響しない。 */
+export type EventLabelOrientation = 'vertical' | 'horizontal';
+
 export interface Event {
   start: number;
   end?: number; // undefined → 点イベント
@@ -15,7 +18,7 @@ export interface Event {
    * 未指定時は黒。
    */
   color?: string;
-  /** 表示スタイル。label = goal_design 風の縦書きボックス */
+  /** 表示スタイル。label = goal_design 風の塗り付きラベルボックス */
   displayStyle?: EventDisplayStyle;
   /** G列: 埋め込み画像の URL（http/https） */
   imageUrl?: string;

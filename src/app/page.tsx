@@ -10,13 +10,26 @@ import { useSheetLoader } from '../hooks/useSheetLoader';
 import { useTimelineData } from '../hooks/useTimelineData';
 import { useFilteredEvents } from '../hooks/useFilteredEvents';
 import { usePdfExport } from '../hooks/usePdfExport';
-import { LayoutMode, TimelineOrientation } from '../lib/types';
+import {
+  EventLabelOrientation,
+  LayoutMode,
+  TimelineOrientation,
+} from '../lib/types';
 import { validateExcelFile } from '../lib/fileValidation';
 import { getEventDomId } from '../lib/eventDomId';
 import { scrollTimelineEventIntoView } from '../lib/timelineScroll';
 import { useT } from '../i18n/LocaleProvider';
 import { useIsomorphicLayoutEffect } from '../hooks/useIsomorphicLayoutEffect';
 import type { MessageKey } from '../i18n/messages';
+import {
+  readEventLabelOrientationPreference,
+  writeEventLabelOrientationPreference,
+} from '../lib/labelOrientationPreference';
+import {
+  captureTimelineViewportAnchor,
+  restoreTimelineViewportAnchor,
+  type TimelineViewportAnchor,
+} from '../lib/timelineViewportAnchor';
 
 const HELP_URL = 'https://note.com/namida1110/n/nfd97132121ef';
 
@@ -26,6 +39,12 @@ export default function Home() {
   const t = useT();
   const { data, loading, error, warnings, loadExcelFile, clearData } = useSheetLoader();
   const [orientation, setOrientation] = useState<TimelineOrientation>('vertical');
+  const [labelOrientation, setLabelOrientation] =
+    useState<EventLabelOrientation>('vertical');
+  const [labelOrientationPreferenceReady, setLabelOrientationPreferenceReady] =
+    useState(false);
+  const [labelOrientationPending, startLabelOrientationTransition] =
+    React.useTransition();
   const {
     positionedEvents,
     layoutConfig,
@@ -34,8 +53,14 @@ export default function Home() {
     eventColorByName,
     yearHeight,
     setYearHeight,
-  } = useTimelineData(data, orientation);
-  const { exporting, exportError, exportToPdf, clearExportError } = usePdfExport();
+  } = useTimelineData(data, orientation, labelOrientation);
+  const {
+    exporting,
+    exportProgress,
+    exportError,
+    exportToPdf,
+    clearExportError,
+  } = usePdfExport();
 
   const [isDragOver, setIsDragOver] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -44,6 +69,7 @@ export default function Home() {
   const chromeRef = useRef<HTMLDivElement>(null);
   const timelineViewportRef = useRef<HTMLDivElement>(null);
   const searchScrollFrameRef = useRef<number | null>(null);
+  const labelViewportAnchorRef = useRef<TimelineViewportAnchor | null>(null);
   const theme = useTheme();
 
   const [selectedLanes, setSelectedLanes] = useState<string[]>(data?.map((lane) => lane.name) || []);
@@ -54,7 +80,6 @@ export default function Home() {
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('zoom');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMatchIndex, setSearchMatchIndex] = useState(0);
-  const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null);
 
   const orderedData = useMemo(() => {
     if (!data || !laneOrder.length) return data;
@@ -91,8 +116,20 @@ export default function Home() {
     layoutMode,
     yearHeight / 24,
     yearRange,
-    orientation
+    orientation,
+    labelOrientation,
+    layoutConfig
   );
+
+  useIsomorphicLayoutEffect(() => {
+    setLabelOrientation(readEventLabelOrientationPreference());
+    setLabelOrientationPreferenceReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!labelOrientationPreferenceReady) return;
+    writeEventLabelOrientationPreference(labelOrientation);
+  }, [labelOrientation, labelOrientationPreferenceReady]);
 
   // 前ファイルのフィルタが残ったまま新データを描画しないよう、同期的に反映する
   useIsomorphicLayoutEffect(() => {
@@ -108,7 +145,6 @@ export default function Home() {
       setWarningsDismissed(false);
       setSearchQuery('');
       setSearchMatchIndex(0);
-      setHighlightedEventId(null);
       clearExportError();
     }
   }, [data, yearRange, clearExportError]);
@@ -119,11 +155,17 @@ export default function Home() {
     setYearRangeFilter(DEFAULT_YEAR_RANGE);
     setSearchQuery('');
     setSearchMatchIndex(0);
-    setHighlightedEventId(null);
   }, []);
 
   const handleFileDrop = useCallback(
     (file: File): string | null => {
+      if (exporting) {
+        return t('header.pdfBusy');
+      }
+      if (labelOrientationPending) {
+        return t('header.layoutBusy');
+      }
+
       try {
         const validationError = validateExcelFile(file);
         if (validationError) {
@@ -146,7 +188,7 @@ export default function Home() {
         return errorMsg;
       }
     },
-    [clearData, loadExcelFile, resetFilters, t]
+    [clearData, exporting, labelOrientationPending, loadExcelFile, resetFilters, t]
   );
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -176,6 +218,15 @@ export default function Home() {
     dragDepthRef.current = 0;
     setIsDragOver(false);
 
+    if (exporting) {
+      setFileError(t('header.pdfBusy'));
+      return;
+    }
+    if (labelOrientationPending) {
+      setFileError(t('header.layoutBusy'));
+      return;
+    }
+
     const files = Array.from(e.dataTransfer.files);
     if (files.length === 0) {
       setFileError(t('error.noFile'));
@@ -192,6 +243,7 @@ export default function Home() {
   };
 
   const handlePdfExport = () => {
+    if (labelOrientationPending) return;
     exportToPdf('timelineRoot');
   };
 
@@ -227,6 +279,12 @@ export default function Home() {
     return ids;
   }, [searchQuery, displayData, displayEvents]);
 
+  const effectiveSearchMatchIndex =
+    searchMatches.length > 0
+      ? Math.min(searchMatchIndex, searchMatches.length - 1)
+      : 0;
+  const highlightedEventId = searchMatches[effectiveSearchMatchIndex] ?? null;
+
   const scheduleScrollToEvent = useCallback((eventId: string) => {
     if (searchScrollFrameRef.current != null) {
       cancelAnimationFrame(searchScrollFrameRef.current);
@@ -238,15 +296,13 @@ export default function Home() {
   }, []);
 
   React.useEffect(() => {
-    setSearchMatchIndex(0);
-    if (searchMatches.length > 0) {
-      const firstMatch = searchMatches[0];
-      setHighlightedEventId(firstMatch);
-      scheduleScrollToEvent(firstMatch);
-    } else {
-      setHighlightedEventId(null);
+    if (highlightedEventId) {
+      scheduleScrollToEvent(highlightedEventId);
+    } else if (searchScrollFrameRef.current != null) {
+      cancelAnimationFrame(searchScrollFrameRef.current);
+      searchScrollFrameRef.current = null;
     }
-  }, [scheduleScrollToEvent, searchMatches]);
+  }, [highlightedEventId, scheduleScrollToEvent, searchQuery]);
 
   React.useEffect(
     () => () => {
@@ -263,31 +319,77 @@ export default function Home() {
       const normalized = ((index % searchMatches.length) + searchMatches.length) % searchMatches.length;
       const id = searchMatches[normalized];
       setSearchMatchIndex(normalized);
-      setHighlightedEventId(id);
       scheduleScrollToEvent(id);
     },
     [scheduleScrollToEvent, searchMatches]
   );
 
   const handleSearchNext = useCallback(() => {
-    jumpToMatch(searchMatchIndex + 1);
-  }, [jumpToMatch, searchMatchIndex]);
+    jumpToMatch(effectiveSearchMatchIndex + 1);
+  }, [effectiveSearchMatchIndex, jumpToMatch]);
 
   const handleSearchPrev = useCallback(() => {
-    jumpToMatch(searchMatchIndex - 1);
-  }, [jumpToMatch, searchMatchIndex]);
+    jumpToMatch(effectiveSearchMatchIndex - 1);
+  }, [effectiveSearchMatchIndex, jumpToMatch]);
 
-  const handleOrientationChange = useCallback((nextOrientation: TimelineOrientation) => {
-    if (searchScrollFrameRef.current != null) {
-      cancelAnimationFrame(searchScrollFrameRef.current);
-      searchScrollFrameRef.current = null;
-    }
-
-    // 座標系を変える前に旧スクロール位置を破棄する。深い年を表示したまま
-    // DOM を組み替えると、ブラウザがその位置を新しい横軸へ引き継ぐため。
-    timelineViewportRef.current?.scrollTo({ left: 0, top: 0, behavior: 'auto' });
-    setOrientation(nextOrientation);
+  const handleSearchQueryChange = useCallback((query: string) => {
+    setSearchQuery(query);
+    setSearchMatchIndex(0);
   }, []);
+
+  const handleOrientationChange = useCallback(
+    (nextOrientation: TimelineOrientation) => {
+      if (labelOrientationPending || exporting) return;
+
+      if (searchScrollFrameRef.current != null) {
+        cancelAnimationFrame(searchScrollFrameRef.current);
+        searchScrollFrameRef.current = null;
+      }
+
+      // 座標系を変える前に旧スクロール位置を破棄する。深い年を表示したまま
+      // DOM を組み替えると、ブラウザがその位置を新しい横軸へ引き継ぐため。
+      timelineViewportRef.current?.scrollTo({ left: 0, top: 0, behavior: 'auto' });
+      setOrientation(nextOrientation);
+    },
+    [exporting, labelOrientationPending]
+  );
+
+  const handleLabelOrientationChange = useCallback(
+    (nextOrientation: EventLabelOrientation) => {
+      if (
+        nextOrientation === labelOrientation ||
+        labelOrientationPending ||
+        exporting
+      ) {
+        return;
+      }
+
+      const viewport = timelineViewportRef.current;
+      const timeline = viewport?.querySelector<HTMLElement>('#timelineRoot');
+      if (viewport && timeline) {
+        labelViewportAnchorRef.current = captureTimelineViewportAnchor({
+          viewport,
+          timeline,
+          orientation,
+          yearRange: effectiveYearRange,
+          layoutConfig: displayLayout,
+        });
+      }
+
+      startLabelOrientationTransition(() => {
+        setLabelOrientation(nextOrientation);
+      });
+    },
+    [
+      displayLayout,
+      effectiveYearRange,
+      exporting,
+      labelOrientation,
+      labelOrientationPending,
+      orientation,
+      startLabelOrientationTransition,
+    ]
+  );
 
   const warningMessages = warnings.map((w) => t(w.code as MessageKey, w.params));
   const warningSummary =
@@ -301,6 +403,14 @@ export default function Home() {
 
   const displayError = error ? t(error.code, error.params) : null;
   const displayExportError = exportError ? t(exportError.code, exportError.params) : null;
+  const exportProgressPercent =
+    exportProgress && exportProgress.total > 0
+      ? Math.round((exportProgress.completed / exportProgress.total) * 100)
+      : null;
+  const exportStatusMessage =
+    exportProgressPercent == null
+      ? t('header.pdfBusy')
+      : t('header.pdfBusyProgress', { percent: exportProgressPercent });
 
   // 縦横で座標系が変わるため、ブラウザの scroll anchoring に任せず始点へ戻す。
   useIsomorphicLayoutEffect(() => {
@@ -320,6 +430,42 @@ export default function Home() {
     const frameId = requestAnimationFrame(resetScrollPosition);
     return () => cancelAnimationFrame(frameId);
   }, [data, orientation]);
+
+  // ラベル方向だけを変えたときは、同じ年代が同じ画面位置に残るよう復元する。
+  useIsomorphicLayoutEffect(() => {
+    const anchor = labelViewportAnchorRef.current;
+    if (!anchor) return;
+
+    const viewport = timelineViewportRef.current;
+    const timeline = viewport?.querySelector<HTMLElement>('#timelineRoot');
+    if (!viewport || !timeline) {
+      labelViewportAnchorRef.current = null;
+      return;
+    }
+
+    const restore = () =>
+      restoreTimelineViewportAnchor(
+        {
+          viewport,
+          timeline,
+          orientation,
+          yearRange: effectiveYearRange,
+          layoutConfig: displayLayout,
+        },
+        anchor
+      );
+
+    restore();
+    labelViewportAnchorRef.current = null;
+    const frameId = requestAnimationFrame(restore);
+    return () => cancelAnimationFrame(frameId);
+  }, [
+    displayLayout,
+    effectiveYearRange.max,
+    effectiveYearRange.min,
+    labelOrientation,
+    orientation,
+  ]);
 
   useEffect(() => {
     const el = chromeRef.current;
@@ -357,7 +503,27 @@ export default function Home() {
       </h1>
 
       <Box ref={chromeRef} sx={{ flexShrink: 0 }}>
+        {exporting && (
+          <Box
+            role="status"
+            aria-live="polite"
+            sx={{
+              position: 'absolute',
+              width: 1,
+              height: 1,
+              p: 0,
+              m: -1,
+              overflow: 'hidden',
+              clip: 'rect(0, 0, 0, 0)',
+              whiteSpace: 'nowrap',
+              border: 0,
+            }}
+          >
+            {exportStatusMessage}
+          </Box>
+        )}
         <Header
+          key={hasLoadedData ? 'timeline-loaded' : 'timeline-empty'}
           onFileDrop={handleFileDrop}
           onPdfExport={handlePdfExport}
           onYearHeightChange={setYearHeight}
@@ -374,15 +540,20 @@ export default function Home() {
           onLaneSelectionChange={setSelectedLanes}
           onLaneOrderChange={setLaneOrder}
           yearRange={yearRange.min > 0 && yearRange.max > 0 ? yearRange : { min: 1900, max: 2100 }}
+          activeYearRange={yearRangeFilter}
           onYearRangeChange={setYearRangeFilter}
           layoutMode={layoutMode}
           onLayoutModeChange={setLayoutMode}
           orientation={orientation}
           onOrientationChange={handleOrientationChange}
+          labelOrientation={labelOrientation}
+          onLabelOrientationChange={handleLabelOrientationChange}
+          labelOrientationPending={labelOrientationPending}
+          exportProgress={exportProgress}
           searchQuery={searchQuery}
-          onSearchQueryChange={setSearchQuery}
+          onSearchQueryChange={handleSearchQueryChange}
           searchMatchCount={searchMatches.length}
-          searchMatchIndex={searchMatchIndex}
+          searchMatchIndex={effectiveSearchMatchIndex}
           onSearchNext={handleSearchNext}
           onSearchPrev={handleSearchPrev}
         />
@@ -439,6 +610,8 @@ export default function Home() {
                 yearRange={effectiveYearRange}
                 highlightedEventId={highlightedEventId}
                 orientation={orientation}
+                labelOrientation={labelOrientation}
+                pdfExporting={exporting}
               />
             </Box>
           </Box>

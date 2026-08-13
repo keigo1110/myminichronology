@@ -3,6 +3,8 @@ import { AppMessageError } from '../i18n/errors';
 // A4 landscape dimensions in mm
 const A4_LANDSCAPE_WIDTH_MM = 297;
 const A4_LANDSCAPE_HEIGHT_MM = 210;
+const MM_PER_INCH = 25.4;
+export const PDF_TARGET_DPI = 300;
 
 /** ブラウザのキャンバス上限を考慮した目標ピクセル予算 */
 const MAX_CANVAS_DIMENSION = 8192;
@@ -20,92 +22,207 @@ export function computeSafeScale(width: number, height: number, preferredScale =
   return Math.min(preferredScale, maxByDimension, maxByPixels);
 }
 
+export interface PdfCapturePage {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  pdfWidthMm: number;
+  pdfHeightMm: number;
+}
+
+export interface PdfCapturePlan {
+  direction: 'vertical' | 'horizontal';
+  scale: number;
+  pages: PdfCapturePage[];
+}
+
+export type PdfProgressCallback = (completedPages: number, totalPages: number) => void;
+
+export interface PdfBreakInterval {
+  start: number;
+  end: number;
+}
+
+const MIN_SAFE_PAGE_FILL_RATIO = 0.72;
+const PAGE_BREAK_CONTENT_MARGIN_PX = 3;
+
 /**
- * 縦長年表は縦方向にページ分割、横長年表は横方向にページ分割する。
+ * A4 1ページを300dpi相当で直接描画するためのクロップ計画。
+ * 年表全体を先に1枚へ縮小しないので、長大な年表でも文字解像度を維持できる。
  */
-function buildPdfPages(
-  canvas: HTMLCanvasElement,
-  pdf: import('jspdf').jsPDF
-): void {
-  const canvasWidth = canvas.width;
-  const canvasHeight = canvas.height;
-  const pageAspect = A4_LANDSCAPE_WIDTH_MM / A4_LANDSCAPE_HEIGHT_MM;
-  const canvasAspect = canvasWidth / canvasHeight;
-
-  const pageHorizontally = canvasAspect > pageAspect * 1.15;
-
-  const tempCanvas = document.createElement('canvas');
-  const tempCtx = tempCanvas.getContext('2d');
-  if (!tempCtx) {
-    throw new AppMessageError('pdf.canvasFailed');
+export function computePdfCapturePlan(
+  width: number,
+  height: number,
+  targetDpi = PDF_TARGET_DPI
+): PdfCapturePlan {
+  if (width <= 0 || height <= 0) {
+    return { direction: 'vertical', scale: 1, pages: [] };
   }
+
+  const pageAspect = A4_LANDSCAPE_WIDTH_MM / A4_LANDSCAPE_HEIGHT_MM;
+  const elementAspect = width / height;
+  const targetPageWidthPx = (A4_LANDSCAPE_WIDTH_MM / MM_PER_INCH) * targetDpi;
+  const targetPageHeightPx = (A4_LANDSCAPE_HEIGHT_MM / MM_PER_INCH) * targetDpi;
+  const pageHorizontally = elementAspect > pageAspect * 1.15;
+  const pages: PdfCapturePage[] = [];
 
   if (pageHorizontally) {
-    const imageHeightOnPdf = A4_LANDSCAPE_HEIGHT_MM;
-    const imageWidthOnPdf = imageHeightOnPdf * canvasAspect;
-    const totalPages = Math.ceil(imageWidthOnPdf / A4_LANDSCAPE_WIDTH_MM);
-    let widthLeft = imageWidthOnPdf;
+    const pageWidth = height * pageAspect;
+    const preferredScale = targetPageHeightPx / height;
+    const scale = computeSafeScale(Math.min(pageWidth, width), height, preferredScale);
+    const totalPages = Math.ceil(width / pageWidth);
 
-    for (let i = 0; i < totalPages; i++) {
-      if (i > 0) pdf.addPage();
-
-      const pageImageWidth = Math.min(A4_LANDSCAPE_WIDTH_MM, widthLeft);
-      const imageSrcX = i * A4_LANDSCAPE_WIDTH_MM * (canvasWidth / imageWidthOnPdf);
-      const imageSrcWidth = pageImageWidth * (canvasWidth / imageWidthOnPdf);
-
-      tempCanvas.width = Math.max(1, Math.ceil(imageSrcWidth));
-      tempCanvas.height = canvasHeight;
-      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-      tempCtx.drawImage(
-        canvas,
-        imageSrcX,
-        0,
-        imageSrcWidth,
-        canvasHeight,
-        0,
-        0,
-        imageSrcWidth,
-        canvasHeight
-      );
-
-      const imgData = tempCanvas.toDataURL('image/jpeg', 0.92);
-      pdf.addImage(imgData, 'JPEG', 0, 0, pageImageWidth, imageHeightOnPdf, undefined, 'FAST');
-      widthLeft -= A4_LANDSCAPE_WIDTH_MM;
+    for (let index = 0; index < totalPages; index += 1) {
+      const x = index * pageWidth;
+      const sliceWidth = Math.min(pageWidth, width - x);
+      pages.push({
+        x,
+        y: 0,
+        width: sliceWidth,
+        height,
+        pdfWidthMm: (sliceWidth / height) * A4_LANDSCAPE_HEIGHT_MM,
+        pdfHeightMm: A4_LANDSCAPE_HEIGHT_MM,
+      });
     }
-    return;
+
+    return { direction: 'horizontal', scale, pages };
   }
 
-  const imageWidthOnPdf = A4_LANDSCAPE_WIDTH_MM;
-  const imageHeightOnPdf = imageWidthOnPdf / canvasAspect;
-  const totalPages = Math.ceil(imageHeightOnPdf / A4_LANDSCAPE_HEIGHT_MM);
-  let heightLeft = imageHeightOnPdf;
+  const pageHeight = width / pageAspect;
+  const preferredScale = targetPageWidthPx / width;
+  const scale = computeSafeScale(width, Math.min(pageHeight, height), preferredScale);
+  const totalPages = Math.ceil(height / pageHeight);
 
-  for (let i = 0; i < totalPages; i++) {
-    if (i > 0) pdf.addPage();
+  for (let index = 0; index < totalPages; index += 1) {
+    const y = index * pageHeight;
+    const sliceHeight = Math.min(pageHeight, height - y);
+    pages.push({
+      x: 0,
+      y,
+      width,
+      height: sliceHeight,
+      pdfWidthMm: A4_LANDSCAPE_WIDTH_MM,
+      pdfHeightMm: (sliceHeight / width) * A4_LANDSCAPE_WIDTH_MM,
+    });
+  }
 
-    const pageImageHeight = Math.min(A4_LANDSCAPE_HEIGHT_MM, heightLeft);
-    const imageSrcY = i * A4_LANDSCAPE_HEIGHT_MM * (canvasHeight / imageHeightOnPdf);
-    const imageSrcHeight = pageImageHeight * (canvasHeight / imageHeightOnPdf);
+  return { direction: 'vertical', scale, pages };
+}
 
-    tempCanvas.width = canvasWidth;
-    tempCanvas.height = Math.max(1, Math.ceil(imageSrcHeight));
-    tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-    tempCtx.drawImage(
-      canvas,
-      0,
-      imageSrcY,
-      canvasWidth,
-      imageSrcHeight,
-      0,
-      0,
-      canvasWidth,
-      imageSrcHeight
+function mergeBreakIntervals(
+  intervals: PdfBreakInterval[],
+  axisSize: number
+): PdfBreakInterval[] {
+  const sorted = intervals
+    .filter(
+      ({ start, end }) =>
+        Number.isFinite(start) && Number.isFinite(end) && end > start
+    )
+    .map(({ start, end }) => ({
+      start: Math.max(0, Math.min(axisSize, start)),
+      end: Math.max(0, Math.min(axisSize, end)),
+    }))
+    .filter(({ start, end }) => end > start)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+
+  const merged: PdfBreakInterval[] = [];
+  for (const interval of sorted) {
+    const previous = merged[merged.length - 1];
+    if (!previous || interval.start > previous.end) {
+      merged.push({ ...interval });
+    } else {
+      previous.end = Math.max(previous.end, interval.end);
+    }
+  }
+  return merged;
+}
+
+/**
+ * 文字や画像の途中を避けて、固定A4境界を少し手前へ移動する。
+ * 長大な1要素がページの大半を占める場合だけは、空白過多を避けて元の境界を使う。
+ */
+export function avoidPdfContentBreaks(
+  basePlan: PdfCapturePlan,
+  axisSize: number,
+  intervals: PdfBreakInterval[],
+  minimumFillRatio = MIN_SAFE_PAGE_FILL_RATIO
+): PdfCapturePlan {
+  if (basePlan.pages.length <= 1 || intervals.length === 0 || axisSize <= 0) {
+    return basePlan;
+  }
+
+  const isVertical = basePlan.direction === 'vertical';
+  const maxPageSpan = isVertical
+    ? basePlan.pages[0].height
+    : basePlan.pages[0].width;
+  const crossSize = isVertical
+    ? basePlan.pages[0].width
+    : basePlan.pages[0].height;
+  const mergedIntervals = mergeBreakIntervals(intervals, axisSize);
+  const pages: PdfCapturePage[] = [];
+  let start = 0;
+
+  while (axisSize - start > maxPageSpan + 0.01) {
+    const plannedEnd = start + maxPageSpan;
+    let safeEnd = plannedEnd;
+
+    // 重なった区間を統合済みなので、候補を区間の先頭へ戻せば安全位置になる。
+    const blocker = mergedIntervals.find(
+      (interval) => interval.start < safeEnd && safeEnd < interval.end
     );
+    if (blocker) {
+      const candidate = blocker.start;
+      if (candidate - start >= maxPageSpan * minimumFillRatio) {
+        safeEnd = candidate;
+      }
+    }
 
-    const imgData = tempCanvas.toDataURL('image/jpeg', 0.92);
-    pdf.addImage(imgData, 'JPEG', 0, 0, imageWidthOnPdf, pageImageHeight, undefined, 'FAST');
-    heightLeft -= A4_LANDSCAPE_HEIGHT_MM;
+    const span = Math.max(1, safeEnd - start);
+    pages.push(
+      isVertical
+        ? {
+            x: 0,
+            y: start,
+            width: crossSize,
+            height: span,
+            pdfWidthMm: A4_LANDSCAPE_WIDTH_MM,
+            pdfHeightMm: (span / crossSize) * A4_LANDSCAPE_WIDTH_MM,
+          }
+        : {
+            x: start,
+            y: 0,
+            width: span,
+            height: crossSize,
+            pdfWidthMm: (span / crossSize) * A4_LANDSCAPE_HEIGHT_MM,
+            pdfHeightMm: A4_LANDSCAPE_HEIGHT_MM,
+          }
+    );
+    start = safeEnd;
   }
+
+  const finalSpan = Math.max(1, axisSize - start);
+  pages.push(
+    isVertical
+      ? {
+          x: 0,
+          y: start,
+          width: crossSize,
+          height: finalSpan,
+          pdfWidthMm: A4_LANDSCAPE_WIDTH_MM,
+          pdfHeightMm: (finalSpan / crossSize) * A4_LANDSCAPE_WIDTH_MM,
+        }
+      : {
+          x: start,
+          y: 0,
+          width: finalSpan,
+          height: crossSize,
+          pdfWidthMm: (finalSpan / crossSize) * A4_LANDSCAPE_HEIGHT_MM,
+          pdfHeightMm: A4_LANDSCAPE_HEIGHT_MM,
+        }
+  );
+
+  return { ...basePlan, pages };
 }
 
 /**
@@ -159,7 +276,108 @@ export function normalizeTimelineCloneForPdf(element: HTMLElement): void {
   }
 }
 
-export async function exportPdf(elementId: string): Promise<void> {
+function collectPdfBreakIntervals(
+  element: HTMLElement,
+  direction: PdfCapturePlan['direction']
+): PdfBreakInterval[] {
+  const rootRect = element.getBoundingClientRect();
+  const isVertical = direction === 'vertical';
+  const candidates = element.querySelectorAll<HTMLElement>(
+    '[data-event-label] .MuiTypography-root, [data-event-label] img, [data-year-label="true"]'
+  );
+
+  return Array.from(candidates, (candidate) => {
+    const rect = candidate.getBoundingClientRect();
+    const start = isVertical
+      ? rect.top - rootRect.top
+      : rect.left - rootRect.left;
+    const end = isVertical
+      ? rect.bottom - rootRect.top
+      : rect.right - rootRect.left;
+    return {
+      start: start - PAGE_BREAK_CONTENT_MARGIN_PX,
+      end: end + PAGE_BREAK_CONTENT_MARGIN_PX,
+    };
+  });
+}
+
+async function capturePdfPages(
+  element: HTMLElement,
+  html2canvas: typeof import('html2canvas').default,
+  pdf: import('jspdf').jsPDF,
+  onProgress?: PdfProgressCallback
+): Promise<void> {
+  const elementWidth = element.scrollWidth;
+  const elementHeight = element.scrollHeight;
+  const basePlan = computePdfCapturePlan(elementWidth, elementHeight);
+  const plan = avoidPdfContentBreaks(
+    basePlan,
+    basePlan.direction === 'vertical' ? elementHeight : elementWidth,
+    collectPdfBreakIntervals(element, basePlan.direction)
+  );
+
+  if (plan.pages.length === 0) {
+    throw new AppMessageError('pdf.canvasFailed');
+  }
+
+  onProgress?.(0, plan.pages.length);
+
+  for (let index = 0; index < plan.pages.length; index += 1) {
+    const page = plan.pages[index];
+    const canvas = await html2canvas(element, {
+      scale: plan.scale,
+      x: page.x,
+      y: page.y,
+      width: page.width,
+      height: page.height,
+      windowWidth: elementWidth,
+      windowHeight: Math.ceil(page.height),
+      scrollX: 0,
+      scrollY: 0,
+      useCORS: true,
+      // taint されたキャンバスは toDataURL が失敗するため許可しない
+      allowTaint: false,
+      backgroundColor: '#ffffff',
+      logging: false,
+      ignoreElements: (candidate) => candidate.classList.contains('pdf-export-ignore'),
+      onclone: (_clonedDocument, clonedElement) => {
+        normalizeTimelineCloneForPdf(clonedElement);
+      },
+    });
+
+    if (index > 0) pdf.addPage();
+
+    // 小さい日本語文字の輪郭を保つため、JPEGではなく可逆PNGで格納する。
+    const imageData = canvas.toDataURL('image/png');
+    pdf.addImage(
+      imageData,
+      'PNG',
+      0,
+      0,
+      page.pdfWidthMm,
+      page.pdfHeightMm,
+      undefined,
+      'FAST'
+    );
+
+    // 次ページの描画前に大きなピクセルバッファを解放する。
+    canvas.width = 1;
+    canvas.height = 1;
+
+    onProgress?.(index + 1, plan.pages.length);
+
+    // 長い年表でも進捗リングがページ間で再描画できるようイベントループへ譲る。
+    // 背景タブで停止し得る requestAnimationFrame は使わない。
+    if (index + 1 < plan.pages.length) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+  }
+}
+
+export async function exportPdf(
+  elementId: string,
+  onProgress?: PdfProgressCallback
+): Promise<void> {
   const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
     import('html2canvas'),
     import('jspdf'),
@@ -177,24 +395,7 @@ export async function exportPdf(elementId: string): Promise<void> {
     element.classList.add('pdf-export');
 
     restoreTimelineScroll = resetTimelineScroll(element);
-
-    const scale = computeSafeScale(element.scrollWidth, element.scrollHeight, 3);
-
-    const canvas = await html2canvas(element, {
-      scale,
-      useCORS: true,
-      // taint されたキャンバスは toDataURL が失敗するため許可しない
-      allowTaint: false,
-      backgroundColor: '#ffffff',
-      logging: false,
-      ignoreElements: (el) => el.classList.contains('pdf-export-ignore'),
-      onclone: (clonedDocument) => {
-        const clonedElement = clonedDocument.getElementById(elementId);
-        if (clonedElement) {
-          normalizeTimelineCloneForPdf(clonedElement);
-        }
-      },
-    });
+    await document.fonts.ready;
 
     const pdf = new jsPDF({
       orientation: 'landscape',
@@ -202,7 +403,7 @@ export async function exportPdf(elementId: string): Promise<void> {
       format: 'a4',
     });
 
-    buildPdfPages(canvas, pdf);
+    await capturePdfPages(element, html2canvas, pdf, onProgress);
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     pdf.save(`timeline-export-${timestamp}.pdf`);

@@ -4,13 +4,6 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['@mui/material', '@mui/icons-material'],
   },
-  webpack: (config) => {
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      fs: false,
-    };
-    return config;
-  },
   async rewrites() {
     // 旧来の /favicon.ico リクエストは public/favicon.jpg で応答する
     return [

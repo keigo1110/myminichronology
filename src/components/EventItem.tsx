@@ -1,8 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Box, Typography, Tooltip, useTheme } from '@mui/material';
-import { PositionedEvent, TimelineOrientation } from '../lib/types';
+import {
+  PositionedEvent,
+  TimelineOrientation,
+  EventLabelOrientation,
+} from '../lib/types';
 import { DEFAULT_EVENT_COLOR } from '../lib/parseExcel';
 import { pickReadableTextColor } from '../lib/colorPalette';
 import {
@@ -29,6 +33,7 @@ interface EventItemProps {
   eventId?: string;
   highlighted?: boolean;
   orientation?: TimelineOrientation;
+  labelOrientation?: EventLabelOrientation;
 }
 
 function parseStyleHeight(style?: React.CSSProperties): number {
@@ -53,10 +58,6 @@ function EventImageThumb({
   const theme = useTheme();
   const t = useT();
   const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    setFailed(false);
-  }, [src]);
 
   return (
     <Box
@@ -116,11 +117,12 @@ export function EventItem({
   eventId,
   highlighted = false,
   orientation = 'vertical',
+  labelOrientation = 'vertical',
 }: EventItemProps) {
   const theme = useTheme();
   const t = useT();
   const isHorizontal = orientation === 'horizontal';
-  const isPointEvent = !event.end;
+  const isPointEvent = event.end == null;
   const isRangeEvent = !isPointEvent && event.displayStyle !== 'label';
   const isLabelStyle = event.displayStyle === 'label';
   const isInteractive = Boolean(onClick);
@@ -128,17 +130,24 @@ export function EventItem({
 
   const layoutHeight = Math.max(parseStyleHeight(style), EVENT_ITEM_MIN_HEIGHT);
   const width = Math.max(parseStyleWidth(style), isLabelStyle ? EVENT_ITEM_MIN_HEIGHT : 0);
+  const allowsVerticalLabels = labelOrientation === 'vertical';
+  const usesLargerDefaultFont =
+    isLabelStyle ||
+    (allowsVerticalLabels &&
+      !isHorizontal &&
+      layoutHeight >= VERTICAL_RANGE_HEIGHT_THRESHOLD);
 
   const fontSizePx =
     event.fontSize ??
-    (isLabelStyle || (!isHorizontal && layoutHeight >= VERTICAL_RANGE_HEIGHT_THRESHOLD)
+    (usesLargerDefaultFont
       ? DEFAULT_VERTICAL_FONT_SIZE_PX
       : DEFAULT_FONT_SIZE_PX);
 
   const height = Math.max(layoutHeight, Math.ceil(fontSizePx * 1.25) + 6);
   const useVertical =
-    isLabelStyle ||
-    (!isHorizontal && isRangeEvent && height >= VERTICAL_RANGE_HEIGHT_THRESHOLD);
+    allowsVerticalLabels &&
+    (isLabelStyle ||
+      (!isHorizontal && isRangeEvent && height >= VERTICAL_RANGE_HEIGHT_THRESHOLD));
   const isCompact = !useVertical && height < 40;
 
   const accentColor = event.color || color || DEFAULT_EVENT_COLOR;
@@ -186,15 +195,16 @@ export function EventItem({
         lineHeight: 1.25,
         letterSpacing: useVertical ? '0.1em' : '0.01em',
         writingMode: useVertical ? 'vertical-rl' : 'horizontal-tb',
-        textOrientation: isLabelStyle ? 'upright' : 'mixed',
+        textOrientation: useVertical && isLabelStyle ? 'upright' : 'mixed',
         whiteSpace: useVertical || isCompact ? 'nowrap' : 'normal',
         overflow: 'hidden',
         textOverflow: isCompact ? 'ellipsis' : 'clip',
         display: 'block',
         wordBreak: 'break-word',
-        flex: '0 0 auto',
+        overflowWrap: 'anywhere',
+        flex: useVertical ? '0 0 auto' : '1 1 auto',
         width: labelTextWidth,
-        minWidth: useVertical ? `${verticalTextWidthPx}px` : undefined,
+        minWidth: useVertical ? `${verticalTextWidthPx}px` : 0,
         maxWidth: useVertical ? `${verticalTextWidthPx}px` : '100%',
         alignSelf: useVertical ? 'stretch' : undefined,
         height: useVertical ? '100%' : 'auto',
@@ -217,6 +227,7 @@ export function EventItem({
         aria-label={eventLabel}
         aria-current={highlighted ? 'true' : undefined}
         data-event-label={event.label}
+        data-event-label-orientation={useVertical ? 'vertical' : 'horizontal'}
         sx={{
           ...style,
           width: width > 0 ? `${width}px` : style?.width,
@@ -292,7 +303,7 @@ export function EventItem({
         )}
 
         {isLabelStyle && hasImage && event.imageUrl && (
-          <EventImageThumb src={event.imageUrl} alt="" />
+          <EventImageThumb key={event.imageUrl} src={event.imageUrl} alt="" />
         )}
 
         {wrapWithImageRow || wrapWithImageColumn ? (
@@ -308,11 +319,11 @@ export function EventItem({
             }}
           >
             {hasImage && event.imageUrl && !imageBelow && (
-              <EventImageThumb src={event.imageUrl} alt="" />
+              <EventImageThumb key={event.imageUrl} src={event.imageUrl} alt="" />
             )}
             {labelTypography}
             {hasImage && event.imageUrl && imageBelow && (
-              <EventImageThumb src={event.imageUrl} alt="" />
+              <EventImageThumb key={event.imageUrl} src={event.imageUrl} alt="" />
             )}
           </Box>
         ) : (

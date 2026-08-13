@@ -5,6 +5,7 @@ import type {
   LayoutMode,
   DynamicLayoutConfig,
   TimelineOrientation,
+  EventLabelOrientation,
 } from '../lib/types';
 import { computeLayout, layoutOccupancyEnd } from '../lib/computeLayout';
 
@@ -27,7 +28,9 @@ export function useFilteredEvents(
   layoutMode: LayoutMode = 'zoom',
   yearHeightScale: number = 1,
   baseYearRange: { min: number; max: number } = { min: 0, max: 0 },
-  orientation: TimelineOrientation = 'vertical'
+  orientation: TimelineOrientation = 'vertical',
+  labelOrientation: EventLabelOrientation = 'vertical',
+  baseLayoutConfig?: DynamicLayoutConfig
 ): FilteredEventsResult {
   const [filterStart, filterEnd] = filters.yearRange;
   const { min: baseMinYear, max: baseMaxYear } = baseYearRange;
@@ -43,8 +46,31 @@ export function useFilteredEvents(
       };
     }
 
-    const filteredData: TimelineData = [];
     const selectedLaneSet = new Set<string>(JSON.parse(selectedLanesKey));
+    const coversFullRange =
+      baseMaxYear > baseMinYear &&
+      filterStart <= baseMinYear &&
+      filterEnd >= baseMaxYear;
+    const includesEveryLane =
+      selectedLaneSet.size === data.length &&
+      data.every((lane) => selectedLaneSet.has(lane.name));
+
+    // 通常表示では useTimelineData の結果を再利用し、500件超の配置計算を二重にしない。
+    if (
+      baseLayoutConfig &&
+      coversFullRange &&
+      includesEveryLane &&
+      _positionedEvents.length === data.length
+    ) {
+      return {
+        filteredData: data,
+        filteredPositionedEvents: _positionedEvents,
+        layoutConfig: baseLayoutConfig,
+        yearRange: { min: baseMinYear, max: baseMaxYear },
+      };
+    }
+
+    const filteredData: TimelineData = [];
 
     data.forEach((lane) => {
       if (!selectedLaneSet.has(lane.name)) {
@@ -90,7 +116,13 @@ export function useFilteredEvents(
       positionedEvents: recomputedEvents,
       layoutConfig: recomputedLayout,
       yearRange: recomputedYearRange,
-    } = computeLayout(filteredData, yearHeightScale, overrideRange, orientation);
+    } = computeLayout(
+      filteredData,
+      yearHeightScale,
+      overrideRange,
+      orientation,
+      labelOrientation
+    );
 
     return {
       filteredData,
@@ -113,5 +145,8 @@ export function useFilteredEvents(
     baseMinYear,
     baseMaxYear,
     orientation,
+    labelOrientation,
+    _positionedEvents,
+    baseLayoutConfig,
   ]);
 }

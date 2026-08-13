@@ -133,7 +133,7 @@ export function parseColorValue(value: unknown): string | undefined | 'invalid' 
 
 /**
  * F列の表示スタイル。
- * `label` / `ラベル` → ボックス縦ラベル。空欄は default。
+ * `label` / `ラベル` → 塗り付きラベルボックス。書字方向は画面で切替可能。空欄は default。
  */
 export function parseDisplayStyleValue(
   value: unknown

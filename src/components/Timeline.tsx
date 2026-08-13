@@ -7,6 +7,7 @@ import type {
   PositionedEvent,
   DynamicLayoutConfig,
   TimelineOrientation,
+  EventLabelOrientation,
 } from '../lib/types';
 import { LaneColumn } from './LaneColumn';
 import { LaneHeaderRow } from './LaneHeaderRow';
@@ -30,6 +31,8 @@ interface TimelineProps {
   onEventClick?: (event: PositionedEvent) => void;
   highlightedEventId?: string | null;
   orientation?: TimelineOrientation;
+  labelOrientation?: EventLabelOrientation;
+  pdfExporting?: boolean;
 }
 
 /**
@@ -60,6 +63,8 @@ export function Timeline({
   onEventClick,
   highlightedEventId = null,
   orientation = 'vertical',
+  labelOrientation = 'vertical',
+  pdfExporting = false,
 }: TimelineProps) {
   const theme = useTheme();
   const sheet = theme.palette.chronology.sheet;
@@ -116,6 +121,8 @@ export function Timeline({
     return (
       <Box
         id="timelineRoot"
+        className={pdfExporting ? 'pdf-export' : undefined}
+        data-event-label-orientation={labelOrientation}
         sx={{
           width: `${totalWidth}px`,
           minHeight: timelineHeight,
@@ -173,6 +180,7 @@ export function Timeline({
               timelineHeight={resolvedLaneHeights[index]}
               highlightedEventId={highlightedEventId}
               orientation="horizontal"
+              labelOrientation={labelOrientation}
               showLaneLabel
               laneLabelWidth={laneLabelWidth}
               yearTicks={yearTicks}
@@ -198,6 +206,8 @@ export function Timeline({
   return (
     <Box
       id="timelineRoot"
+      className={pdfExporting ? 'pdf-export' : undefined}
+      data-event-label-orientation={labelOrientation}
       sx={{
         // 600px 未満では重複する右軸を隠し、その分の空白も残さない。
         width: { xs: `${mobileTimelineWidth}px`, sm: `${totalWidth}px` },
@@ -277,6 +287,7 @@ export function Timeline({
               timelineHeight={contentHeight}
               highlightedEventId={highlightedEventId}
               orientation="vertical"
+              labelOrientation={labelOrientation}
               yearTicks={yearTicks}
               yearScale={yearScale}
             />

@@ -1,11 +1,17 @@
 import { useState, useMemo } from 'react';
-import type { TimelineData, PositionedEvent, TimelineOrientation } from '../lib/types';
+import type {
+  TimelineData,
+  PositionedEvent,
+  TimelineOrientation,
+  EventLabelOrientation,
+} from '../lib/types';
 import { computeLayout, calculateTimelineHeight, calculateTimelineWidth } from '../lib/computeLayout';
 import { chronologyLaneBackgrounds } from '../lib/colorPalette';
 
 export function useTimelineData(
   data: TimelineData | null,
-  orientation: TimelineOrientation = 'vertical'
+  orientation: TimelineOrientation = 'vertical',
+  labelOrientation: EventLabelOrientation = 'vertical'
 ) {
   const [yearHeight, setYearHeight] = useState(24);
 
@@ -25,20 +31,29 @@ export function useTimelineData(
       };
     }
     const yearHeightScale = yearHeight / 24;
-    return computeLayout(data, yearHeightScale, undefined, orientation);
-  }, [data, yearHeight, orientation]);
+    return computeLayout(
+      data,
+      yearHeightScale,
+      undefined,
+      orientation,
+      labelOrientation
+    );
+  }, [data, yearHeight, orientation, labelOrientation]);
 
   const { positionedEvents, layoutConfig, yearRange } = layoutResult;
 
   const timelineHeight = useMemo(() => {
     if (!data) return 800;
-    return layoutConfig.timelineHeight || calculateTimelineHeight(data);
-  }, [data, layoutConfig.timelineHeight]);
+    return (
+      layoutConfig.timelineHeight ||
+      calculateTimelineHeight(data, yearHeight / 24, labelOrientation)
+    );
+  }, [data, labelOrientation, layoutConfig.timelineHeight, yearHeight]);
 
   const timelineWidth = useMemo(() => {
     if (!data) return 120;
-    return layoutConfig.totalWidth || calculateTimelineWidth(data);
-  }, [data, layoutConfig.totalWidth]);
+    return layoutConfig.totalWidth || calculateTimelineWidth(data, labelOrientation);
+  }, [data, labelOrientation, layoutConfig.totalWidth]);
 
   const laneColorByName = useMemo(() => {
     const map: Record<string, string> = {};
