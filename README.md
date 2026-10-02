@@ -8,17 +8,19 @@ Excel ファイルにまとめた **年 / 範囲 / 出来事** のデータを�
 - **年表可視化**: 点イベントと期間イベント（縦バー）、`label` スタイルの塗りボックス
 - **ラベル方向切替**: 出来事ラベルをワンボタンで縦書き／横書きに切替（設定をブラウザに保存）
 - **レーン操作**: 最大 5 シート、表示切替・並び替え
+- **詳細表示**: 出来事をクリック、または Enter / Space で全文を表示
 - **年代フィルタ**: 「拡大して再配置」/「位置はそのまま」の2モード
 - **出来事検索**: 表示中の範囲・レーン内だけを検索してジャンプ
 - **PDF エクスポート**: A4 横向き・300dpi 相当で自動分割
 - **年間高さ調整**: 8px〜120px
 - **読み込み警告**: スキップ行・シート切り捨てなどを画面に表示
+- **大量データ対応**: 解析は Web Worker、画面は表示範囲だけを描画。読み込み失敗時は元の年表を保持
 
 ## セットアップ
 
 ### 前提条件
 
-- Node.js 20.19.0 以上（22 LTS 推奨）
+- Node.js 20.19以上の20系、22.13以上の22系、または24以上（22 / 24 LTS 推奨）
 - npm
 
 ### インストール
@@ -41,7 +43,7 @@ npm run dev
 
 ## 使い方
 
-1. Excel（`.xlsx`、最大 10MB）をドロップ、またはヘッダーのアップロードボタンから選択
+1. Excel（`.xlsx`、最大 10MB・先頭5シート・合計5,000件）をドロップ、またはヘッダーのアップロードボタンから選択
 2. 必要なら年代範囲・レーン表示を調整
 3. 「PDF エクスポート」でダウンロード
 
@@ -62,6 +64,8 @@ npm run test:ci          # 一回実行
 npm test                 # watch
 npm run typecheck
 npm run lint
+npx playwright install chromium
+npm run build && npm run test:e2e   # 実ブラウザ・PDF描画の回帰テスト
 ```
 
 ## デプロイ
@@ -84,16 +88,19 @@ npm run lint
 | D | フォントサイズ（px） | 任意 |
 | E | 色 | 任意 |
 | F | 表示スタイル（`label` 等） | 任意 |
+| G | 画像リンク（https URL） | 任意 |
+
+各シートはヘッダーを除き最大20,000行、出来事の文字数は1件2,000文字・合計250,000文字までです。年代は1〜9999年、全体の年幅は2,000年まで。PDFは開始時の状態を固定し、PNGで最大200ページに分割します。生成中は中止でき、取得できない画像は代替表示と保存後の通知で確認できます。スマートフォンでは表示設定を閉じて年表を広く表示し、設定ボタンから検索・レーン操作を開けます。
 
 見本（利用者向け）: [public/template_sample.xlsx](./public/template_sample.xlsx)  
 検証用: [public/template_test.xlsx](./public/template_test.xlsx)
 
 ## 技術スタック（概要）
 
-- Next.js 15 / React 19 / TypeScript
+- Next.js 16 / React 19 / TypeScript
 - Material-UI 7
 - d3-scale / xlsx / html2canvas / jsPDF
-- Vitest + Testing Library
+- Vitest + Testing Library / Playwright
 
 詳細は [technologystack.md](./technologystack.md)、構成は [directorystructure.md](./directorystructure.md)。
 

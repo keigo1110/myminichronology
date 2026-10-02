@@ -1,4 +1,10 @@
 import { AppMessageError } from '../i18n/errors';
+import { createPdfSnapshot } from './pdfSnapshot';
+import { freezePdfImages } from './pdfImages';
+import { abortable } from './abortable';
+import type { StoredAppError } from '../i18n/errors';
+
+export const MAX_PDF_PAGES = 200;
 
 // A4 landscape dimensions in mm
 const A4_LANDSCAPE_WIDTH_MM = 297;
@@ -59,6 +65,9 @@ export function computePdfCapturePlan(
   if (width <= 0 || height <= 0) {
     return { direction: 'vertical', scale: 1, pages: [] };
   }
+  if (!Number.isFinite(width) || !Number.isFinite(height) || !Number.isFinite(targetDpi) || targetDpi <= 0) {
+    throw new AppMessageError('pdf.canvasFailed');
+  }
 
   const pageAspect = A4_LANDSCAPE_WIDTH_MM / A4_LANDSCAPE_HEIGHT_MM;
   const elementAspect = width / height;
@@ -72,6 +81,7 @@ export function computePdfCapturePlan(
     const preferredScale = targetPageHeightPx / height;
     const scale = computeSafeScale(Math.min(pageWidth, width), height, preferredScale);
     const totalPages = Math.ceil(width / pageWidth);
+    if (totalPages > MAX_PDF_PAGES) throw new AppMessageError('pdf.tooManyPages', { limit: MAX_PDF_PAGES });
 
     for (let index = 0; index < totalPages; index += 1) {
       const x = index * pageWidth;
@@ -93,6 +103,7 @@ export function computePdfCapturePlan(
   const preferredScale = targetPageWidthPx / width;
   const scale = computeSafeScale(width, Math.min(pageHeight, height), preferredScale);
   const totalPages = Math.ceil(height / pageHeight);
+  if (totalPages > MAX_PDF_PAGES) throw new AppMessageError('pdf.tooManyPages', { limit: MAX_PDF_PAGES });
 
   for (let index = 0; index < totalPages; index += 1) {
     const y = index * pageHeight;
@@ -198,6 +209,7 @@ export function avoidPdfContentBreaks(
             pdfHeightMm: A4_LANDSCAPE_HEIGHT_MM,
           }
     );
+    if (pages.length >= MAX_PDF_PAGES) throw new AppMessageError('pdf.tooManyPages', { limit: MAX_PDF_PAGES });
     start = safeEnd;
   }
 
@@ -262,13 +274,15 @@ function resetTimelineScroll(element: HTMLElement): () => void {
  * 年代軸を文書フローへ戻し、画面幅に関係なく印刷版の実端へ配置する。
  */
 export function normalizeTimelineCloneForPdf(element: HTMLElement): void {
-  element.querySelectorAll<HTMLElement>('[data-year-axis]').forEach((axis) => {
+  element.querySelectorAll<HTMLElement>('[data-year-axis], [data-lane-header-row], [data-lane-label]').forEach((axis) => {
     axis.style.position = 'relative';
     axis.style.top = 'auto';
     axis.style.right = 'auto';
     axis.style.bottom = 'auto';
     axis.style.left = 'auto';
   });
+  const header = element.querySelector<HTMLElement>('[data-lane-header-row]');
+  if (header?.parentElement && header.parentElement !== element) header.parentElement.style.position = 'relative';
 
   const rightAxis = element.querySelector<HTMLElement>('[data-year-axis="right"]');
   if (rightAxis) {
@@ -305,7 +319,8 @@ async function capturePdfPages(
   element: HTMLElement,
   html2canvas: typeof import('html2canvas').default,
   pdf: import('jspdf').jsPDF,
-  onProgress?: PdfProgressCallback
+  onProgress?: PdfProgressCallback,
+  signal?: AbortSignal
 ): Promise<void> {
   const elementWidth = element.scrollWidth;
   const elementHeight = element.scrollHeight;
@@ -319,10 +334,14 @@ async function capturePdfPages(
   if (plan.pages.length === 0) {
     throw new AppMessageError('pdf.canvasFailed');
   }
+  if (plan.pages.length > MAX_PDF_PAGES) {
+    throw new AppMessageError('pdf.tooManyPages', { limit: MAX_PDF_PAGES });
+  }
 
   onProgress?.(0, plan.pages.length);
 
   for (let index = 0; index < plan.pages.length; index += 1) {
+    signal?.throwIfAborted();
     const page = plan.pages[index];
     const canvas = await html2canvas(element, {
       scale: plan.scale,
@@ -344,6 +363,10 @@ async function capturePdfPages(
         normalizeTimelineCloneForPdf(clonedElement);
       },
     });
+    if (signal?.aborted) {
+      canvas.width = 1; canvas.height = 1;
+      signal.throwIfAborted();
+    }
 
     if (index > 0) pdf.addPage();
 
@@ -376,15 +399,20 @@ async function capturePdfPages(
 
 export async function exportPdf(
   elementId: string,
-  onProgress?: PdfProgressCallback
+  onProgress?: PdfProgressCallback,
+  options: { signal?: AbortSignal; missingImageLabel?: string; onWarning?: (warning: StoredAppError) => void } = {}
 ): Promise<void> {
-  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+  const { signal } = options;
+  signal?.throwIfAborted();
+  const [{ default: html2canvas }, { default: jsPDF }] = await abortable(Promise.all([
     import('html2canvas'),
     import('jspdf'),
-  ]);
+  ]), signal);
 
   let element: HTMLElement | null = null;
   let restoreTimelineScroll: (() => void) | null = null;
+  let snapshot: ReturnType<typeof createPdfSnapshot> | null = null;
+  let hadExportClass = false;
 
   try {
     element = document.getElementById(elementId);
@@ -392,10 +420,17 @@ export async function exportPdf(
       throw new AppMessageError('pdf.elementMissing');
     }
 
+    hadExportClass = element.classList.contains('pdf-export');
     element.classList.add('pdf-export');
 
     restoreTimelineScroll = resetTimelineScroll(element);
-    await document.fonts.ready;
+    await abortable(document.fonts?.ready ?? Promise.resolve(), signal);
+    snapshot = createPdfSnapshot(element);
+    normalizeTimelineCloneForPdf(snapshot.element);
+    await abortable(snapshot.element.ownerDocument.fonts?.ready ?? Promise.resolve(), signal);
+    // 巨大なPDFは画像を取得する前に拒否する。
+    computePdfCapturePlan(snapshot.element.scrollWidth, snapshot.element.scrollHeight);
+    const missing = await freezePdfImages(snapshot.element, options.missingImageLabel ?? 'Image unavailable', signal);
 
     const pdf = new jsPDF({
       orientation: 'landscape',
@@ -403,11 +438,14 @@ export async function exportPdf(
       format: 'a4',
     });
 
-    await capturePdfPages(element, html2canvas, pdf, onProgress);
+    await capturePdfPages(snapshot.element, html2canvas, pdf, onProgress, signal);
+    signal?.throwIfAborted();
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     pdf.save(`timeline-export-${timestamp}.pdf`);
+    if (missing) options.onWarning?.({ code: 'pdf.imagesOmitted', params: { count: missing } });
   } catch (error) {
+    if (signal?.aborted) throw signal.reason;
     if (error instanceof AppMessageError) {
       throw error;
     }
@@ -416,7 +454,8 @@ export async function exportPdf(
     }
     throw new AppMessageError('pdf.exportFailedGeneric');
   } finally {
-    element?.classList.remove('pdf-export');
+    snapshot?.dispose();
+    if (!hadExportClass) element?.classList.remove('pdf-export');
     restoreTimelineScroll?.();
   }
 }

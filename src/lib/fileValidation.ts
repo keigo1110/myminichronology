@@ -13,6 +13,13 @@ export const MAX_YEAR_SPAN = 2000;
 /** 読み込み可能な最大シート数 */
 export const MAX_SHEETS = 5;
 
+/** 圧縮後の容量だけでは制限できない、展開後の処理量の上限。 */
+export const MAX_EVENTS = 5000;
+export const MAX_WORKSHEET_ROWS = 20000;
+export const MAX_EVENT_LABEL_LENGTH = 2000;
+export const MAX_TOTAL_EVENT_LABEL_LENGTH = 250_000;
+export const MAX_PARSE_WARNINGS = 200;
+
 export function isXlsxFileName(fileName: string): boolean {
   return fileName.toLowerCase().endsWith('.xlsx');
 }

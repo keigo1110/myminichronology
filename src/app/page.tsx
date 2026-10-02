@@ -6,6 +6,13 @@ import { HelpOutline } from '@mui/icons-material';
 import { Header } from '../components/Header';
 import { Timeline } from '../components/Timeline';
 import { CopyableAlert } from '../components/CopyableAlert';
+import { EventDetails } from '../components/EventDetails';
+import {
+  TIMELINE_HEADER_HEIGHT,
+  YEAR_AXIS_HEIGHT_HORIZONTAL,
+  LANE_LABEL_WIDTH_HORIZONTAL,
+  MIN_LANE_ROW_HEIGHT,
+} from '../lib/computeLayout';
 import { useSheetLoader } from '../hooks/useSheetLoader';
 import { useTimelineData } from '../hooks/useTimelineData';
 import { useFilteredEvents } from '../hooks/useFilteredEvents';
@@ -14,8 +21,10 @@ import {
   EventLabelOrientation,
   LayoutMode,
   TimelineOrientation,
+  PositionedEvent,
 } from '../lib/types';
 import { validateExcelFile } from '../lib/fileValidation';
+import { hasYearRange } from '../lib/yearRange';
 import { getEventDomId } from '../lib/eventDomId';
 import { scrollTimelineEventIntoView } from '../lib/timelineScroll';
 import { useT } from '../i18n/LocaleProvider';
@@ -37,7 +46,7 @@ const DEFAULT_YEAR_RANGE: [number, number] = [1900, 2100];
 
 export default function Home() {
   const t = useT();
-  const { data, loading, error, warnings, loadExcelFile, clearData } = useSheetLoader();
+  const { data, loading, error, warnings, loadExcelFile } = useSheetLoader();
   const [orientation, setOrientation] = useState<TimelineOrientation>('vertical');
   const [labelOrientation, setLabelOrientation] =
     useState<EventLabelOrientation>('vertical');
@@ -58,6 +67,9 @@ export default function Home() {
     exporting,
     exportProgress,
     exportError,
+    exportWarning,
+    cancelling,
+    cancelExport,
     exportToPdf,
     clearExportError,
   } = usePdfExport();
@@ -75,11 +87,13 @@ export default function Home() {
   const [selectedLanes, setSelectedLanes] = useState<string[]>(data?.map((lane) => lane.name) || []);
   const [laneOrder, setLaneOrder] = useState<string[]>(data?.map((lane) => lane.name) || []);
   const [yearRangeFilter, setYearRangeFilter] = useState<[number, number]>(
-    yearRange.min > 0 && yearRange.max > 0 ? [yearRange.min, yearRange.max] : DEFAULT_YEAR_RANGE
+    hasYearRange(yearRange) ? [yearRange.min, yearRange.max] : DEFAULT_YEAR_RANGE
   );
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('zoom');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMatchIndex, setSearchMatchIndex] = useState(0);
+  const [detailEvent, setDetailEvent] = useState<PositionedEvent | null>(null);
+  const handleEventClick = useCallback((event: PositionedEvent) => setDetailEvent(event), []);
 
   const orderedData = useMemo(() => {
     if (!data || !laneOrder.length) return data;
@@ -137,7 +151,7 @@ export default function Home() {
       setSelectedLanes(data.map((lane) => lane.name));
       setLaneOrder(data.map((lane) => lane.name));
       setYearRangeFilter(
-        yearRange.min > 0 && yearRange.max > 0
+        hasYearRange({ min: yearRange.min, max: yearRange.max })
           ? [yearRange.min, yearRange.max]
           : DEFAULT_YEAR_RANGE
       );
@@ -145,17 +159,10 @@ export default function Home() {
       setWarningsDismissed(false);
       setSearchQuery('');
       setSearchMatchIndex(0);
+      setDetailEvent(null);
       clearExportError();
     }
-  }, [data, yearRange, clearExportError]);
-
-  const resetFilters = useCallback(() => {
-    setSelectedLanes([]);
-    setLaneOrder([]);
-    setYearRangeFilter(DEFAULT_YEAR_RANGE);
-    setSearchQuery('');
-    setSearchMatchIndex(0);
-  }, []);
+  }, [data, yearRange.min, yearRange.max, clearExportError]);
 
   const handleFileDrop = useCallback(
     (file: File): string | null => {
@@ -174,10 +181,8 @@ export default function Home() {
           return msg;
         }
 
-        clearData();
-        resetFilters();
         setFileError(null);
-        loadExcelFile(file);
+        void loadExcelFile(file);
         setIsDragOver(false);
         dragDepthRef.current = 0;
         return null;
@@ -188,10 +193,11 @@ export default function Home() {
         return errorMsg;
       }
     },
-    [clearData, exporting, labelOrientationPending, loadExcelFile, resetFilters, t]
+    [exporting, labelOrientationPending, loadExcelFile, t]
   );
 
   const handleDragEnter = (e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
     e.preventDefault();
     e.stopPropagation();
     dragDepthRef.current += 1;
@@ -199,11 +205,13 @@ export default function Home() {
   };
 
   const handleDragOver = (e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
     e.preventDefault();
     e.stopPropagation();
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
     e.preventDefault();
     e.stopPropagation();
     dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
@@ -213,6 +221,7 @@ export default function Home() {
   };
 
   const handleDrop = (e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
     e.preventDefault();
     e.stopPropagation();
     dragDepthRef.current = 0;
@@ -243,8 +252,8 @@ export default function Home() {
   };
 
   const handlePdfExport = () => {
-    if (labelOrientationPending) return;
-    exportToPdf('timelineRoot');
+    if (labelOrientationPending || loading || !hasVisibleEvents) return;
+    void exportToPdf('timelineRoot', t('event.noImage'));
   };
 
   const displayData = filteredData ?? orderedData ?? data;
@@ -262,28 +271,39 @@ export default function Home() {
         : positionedEvents;
   const displayLayout = filteredLayoutConfig || layoutConfig;
   const effectiveYearRange =
-    displayYearRange.min > 0 && displayYearRange.max > 0 ? displayYearRange : yearRange;
+    hasYearRange(displayYearRange) ? displayYearRange : yearRange;
 
   const searchMatches = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q || !displayData) return [] as string[];
+    if (!q || !displayData) return [];
 
-    const ids: string[] = [];
+    const matches: { id: string; x: number; y: number; width: number; height: number }[] = [];
+    let laneOffset = 0;
     displayData.forEach((lane, laneIndex) => {
       (displayEvents[laneIndex] || []).forEach((event, eventIndex) => {
         if (event.label.toLowerCase().includes(q)) {
-          ids.push(getEventDomId(lane.name, event, eventIndex));
+          const horizontal = orientation === 'horizontal';
+          matches.push({
+            id: getEventDomId(lane.name, event, eventIndex),
+            x: event.x + (horizontal ? displayLayout.laneLabelWidth ?? LANE_LABEL_WIDTH_HORIZONTAL : displayLayout.yearAxisWidth + laneOffset),
+            y: event.y + (horizontal ? (displayLayout.yearAxisHeight ?? YEAR_AXIS_HEIGHT_HORIZONTAL) + laneOffset : TIMELINE_HEADER_HEIGHT),
+            width: event.width,
+            height: event.height,
+          });
         }
       });
+      laneOffset += orientation === 'horizontal'
+        ? displayLayout.laneHeightByName?.[lane.name] ?? displayLayout.laneHeights?.[laneIndex] ?? MIN_LANE_ROW_HEIGHT
+        : displayLayout.laneWidthByName[lane.name] ?? displayLayout.laneWidths[laneIndex] ?? 300;
     });
-    return ids;
-  }, [searchQuery, displayData, displayEvents]);
+    return matches;
+  }, [searchQuery, displayData, displayEvents, displayLayout, orientation]);
 
   const effectiveSearchMatchIndex =
     searchMatches.length > 0
       ? Math.min(searchMatchIndex, searchMatches.length - 1)
       : 0;
-  const highlightedEventId = searchMatches[effectiveSearchMatchIndex] ?? null;
+  const highlightedEventId = searchMatches[effectiveSearchMatchIndex]?.id ?? null;
 
   const scheduleScrollToEvent = useCallback((eventId: string) => {
     if (searchScrollFrameRef.current != null) {
@@ -291,9 +311,11 @@ export default function Home() {
     }
     searchScrollFrameRef.current = requestAnimationFrame(() => {
       searchScrollFrameRef.current = null;
-      scrollTimelineEventIntoView(eventId);
+      const match = searchMatches.find((candidate) => candidate.id === eventId);
+      const root = document.getElementById('timelineRoot');
+      scrollTimelineEventIntoView(eventId, 'auto', match && root ? { root, ...match } : undefined);
     });
-  }, []);
+  }, [searchMatches]);
 
   React.useEffect(() => {
     if (highlightedEventId) {
@@ -317,7 +339,7 @@ export default function Home() {
     (index: number) => {
       if (searchMatches.length === 0) return;
       const normalized = ((index % searchMatches.length) + searchMatches.length) % searchMatches.length;
-      const id = searchMatches[normalized];
+      const id = searchMatches[normalized].id;
       setSearchMatchIndex(normalized);
       scheduleScrollToEvent(id);
     },
@@ -392,23 +414,27 @@ export default function Home() {
   );
 
   const warningMessages = warnings.map((w) => t(w.code as MessageKey, w.params));
+  const warningCount = warnings.reduce((count, warning) => count + (
+    warning.type === 'warning-limit' ? Number(warning.params?.count ?? 0) : 1
+  ), 0);
   const warningSummary =
     warnings.length > 0
       ? warnings.length <= 3
         ? warningMessages.join(' ')
         : `${warningMessages.slice(0, 2).join(' ')} ${t('warning.moreCount', {
-            count: warnings.length - 2,
+            count: warningCount - 2,
           })}`
       : null;
 
   const displayError = error ? t(error.code, error.params) : null;
   const displayExportError = exportError ? t(exportError.code, exportError.params) : null;
+  const displayExportWarning = exportWarning ? t(exportWarning.code, exportWarning.params) : null;
   const exportProgressPercent =
     exportProgress && exportProgress.total > 0
       ? Math.round((exportProgress.completed / exportProgress.total) * 100)
       : null;
   const exportStatusMessage =
-    exportProgressPercent == null
+    cancelling ? t('pdf.cancelling') : exportProgressPercent == null
       ? t('header.pdfBusy')
       : t('header.pdfBusyProgress', { percent: exportProgressPercent });
 
@@ -488,6 +514,7 @@ export default function Home() {
       component="main"
       sx={{
         height: '100vh',
+        '@supports (height: 100dvh)': { height: '100dvh' },
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
@@ -508,18 +535,12 @@ export default function Home() {
             role="status"
             aria-live="polite"
             sx={{
-              position: 'absolute',
-              width: 1,
-              height: 1,
-              p: 0,
-              m: -1,
-              overflow: 'hidden',
-              clip: 'rect(0, 0, 0, 0)',
-              whiteSpace: 'nowrap',
-              border: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 1, px: 2, py: 0.5, backgroundColor: 'background.paper',
             }}
           >
-            {exportStatusMessage}
+            <Typography variant="body2">{exportStatusMessage}</Typography>
+            <Button size="small" onClick={cancelExport} disabled={cancelling}>{t('pdf.cancel')}</Button>
           </Box>
         )}
         <Header
@@ -534,12 +555,14 @@ export default function Home() {
           onFileError={setFileError}
           exporting={exporting}
           exportError={displayExportError}
+          exportWarning={displayExportWarning}
           hasData={!!data}
+          canExport={hasVisibleEvents && !loading}
           lanes={laneOrder.length > 0 ? laneOrder : data?.map((lane) => lane.name) || []}
           selectedLanes={selectedLanes}
           onLaneSelectionChange={setSelectedLanes}
           onLaneOrderChange={setLaneOrder}
-          yearRange={yearRange.min > 0 && yearRange.max > 0 ? yearRange : { min: 1900, max: 2100 }}
+          yearRange={hasYearRange(yearRange) ? yearRange : { min: 1900, max: 2100 }}
           activeYearRange={yearRangeFilter}
           onYearRangeChange={setYearRangeFilter}
           layoutMode={layoutMode}
@@ -576,6 +599,9 @@ export default function Home() {
         data-timeline-scroll=""
         data-timeline-viewport=""
         ref={timelineViewportRef}
+        role="region"
+        aria-label={t('timeline.region')}
+        tabIndex={0}
         sx={{
           flex: 1,
           overflow: 'auto',
@@ -612,6 +638,7 @@ export default function Home() {
                 orientation={orientation}
                 labelOrientation={labelOrientation}
                 pdfExporting={exporting}
+                onEventClick={handleEventClick}
               />
             </Box>
           </Box>
@@ -712,6 +739,7 @@ export default function Home() {
           </Box>
         )}
       </Box>
+      <EventDetails event={detailEvent} onClose={() => setDetailEvent(null)} />
     </Box>
   );
 }

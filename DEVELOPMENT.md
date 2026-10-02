@@ -4,7 +4,7 @@
 
 ## 前提
 
-- Node.js 20.19 以上（Vite 7 の要件。22 LTS 推奨）
+- Node.js 20.19以上の20系、22.13以上の22系、または24以上（Vite・ESLintの要件。22 / 24 LTS 推奨）
 - npm
 
 ## セットアップ
@@ -29,6 +29,7 @@ npm run dev
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Vitest（watch） |
 | `npm run test:run` / `test:ci` | Vitest 一回実行（CI 向け） |
+| `npm run test:e2e` | Playwright（Chrome系 / Firefox / WebKit、PC・モバイル・PDF描画） |
 | `npm run test:coverage` | カバレッジ（`@vitest/coverage-v8` が必要なら別途導入） |
 
 品質確認の推奨順:
@@ -40,6 +41,8 @@ npm run typecheck && npm run lint && npm run test:ci && npm run build
 ## アーキテクチャ
 
 ### 関心の分離
+
+`RootLayout` はMUI公式 `AppRouterCacheProvider`（Next.js 16用）で囲み、サーバーのCSSをheadへ集約します。初期描画時のstyleタグ移動によるハイドレーション不一致を防ぐため、この連携を維持してください。
 
 | 層 | 役割 |
 | --- | --- |
@@ -66,6 +69,8 @@ npm run typecheck && npm run lint && npm run test:ci && npm run build
 
 `parseExcel(file)` は `ParseResult` を返します。
 
+ブラウザでは `parseExcel.worker.ts` が `parseExcelBuffer` を呼びます。先行読み込みは AbortSignal で中止し、成功した最新の結果だけを表示へ反映します。解析は30秒で中止します。年は Excel の表示文字列ではなく、セルの数値・Date を読みます。
+
 ```ts
 {
   lanes: TimelineData;
@@ -81,10 +86,15 @@ npm run typecheck && npm run lint && npm run test:ci && npm run build
 | 項目 | 値 | 理由 |
 | --- | --- | --- |
 | ファイル形式 | `.xlsx` のみ | パーサ対象を限定 |
-| ファイルサイズ | ≤ 10MB | メインスレッド負荷 |
+| ファイルサイズ | ≤ 10MB | 入力サイズの上限 |
 | シート数 | 先頭 5 件 | UI / 幅の上限 |
 | 年 | 1〜9999 | 異常値でタブフリーズ防止 |
 | 年幅 | ≤ 2000 年 | 密度マップ・DOM 数の上限 |
+| 出来事件数 | 合計 ≤ 5,000 件 | 配置計算・PDFの負荷を制限 |
+| シートの使用行 | ヘッダー以外 ≤ 20,000 行 | 展開後の巨大な範囲を拒否 |
+| 出来事文字数 | ≤ 2,000 文字 | ラベル寸法の上限 |
+| 出来事文字数の合計 | ≤ 250,000 文字 | ブラウザの最大描画寸法・PDF負荷を制限 |
+| 警告の詳細 | 先頭200件と省略件数 | 大量の不正行でも表示負荷を制限 |
 
 定数は `src/lib/fileValidation.ts` に集約しています。
 
@@ -109,7 +119,10 @@ npm run typecheck && npm run lint && npm run test:ci && npm run build
 
 - **純関数**（`parseExcel`, `computeLayout`, `fileValidation`, `yearTicks`）を厚めにカバー
 - コンポーネントは Header / DraggableLaneList を中心に
-- ファイルドロップ検証は `validateExcelFile` を共有してテスト（実装とテストの二重実装を避ける）
+- `page-fileDrop.test.tsx` は実際の Home を描画し、設定保持・失敗時の復帰まで確認
+- `e2e/timeline.spec.ts` は実 XLSX・Worker・大量データ検索・タッチ操作・PDF画像を確認。CIでも実行
+
+初回は `npx playwright install chromium firefox webkit`、続いて `npm run build && npm run test:e2e`。既存 Chrome を使う場合は `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e`。結果は通常 `/tmp/minikuro-playwright`、CIは `test-results` に保存します。
 
 新しいパース仕様を足すときは、まず `src/tests/parseExcel.test.ts` にケースを追加してください。
 
@@ -117,14 +130,17 @@ npm run typecheck && npm run lint && npm run test:ci && npm run build
 
 - 対象: `#timelineRoot`
 - `html2canvas` の scale はキャンバス上限に合わせて自動調整
-- ページ分割時は一時キャンバスを再利用、JPEG 0.92 で出力
+- 通常の描画は200件超で表示範囲と余白のみをマウント。PDF開始時は全イベントを描画してから専用文書へ DOM・CSSOM を複製し、状態を固定
+- A4横・300dpi相当で最大200ページへ分割。可逆PNGを格納し、ページごとにキャンバスのバッファを解放
+- 画像はURLごとに一度だけ取得し、最大216×162pxのPNGへ固定。取得は4件並行、各5秒・全体15秒で打ち切り、欠落した画像は代替表示と保存後の警告で知らせる
+- 書き出し中は設定操作を無効化。中止ボタンで生成を止め、現在の1ページの描画終了後に後片付けする。終了時に元のスクロール位置へ戻す
 
 巨大年表ではブラウザのキャンバス制限により品質が落ちることがあります。
 
 ## セキュリティ / 依存関係メモ
 
 - ユーザー任意のバイナリをクライアントでパースするため、年・サイズ制限は必須です
-- `xlsx` npm パッケージには未修正 advisory があります（`technologystack.md` 参照）
+- `xlsx` は npm旧版ではなく SheetJS公式CDNの0.20.3を使用。`npm audit` と公式配布の更新確認を継続する
 - 外部リンクは `rel="noopener noreferrer"` 付きの `<a>` を使用
 
 ## UI 変更時の注意
@@ -159,7 +175,7 @@ npm run typecheck && npm run lint && npm run test:ci && npm run build
 - 長い期間イベントは縦書き
 - F列 `label` は塗りボックス。寸法は文字数（期間は使わない）
 - 縦型はイベント密度・縦 `label` の高さに応じて年軸を局所的に伸縮し、目盛りも実際の表示間隔に合わせる
-- 重なるイベントは横に詰め、レーン幅に収まらなければ下へ退避
+- 点イベントは横に詰め、収まらなければ年バンド内の空きへ退避。期間バーは年代位置を固定し、重なる場合はレーンを横に拡張
 - ヘッダーから出来事文字列を検索し、一致へジャンプできる
 - 密集した情報量・紙面的なトーン（角丸・影は控えめ）
 
@@ -169,8 +185,5 @@ npm run typecheck && npm run lint && npm run test:ci && npm run build
 
 新規機能に入る前に検討するとよい項目です。
 
-1. Excel パースの Web Worker 化（UI フリーズ耐性）
-2. 年表の仮想スクロール（超長スパン）
-3. `xlsx` → メンテ中ライブラリへの移行
-4. イベント詳細パネル（現状クリックは未配線）
-5. goal_design へのさらなる寄せ（列内テキスト密度・年ごとの行揃えなど）
+1. 大量の期間イベントで横に広がるレーンの操作性改善
+2. goal_design へのさらなる寄せ（列内テキスト密度・年ごとの行揃えなど）

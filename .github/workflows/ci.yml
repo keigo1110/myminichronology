@@ -2,19 +2,19 @@ name: CI
 
 on:
   push:
-    branches: [main, 'improve/**', 'feature/**', 'fix/**']
+    branches: [main, 'improve/**', 'feature/**', 'fix/**', 'codex/**']
   pull_request:
 
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install
@@ -31,3 +31,17 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Install test browsers
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Browser and PDF regression tests
+        run: npm run test:e2e
+        env:
+          PLAYWRIGHT_OUTPUT_DIR: test-results
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-results
+          path: test-results
