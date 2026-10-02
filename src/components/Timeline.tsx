@@ -20,6 +20,8 @@ import {
   mapYearToPosition,
 } from '../lib/computeLayout';
 import { getYearTicksForPositions } from '../lib/yearTicks';
+import { useTimelineWindow } from '../hooks/useTimelineWindow';
+import { scrollTimelineEventIntoView } from '../lib/timelineScroll';
 
 interface TimelineProps {
   data: TimelineData;
@@ -53,7 +55,7 @@ const PDF_AXIS_RESET_STYLES = {
   },
 } as const;
 
-export function Timeline({
+export const Timeline = React.memo(function Timeline({
   data,
   positionedEvents,
   layoutConfig,
@@ -70,6 +72,18 @@ export function Timeline({
   const sheet = theme.palette.chronology.sheet;
   const border = theme.palette.chronology.hairlineStrong;
   const isHorizontal = orientation === 'horizontal';
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const eventCount = positionedEvents.reduce((sum, lane) => sum + lane.length, 0);
+  const window = useTimelineWindow(rootRef, eventCount > 200 && !pdfExporting);
+  const [focusedEventId, setFocusedEventId] = React.useState<string | null>(null);
+  const handleFocus = (event: React.FocusEvent<HTMLElement>) => {
+    const target = event.target.closest<HTMLElement>('[data-event-label]');
+    setFocusedEventId(target?.id ?? null);
+    if (target?.matches(':focus-visible')) scrollTimelineEventIntoView(target.id);
+  };
+  const handleBlur = (event: React.FocusEvent<HTMLElement>) => {
+    if (!(event.relatedTarget instanceof Element) || !event.relatedTarget.closest('[data-event-label]')) setFocusedEventId(null);
+  };
 
   const timelineHeight =
     layoutConfig.timelineHeight || Math.max(800, (yearRange.max - yearRange.min) * 8);
@@ -121,6 +135,10 @@ export function Timeline({
     return (
       <Box
         id="timelineRoot"
+        ref={rootRef}
+        onFocusCapture={handleFocus}
+        onBlurCapture={handleBlur}
+        data-pdf-ready={pdfExporting ? 'true' : undefined}
         className={pdfExporting ? 'pdf-export' : undefined}
         data-event-label-orientation={labelOrientation}
         sx={{
@@ -185,6 +203,10 @@ export function Timeline({
               laneLabelWidth={laneLabelWidth}
               yearTicks={yearTicks}
               yearContentWidth={yearContentWidth}
+              window={window}
+              focusedEventId={focusedEventId}
+              offsetX={laneLabelWidth}
+              offsetY={yearAxisHeight + resolvedLaneHeights.slice(0, index).reduce((sum, height) => sum + height, 0)}
             />
           ))}
         </Box>
@@ -206,6 +228,10 @@ export function Timeline({
   return (
     <Box
       id="timelineRoot"
+      ref={rootRef}
+      onFocusCapture={handleFocus}
+      onBlurCapture={handleBlur}
+      data-pdf-ready={pdfExporting ? 'true' : undefined}
       className={pdfExporting ? 'pdf-export' : undefined}
       data-event-label-orientation={labelOrientation}
       sx={{
@@ -290,6 +316,10 @@ export function Timeline({
               labelOrientation={labelOrientation}
               yearTicks={yearTicks}
               yearScale={yearScale}
+              window={window}
+              focusedEventId={focusedEventId}
+              offsetX={yearAxisWidth + resolvedLaneWidths.slice(0, index).reduce((sum, width) => sum + width, 0)}
+              offsetY={headerHeight}
             />
           ))}
         </Box>
@@ -307,4 +337,4 @@ export function Timeline({
       />
     </Box>
   );
-}
+});

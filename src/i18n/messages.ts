@@ -39,6 +39,7 @@ export const jaMessages = {
   'header.searchNextAria': '次の検索結果へ',
   'header.yearRange': '年代範囲:',
   'header.startYear': '開始年',
+  'header.resetYearRange': '年代範囲をリセット',
   'header.endYear': '終了年',
   'header.resetDefault': 'デフォルト値にリセット',
   'header.layoutModeAria': '年代範囲の見せ方',
@@ -50,6 +51,12 @@ export const jaMessages = {
   'header.lanes': 'レーン:',
   'header.resetLanes': 'すべてのレーンを表示',
   'header.laneSelectAria': 'レーン選択',
+  'header.moveLaneLeft': '{lane}を前へ移動',
+  'header.moveLaneRight': '{lane}を後へ移動',
+  'event.details': '出来事の詳細',
+  'timeline.region': '年表（矢印キーやPageDownでスクロール）',
+  'parse.timedOut': '解析が30秒を超えたため中止しました。ファイルを分割して再度お試しください。',
+  'alert.details': '詳細を表示（{count}件）',
 
   'empty.title': '年表をつくる',
   'empty.drop': 'ここにドロップ',
@@ -86,9 +93,18 @@ export const jaMessages = {
 
   'pdf.elementMissing': 'PDFエクスポート対象の年表要素が見つかりません。',
   'pdf.canvasFailed': 'PDF用キャンバスの初期化に失敗しました。',
+  'pdf.tooManyPages': 'PDFは最大{limit}ページです。年代範囲やレーンを絞って再度お試しください。',
+  'pdf.imagesOmitted': 'PDFを保存しました。取得できなかった画像{count}件は、代わりに説明を表示しています。',
+  'pdf.cancel': 'PDF生成を中止',
+  'pdf.cancelling': 'PDF生成を中止しています…',
   'pdf.exportFailed': 'PDFのエクスポートに失敗しました: {detail}',
   'pdf.exportFailedGeneric': 'PDFのエクスポートに失敗しました。',
 
+  'parse.tooManyEvents': '出来事は最大{max}件までです。シートや範囲を分けてください。',
+  'parse.tooMuchText': '出来事の文字数は全体で{max}文字までです。長い説明を短くするか、ファイルを分けてください。',
+  'parse.moreWarnings': '警告は先頭{max}件を表示しています。ほかに{count}件あります。該当列を修正して再度読み込んでください。',
+  'parse.tooManyRows': 'シート「{sheet}」の使用範囲が{max}行を超えています。余分な行の書式や補助情報を削除してください。',
+  'parse.labelTooLong': 'シート「{sheet}」{row}行目: 出来事は{max}文字以内にしてください。',
   'parse.noValidData':
     '有効なデータが見つかりませんでした。年・出来事の列を確認してください。',
   'parse.yearSpanTooWide':
@@ -164,6 +180,7 @@ export const enMessages: Record<MessageKey, string> = {
   'header.searchNextAria': 'Next search result',
   'header.yearRange': 'Year range:',
   'header.startYear': 'Start year',
+  'header.resetYearRange': 'Reset year range',
   'header.endYear': 'End year',
   'header.resetDefault': 'Reset to default',
   'header.layoutModeAria': 'How to show the year range',
@@ -175,6 +192,12 @@ export const enMessages: Record<MessageKey, string> = {
   'header.lanes': 'Lanes:',
   'header.resetLanes': 'Show all lanes',
   'header.laneSelectAria': 'Lane selection',
+  'header.moveLaneLeft': 'Move {lane} earlier',
+  'header.moveLaneRight': 'Move {lane} later',
+  'event.details': 'Event details',
+  'timeline.region': 'Timeline (use arrow keys or PageDown to scroll)',
+  'parse.timedOut': 'Parsing exceeded 30 seconds and was cancelled. Split the file and try again.',
+  'alert.details': 'Show details ({count})',
 
   'empty.title': 'Create a timeline',
   'empty.drop': 'Drop here',
@@ -211,9 +234,18 @@ export const enMessages: Record<MessageKey, string> = {
 
   'pdf.elementMissing': 'Timeline element for PDF export was not found.',
   'pdf.canvasFailed': 'Failed to initialize the PDF canvas.',
+  'pdf.tooManyPages': 'PDF exports support up to {limit} pages. Narrow the year range or select fewer lanes and try again.',
+  'pdf.imagesOmitted': 'PDF saved. {count} unavailable images were replaced with a description.',
+  'pdf.cancel': 'Cancel PDF export',
+  'pdf.cancelling': 'Cancelling PDF export…',
   'pdf.exportFailed': 'Failed to export PDF: {detail}',
   'pdf.exportFailedGeneric': 'Failed to export PDF.',
 
+  'parse.tooManyEvents': 'Use at most {max} events. Split the workbook into smaller timelines.',
+  'parse.tooMuchText': 'Event labels support up to {max} characters in total. Shorten long descriptions or split the file.',
+  'parse.moreWarnings': 'Showing the first {max} warnings; {count} more were omitted. Correct the affected columns and load again.',
+  'parse.tooManyRows': 'Sheet “{sheet}” exceeds {max} used rows. Remove unused formatting or auxiliary rows.',
+  'parse.labelTooLong': 'Sheet “{sheet}” row {row}: limit event labels to {max} characters.',
   'parse.noValidData':
     'No valid data found. Check the year and event columns.',
   'parse.yearSpanTooWide':

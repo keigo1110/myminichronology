@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { ThemeProvider } from './providers';
+import { AppRouterCacheProvider } from '@mui/material-nextjs/v16-appRouter';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import {
   OG_IMAGE_ALT,
@@ -146,9 +147,11 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
-        <ThemeProvider>
-          <ErrorBoundary>{children}</ErrorBoundary>
-        </ThemeProvider>
+        <AppRouterCacheProvider options={{ key: 'css' }}>
+          <ThemeProvider>
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </ThemeProvider>
+        </AppRouterCacheProvider>
       </body>
     </html>
   );

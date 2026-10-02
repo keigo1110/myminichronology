@@ -1,4 +1,7 @@
 import { scaleLinear } from 'd3-scale';
+import { VerticalCollisionIndex } from './verticalCollisionIndex';
+import { MinHeap } from './minHeap';
+import { VerticalGapIndex } from './verticalGapIndex';
 import type {
   Event,
   TimelineData,
@@ -38,8 +41,6 @@ export const VERTICAL_RANGE_HEIGHT_THRESHOLD = 72;
 export const EVENT_IMAGE_MAX_WIDTH = 72;
 export const EVENT_IMAGE_MAX_HEIGHT = 54;
 export const EVENT_IMAGE_GAP = 4;
-
-type Rect = { x: number; y: number; width: number; height: number };
 
 /**
  * 画像スロットをサイズに足す。
@@ -489,102 +490,68 @@ function layoutSortKey(event: Event): { start: number; duration: number; label: 
   };
 }
 
-function findAvailableX(
-  resolved: PositionedEvent[],
-  y: number,
-  width: number,
-  height: number,
-  rightBoundary: number
-): number | null {
-  const occupied = resolved
-    .filter(
-      (other) => !(y + height <= other.y || other.y + other.height <= y)
-    )
-    .map((other) => ({ left: other.x, right: other.x + other.width }))
-    .sort((a, b) => a.left - b.left || a.right - b.right);
-
+function firstAvailableX(occupied: PositionedEvent[], width: number): number {
+  occupied.sort((a, b) => a.x - b.x);
   let x = TIMELINE_PADDING;
-  for (const interval of occupied) {
-    if (interval.right <= x) continue;
-    if (x + width + EVENT_COLUMN_GAP <= interval.left) return x;
-    x = Math.max(x, interval.right + EVENT_COLUMN_GAP);
-    if (x + width > rightBoundary) return null;
+  for (const rect of occupied) {
+    if (x + width + EVENT_COLUMN_GAP <= rect.x) break;
+    x = Math.max(x, rect.x + rect.width + EVENT_COLUMN_GAP);
   }
-
-  return x + width <= rightBoundary ? x : null;
+  return x;
 }
 
-/**
- * レーン内で矩形が重なるイベントを横に並べ、収まらなければ下へ退避。
- * x はレーン相対座標。
- */
+/** 期間は年座標を固定する。点・label だけを同年内で下へ送る。 */
 export function resolveEventCollisions(
-  events: PositionedEvent[],
-  laneWidth: number,
-  contentHeight: number
+  events: PositionedEvent[], laneWidth: number, _contentHeight: number
 ): PositionedEvent[] {
-  const sortedEvents = [...events].sort((a, b) => {
-    const ka = layoutSortKey(a);
-    const kb = layoutSortKey(b);
-    if (ka.start !== kb.start) return ka.start - kb.start;
-    if (ka.duration !== kb.duration) return kb.duration - ka.duration;
-    // 期間バーを左、点・label を右寄りに
-    const aIsRange = a.displayStyle !== 'label' && a.end != null;
-    const bIsRange = b.displayStyle !== 'label' && b.end != null;
-    if (aIsRange !== bIsRange) return aIsRange ? -1 : 1;
-    // 年バンドの事前見積もりと同じ順に大きい矩形から置き、不要な段増加を防ぐ。
-    if (a.height !== b.height) return b.height - a.height;
-    if (a.width !== b.width) return b.width - a.width;
-    return ka.label.localeCompare(kb.label);
+  const sorted = [...events].sort((a, b) => {
+    const ka = layoutSortKey(a), kb = layoutSortKey(b);
+    return ka.start - kb.start || kb.duration - ka.duration ||
+      b.height - a.height || b.width - a.width || ka.label.localeCompare(kb.label);
   });
-
-  const resolved: PositionedEvent[] = [];
-  const usableWidth = Math.max(40, laneWidth - TIMELINE_PADDING);
-
-  sortedEvents.forEach((event) => {
-    const width = Math.min(event.width, usableWidth - TIMELINE_PADDING);
-    const height = Math.min(Math.max(event.height, MIN_EVENT_HEIGHT), contentHeight);
-    const maxY = Math.max(0, contentHeight - height);
-    const desiredY = Math.max(0, Math.min(event.y, maxY));
-    const candidateYs = new Set<number>([desiredY]);
-    for (const other of resolved) {
-      const nextY = other.y + other.height + EVENT_VERTICAL_SPACING;
-      if (nextY >= desiredY && nextY <= maxY) candidateYs.add(nextY);
+  const index = new VerticalCollisionIndex();
+  const placed = new Map<PositionedEvent, PositionedEvent>();
+  const columns: Array<{ x: number; width: number; bottom: number }> = [];
+  let rangeRight = TIMELINE_PADDING;
+  let widestPoint = 0;
+  for (const event of sorted) {
+    if (event.end == null || event.displayStyle === 'label') {
+      widestPoint = Math.max(widestPoint, event.width);
+      continue;
     }
-
-    let finalRect: Rect | null = null;
-    for (const y of [...candidateYs].sort((a, b) => a - b)) {
-      const x = findAvailableX(resolved, y, width, height, usableWidth);
-      if (x != null) {
-        finalRect = { x, y, width, height };
+    let column = columns.find((item) => item.bottom + EVENT_VERTICAL_SPACING <= event.y && item.width >= event.width);
+    if (!column) {
+      column = { x: rangeRight, width: event.width, bottom: 0 };
+      columns.push(column);
+      rangeRight += event.width + EVENT_COLUMN_GAP;
+    }
+    const rect = { ...event, x: column.x };
+    column.bottom = rect.y + rect.height;
+    placed.set(event, rect);
+    index.add(rect);
+  }
+  // 期間で埋まる年でも点を開始年の近くに置ける列を確保する。
+  const rightBoundary = Math.max(laneWidth - TIMELINE_PADDING,
+    rangeRight + widestPoint + TIMELINE_PADDING);
+  const nextRowByStart = new Map<number, number>();
+  for (const event of sorted) {
+    if (placed.has(event)) continue;
+    let y = Math.max(event.y, nextRowByStart.get(event.y) ?? event.y);
+    for (;;) {
+      const occupied = index.intersecting(y, y + event.height);
+      const x = firstAvailableX(occupied, event.width);
+      if (x + event.width <= rightBoundary) {
+        const rect = { ...event, x, y };
+        placed.set(event, rect);
+        index.add(rect);
+        nextRowByStart.set(event.y, y);
         break;
       }
+      // 現在交差している要素の最初の終端へ進む。全配置の候補列挙は不要。
+      y = Math.min(...occupied.map((rect) => rect.y + rect.height)) + EVENT_VERTICAL_SPACING;
     }
-
-    // 通常は年バンド内で必ず見つかる。入力が想定以上でも重ねず末尾へ退避する。
-    if (!finalRect) {
-      const maxBottom = resolved.reduce(
-        (max, other) => Math.max(max, other.y + other.height),
-        0
-      );
-      finalRect = {
-        x: TIMELINE_PADDING,
-        y: Math.max(desiredY, maxBottom + EVENT_VERTICAL_SPACING),
-        width,
-        height,
-      };
-    }
-
-    resolved.push({
-      ...event,
-      x: finalRect.x,
-      y: finalRect.y,
-      width: finalRect.width,
-      height: finalRect.height,
-    });
-  });
-
-  return resolved;
+  }
+  return sorted.map((event) => placed.get(event)!);
 }
 
 function deriveYearRange(data: TimelineData): { min: number; max: number } {
@@ -635,11 +602,13 @@ function positionVerticalEvents(
     const laneEvents = lane.events.map((event): PositionedEvent => {
       const y = yScale(event.start);
       let size: { width: number; height: number };
+      let rangeLength: number | undefined;
 
       if (event.displayStyle === 'label') {
         size = measureEventSize(event, { yearHeightScale, labelOrientation });
       } else if (event.end != null) {
         const endY = yScale(event.end);
+        rangeLength = Math.max(0, endY - y);
         const rangeHeight = Math.max(
           minHeightForFont(defaultFontSize(event), yearHeightScale),
           endY - y
@@ -670,10 +639,15 @@ function positionVerticalEvents(
         y,
         width: Math.min(size.width, Math.max(24, laneWidth - TIMELINE_PADDING * 2)),
         height: size.height,
+        rangeLength,
       };
     });
 
-    return resolveEventCollisions(laneEvents, laneWidth, contentHeight);
+    const placed = resolveEventCollisions(laneEvents, laneWidth, contentHeight);
+    for (const event of placed) {
+      laneWidths[laneIndex] = Math.max(laneWidths[laneIndex], event.x + event.width + TIMELINE_PADDING);
+    }
+    return placed;
   });
 }
 
@@ -773,15 +747,6 @@ function computeLayoutVertical(
   const laneWidths = data.map((lane) =>
     calculateOptimalLaneWidth(lane.events, labelOrientation)
   );
-  const laneWidthByName: Record<string, number> = {};
-  data.forEach((lane, index) => {
-    laneWidthByName[lane.name] = laneWidths[index];
-  });
-
-  const maxLaneWidth = Math.max(...laneWidths);
-  const yearAxisWidth = Math.min(72, Math.max(48, maxLaneWidth * 0.08));
-  const totalWidth = yearAxisWidth * 2 + laneWidths.reduce((sum, width) => sum + width, 0);
-
   let yearScale = createAdaptiveYearScale(
     data,
     laneWidths,
@@ -813,6 +778,11 @@ function computeLayoutVertical(
     );
   }
 
+  const laneWidthByName: Record<string, number> = {};
+  data.forEach((lane, index) => { laneWidthByName[lane.name] = laneWidths[index]; });
+  const maxLaneWidth = Math.max(...laneWidths);
+  const yearAxisWidth = Math.min(72, Math.max(48, maxLaneWidth * 0.08));
+  const totalWidth = yearAxisWidth * 2 + laneWidths.reduce((sum, width) => sum + width, 0);
   const contentHeight = yearScale.contentSize;
   const timelineHeight = contentHeight + TIMELINE_HEADER_HEIGHT;
 
@@ -915,6 +885,7 @@ function computeLayoutHorizontal(
       const x = xScale(event.start);
       let width: number;
       let height: number;
+      let rangeLength: number | undefined;
 
       if (event.displayStyle === 'label') {
         const size = measureEventSize(event, {
@@ -926,6 +897,7 @@ function computeLayoutHorizontal(
         height = size.height;
       } else if (event.end != null) {
         const endX = xScale(event.end);
+        rangeLength = Math.max(0, endX - x);
         const fontSize = defaultFontSize(event);
         // zoom では範囲外部分を xScale が切るため、元の全期間幅を足し戻さない。
         const rangeWidth = Math.max(minHeightForFont(fontSize, 1), endX - x);
@@ -959,6 +931,7 @@ function computeLayoutHorizontal(
         y: TIMELINE_PADDING,
         width,
         height,
+        rangeLength,
       });
     });
 
@@ -1036,35 +1009,20 @@ function resolveHorizontalCollisions(
     return ka.label.localeCompare(kb.label);
   });
 
+  const active = new MinHeap<{ end: number; top: number }>((a, b) => a.end - b.end || a.top - b.top);
+  const gaps = new VerticalGapIndex();
   const resolved: PositionedEvent[] = [];
 
   sortedEvents.forEach((event) => {
     const width = Math.min(event.width, Math.max(20, contentWidth - event.x - TIMELINE_PADDING));
     const height = Math.max(event.height, MIN_EVENT_HEIGHT);
     const bestX = Math.max(0, Math.min(event.x, Math.max(0, contentWidth - width)));
-    const blockers = resolved
-      .filter(
-        (other) =>
-          bestX < other.x + other.width && other.x < bestX + width
-      )
-      .sort((a, b) => a.y - b.y || a.x - b.x);
-    let bestY = TIMELINE_PADDING;
-    for (const blocker of blockers) {
-      if (bestY + height <= blocker.y) break;
-      if (bestY < blocker.y + blocker.height) {
-        bestY = blocker.y + blocker.height + EVENT_VERTICAL_SPACING;
-      }
-    }
-
-    resolved.push({
-      ...event,
-      x: bestX,
-      y: bestY,
-      width,
-      height,
-    });
+    while (active.peek() && active.peek()!.end <= bestX) gaps.remove(active.pop()!.top);
+    const y = gaps.firstGap(height, TIMELINE_PADDING);
+    gaps.add(y, y + height + EVENT_VERTICAL_SPACING);
+    resolved.push({ ...event, x: bestX, width, height, y });
+    active.push({ end: bestX + width, top: y });
   });
-
   return resolved;
 }
 

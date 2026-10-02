@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
 import type {
   AdaptiveYearScale,
@@ -9,12 +9,14 @@ import type {
   TimelineOrientation,
   EventLabelOrientation,
 } from '../lib/types';
-import { EventItem, EVENT_ITEM_MIN_HEIGHT } from './EventItem';
+import { EventItem } from './EventItem';
 import { getYearTicks } from '../lib/yearTicks';
 import { DEFAULT_EVENT_COLOR } from '../lib/parseExcel';
 import { getEventDomId } from '../lib/eventDomId';
 import { laneOverlayColors } from '../lib/colorPalette';
 import { LANE_LABEL_WIDTH_HORIZONTAL, mapYearToPosition } from '../lib/computeLayout';
+import type { TimelineWindow } from '../hooks/useTimelineWindow';
+import { isEventVisible } from '../lib/eventVisibility';
 
 interface LaneColumnProps {
   lane: Lane;
@@ -35,9 +37,13 @@ interface LaneColumnProps {
   yearScale?: AdaptiveYearScale;
   /** horizontal 時: 右端ラベル余白を除いた年代軸幅 */
   yearContentWidth?: number;
+  window?: TimelineWindow | null;
+  offsetX?: number;
+  offsetY?: number;
+  focusedEventId?: string | null;
 }
 
-export function LaneColumn({
+export const LaneColumn = React.memo(function LaneColumn({
   lane,
   events,
   laneColor,
@@ -55,7 +61,12 @@ export function LaneColumn({
   yearTicks,
   yearScale,
   yearContentWidth,
+  window = null,
+  offsetX = 0,
+  offsetY = 0,
+  focusedEventId = null,
 }: LaneColumnProps) {
+  const eventIds = useMemo(() => events.map((event, index) => getEventDomId(lane.name, event, index)), [events, lane.name]);
   const ticks = yearTicks ?? getYearTicks(yearRange.min, yearRange.max);
   const isHorizontal = orientation === 'horizontal';
   const rowHeight = isHorizontal ? laneHeight ?? timelineHeight : timelineHeight;
@@ -78,6 +89,7 @@ export function LaneColumn({
     >
       {showLaneLabel && (
         <Box
+          data-lane-label=""
           sx={{
             width: laneLabelWidth,
             flexShrink: 0,
@@ -161,8 +173,9 @@ export function LaneColumn({
         })}
 
         {events.map((event, index) => {
+          const eventId = eventIds[index];
+          if (eventId !== focusedEventId && !isEventVisible(event, window, offsetX, offsetY)) return null;
           const color = event.color || eventColor || DEFAULT_EVENT_COLOR;
-          const eventId = getEventDomId(lane.name, event, index);
 
           return (
             <EventItem
@@ -174,18 +187,11 @@ export function LaneColumn({
               highlighted={highlightedEventId === eventId}
               orientation={orientation}
               labelOrientation={labelOrientation}
-              style={{
-                position: 'absolute',
-                top: `${event.y}px`,
-                left: `${event.x}px`,
-                width: `${Math.max(event.width, 1)}px`,
-                height: `${Math.max(event.height, EVENT_ITEM_MIN_HEIGHT)}px`,
-                zIndex: event.displayStyle === 'label' ? 7 : event.end ? 4 : 6,
-              }}
+              positioned
             />
           );
         })}
       </Box>
     </Box>
   );
-}
+});

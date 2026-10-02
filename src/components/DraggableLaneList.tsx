@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Box, Chip } from '@mui/material';
+import { Box, Chip, IconButton } from '@mui/material';
+import { KeyboardArrowLeft, KeyboardArrowRight } from '@mui/icons-material';
 import { useT } from '../i18n/LocaleProvider';
 
 interface DraggableLaneListProps {
@@ -9,130 +10,51 @@ interface DraggableLaneListProps {
   selectedLanes: string[];
   onLaneSelectionChange: (selectedLanes: string[]) => void;
   onLaneOrderChange: (orderedLanes: string[]) => void;
+  disabled?: boolean;
 }
 
-interface SortableLaneChipProps {
-  lane: string;
-  isSelected: boolean;
-  onClick: () => void;
-  onDragStart: (e: React.DragEvent, lane: string) => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDrop: (e: React.DragEvent, lane: string) => void;
-}
-
-function SortableLaneChip({
-  lane,
-  isSelected,
-  onClick,
-  onDragStart,
-  onDragOver,
-  onDrop,
-}: SortableLaneChipProps) {
-  const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onClick();
-  };
-
-  return (
-    <Chip
-      label={lane}
-      onClick={handleClick}
-      draggable
-      onDragStart={(e) => onDragStart(e, lane)}
-      onDragOver={(e) => {
-        e.preventDefault();
-        onDragOver(e);
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        onDrop(e, lane);
-      }}
-      variant={isSelected ? 'filled' : 'outlined'}
-      color={isSelected ? 'primary' : 'default'}
-      size="small"
-      sx={{
-        cursor: 'grab',
-        fontSize: '0.75rem',
-        height: 28,
-        minHeight: 28,
-        borderRadius: '2px',
-        '& .MuiChip-label': {
-          px: 1,
-          py: 0.25,
-        },
-        ...(isSelected
-          ? {}
-          : {
-              borderColor: 'divider',
-              color: 'text.primary',
-              backgroundColor: 'transparent',
-            }),
-        '&:hover': {
-          backgroundColor: isSelected ? 'primary.dark' : 'action.hover',
-        },
-        '&:active': {
-          cursor: 'grabbing',
-        },
-      }}
-    />
-  );
-}
-
-export function DraggableLaneList({
-  lanes,
-  selectedLanes,
-  onLaneSelectionChange,
-  onLaneOrderChange,
-}: DraggableLaneListProps) {
+export function DraggableLaneList({ lanes, selectedLanes, onLaneSelectionChange, onLaneOrderChange, disabled = false }: DraggableLaneListProps) {
   const t = useT();
   const [draggedLane, setDraggedLane] = useState<string | null>(null);
-
-  const handleDragStart = (e: React.DragEvent, lane: string) => {
-    setDraggedLane(lane);
-    e.dataTransfer.effectAllowed = 'move';
+  const move = (lane: string, target: number) => {
+    const source = lanes.indexOf(lane);
+    if (disabled || source < 0 || target < 0 || target >= lanes.length || source === target) return;
+    const next = [...lanes];
+    next.splice(target, 0, ...next.splice(source, 1));
+    onLaneOrderChange(next);
   };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDrop = (e: React.DragEvent, targetLane: string) => {
-    e.preventDefault();
-
-    if (draggedLane && draggedLane !== targetLane) {
-      const oldIndex = lanes.indexOf(draggedLane);
-      const newIndex = lanes.indexOf(targetLane);
-      const newLanes = [...lanes];
-      const [removed] = newLanes.splice(oldIndex, 1);
-      newLanes.splice(newIndex, 0, removed);
-      onLaneOrderChange(newLanes);
-    }
-
-    setDraggedLane(null);
-  };
-
-  const toggleLane = (lane: string) => {
-    const newSelectedLanes = selectedLanes.includes(lane)
-      ? selectedLanes.filter((l) => l !== lane)
-      : [...selectedLanes, lane];
-    onLaneSelectionChange(newSelectedLanes);
-  };
-
-  return (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }} role="group" aria-label={t('header.laneSelectAria')}>
-      {lanes.map((lane) => (
-        <SortableLaneChip
-          key={lane}
-          lane={lane}
-          isSelected={selectedLanes.includes(lane)}
-          onClick={() => toggleLane(lane)}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
+  const isFile = (e: React.DragEvent) => Array.from(e.dataTransfer.types ?? []).includes('Files');
+  return <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }} role="group" aria-label={t('header.laneSelectAria')}>
+    {lanes.map((lane, index) => {
+      const selected = selectedLanes.includes(lane);
+      return <Box key={lane} sx={{ display: 'flex', alignItems: 'center' }}>
+        <Chip label={lane} size="small" disabled={disabled} aria-pressed={selected}
+          variant={selected ? 'filled' : 'outlined'} color={selected ? 'primary' : 'default'}
+          draggable={!disabled}
+          onClick={() => onLaneSelectionChange(selected ? selectedLanes.filter((name) => name !== lane) : [...selectedLanes, lane])}
+          onDragStart={(e) => {
+            e.stopPropagation();
+            if (disabled) { e.preventDefault(); return; }
+            setDraggedLane(lane);
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('application/x-timeline-lane', lane);
+          }}
+          onDragOver={(e) => {
+            if (isFile(e) || !draggedLane || disabled) return;
+            e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move';
+          }}
+          onDrop={(e) => {
+            if (isFile(e) || !draggedLane || disabled) return;
+            e.preventDefault(); e.stopPropagation(); move(draggedLane, index); setDraggedLane(null);
+          }}
+          onDragEnd={(e) => { e.stopPropagation(); setDraggedLane(null); }}
+          sx={{ cursor: disabled ? 'default' : 'grab', fontSize: '0.75rem', height: 28, borderRadius: '2px' }}
         />
-      ))}
-    </Box>
-  );
+        <IconButton size="small" aria-label={t('header.moveLaneLeft', { lane })} disabled={disabled || index === 0}
+          onClick={() => move(lane, index - 1)} sx={{ width: 28, height: 28 }}><KeyboardArrowLeft fontSize="small" /></IconButton>
+        <IconButton size="small" aria-label={t('header.moveLaneRight', { lane })} disabled={disabled || index === lanes.length - 1}
+          onClick={() => move(lane, index + 1)} sx={{ width: 28, height: 28 }}><KeyboardArrowRight fontSize="small" /></IconButton>
+      </Box>;
+    })}
+  </Box>;
 }

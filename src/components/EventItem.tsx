@@ -34,6 +34,7 @@ interface EventItemProps {
   highlighted?: boolean;
   orientation?: TimelineOrientation;
   labelOrientation?: EventLabelOrientation;
+  positioned?: boolean;
 }
 
 function parseStyleHeight(style?: React.CSSProperties): number {
@@ -62,6 +63,7 @@ function EventImageThumb({
   return (
     <Box
       aria-hidden={failed}
+      data-image-status={failed ? 'failed' : 'ready'}
       sx={{
         width: EVENT_IMAGE_MAX_WIDTH,
         height: EVENT_IMAGE_MAX_HEIGHT,
@@ -109,7 +111,7 @@ function EventImageThumb({
   );
 }
 
-export function EventItem({
+export const EventItem = React.memo(function EventItem({
   event,
   color,
   onClick,
@@ -118,6 +120,7 @@ export function EventItem({
   highlighted = false,
   orientation = 'vertical',
   labelOrientation = 'vertical',
+  positioned = false,
 }: EventItemProps) {
   const theme = useTheme();
   const t = useT();
@@ -128,8 +131,8 @@ export function EventItem({
   const isInteractive = Boolean(onClick);
   const hasImage = Boolean(event.imageUrl);
 
-  const layoutHeight = Math.max(parseStyleHeight(style), EVENT_ITEM_MIN_HEIGHT);
-  const width = Math.max(parseStyleWidth(style), isLabelStyle ? EVENT_ITEM_MIN_HEIGHT : 0);
+  const layoutHeight = Math.max(positioned ? event.height : parseStyleHeight(style), EVENT_ITEM_MIN_HEIGHT);
+  const width = Math.max(positioned ? event.width : parseStyleWidth(style), isLabelStyle ? EVENT_ITEM_MIN_HEIGHT : 0);
   const allowsVerticalLabels = labelOrientation === 'vertical';
   const usesLargerDefaultFont =
     isLabelStyle ||
@@ -178,6 +181,7 @@ export function EventItem({
 
   const showHorizontalRangeBar = isHorizontal && isRangeEvent;
   const showVerticalRangeBar = !isHorizontal && isRangeEvent;
+  const rangeLength = event.rangeLength == null ? undefined : Math.max(RANGE_BAR_WIDTH_PX, event.rangeLength);
   /** 横型期間は画像を下に、それ以外はテキスト横 */
   const imageBelow = isHorizontal && isRangeEvent && hasImage;
   /** 画像ありのときだけ内側ラッパーを使う（label 縦書きは外側 flex に直接置く） */
@@ -230,17 +234,16 @@ export function EventItem({
         data-event-label-orientation={useVertical ? 'vertical' : 'horizontal'}
         sx={{
           ...style,
+          ...(positioned ? { position: 'absolute', top: event.y, left: event.x } : {}),
           width: width > 0 ? `${width}px` : style?.width,
           height: `${height}px`,
           boxSizing: 'border-box',
           backgroundColor: fillColor,
-          border: highlighted
-            ? `2px solid ${highlight}`
-            : isLabelStyle
+          border: isLabelStyle
               ? `1px solid ${theme.palette.chronology.hairline}`
               : 'none',
           borderRadius: isLabelStyle || highlighted ? '2px' : 0,
-          boxShadow: highlighted ? `0 0 0 3px ${highlightRing}` : 'none',
+          boxShadow: highlighted ? `0 0 0 2px ${highlight}, 0 0 0 5px ${highlightRing}` : 'none',
           display: 'flex',
           flexDirection: showHorizontalRangeBar || imageBelow ? 'column' : 'row',
           alignItems: isLabelStyle
@@ -257,7 +260,7 @@ export function EventItem({
           overflow: 'hidden',
           cursor: isInteractive ? 'pointer' : 'default',
           outline: 'none',
-          zIndex: highlighted ? 20 : undefined,
+          zIndex: highlighted ? 20 : positioned ? event.displayStyle === 'label' ? 7 : event.end ? 4 : 6 : style?.zIndex,
           scrollMarginTop: 'var(--app-chrome-height, 120px)',
           scrollMarginLeft: isHorizontal ? '120px' : undefined,
           transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
@@ -278,11 +281,12 @@ export function EventItem({
         {showVerticalRangeBar && (
           <Box
             aria-hidden
+            data-range-bar="vertical"
             sx={{
               width: RANGE_BAR_WIDTH_PX,
               flexShrink: 0,
-              alignSelf: 'stretch',
-              height: '100%',
+              alignSelf: rangeLength == null ? 'stretch' : 'flex-start',
+              height: rangeLength == null ? '100%' : `${rangeLength}px`,
               backgroundColor: accentColor,
               borderRadius: '1px',
             }}
@@ -292,10 +296,11 @@ export function EventItem({
         {showHorizontalRangeBar && (
           <Box
             aria-hidden
+            data-range-bar="horizontal"
             sx={{
               height: RANGE_BAR_WIDTH_PX,
               flexShrink: 0,
-              width: '100%',
+              width: rangeLength == null ? '100%' : `${rangeLength}px`,
               backgroundColor: accentColor,
               borderRadius: '1px',
             }}
@@ -332,4 +337,4 @@ export function EventItem({
       </Box>
     </Tooltip>
   );
-}
+});

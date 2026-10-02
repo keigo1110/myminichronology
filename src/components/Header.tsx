@@ -32,6 +32,7 @@ import {
   Translate,
 } from '@mui/icons-material';
 import { DraggableLaneList } from './DraggableLaneList';
+import { YearRangeFields } from './YearRangeFields';
 import { CopyableAlert } from './CopyableAlert';
 import type {
   EventLabelOrientation,
@@ -55,7 +56,9 @@ interface HeaderProps {
   onFileError?: (error: string | null) => void;
   exporting: boolean;
   exportError: string | null;
+  exportWarning?: string | null;
   hasData: boolean;
+  canExport?: boolean;
   lanes?: string[];
   selectedLanes?: string[];
   onLaneSelectionChange?: (selectedLanes: string[]) => void;
@@ -79,111 +82,6 @@ interface HeaderProps {
   exportProgress?: { completed: number; total: number } | null;
 }
 
-interface YearRangeFieldsProps {
-  bounds: { min: number; max: number };
-  value: [number, number];
-  onChange?: (yearRange: [number, number]) => void;
-}
-
-function clampYearRange(
-  range: [number, number],
-  bounds: { min: number; max: number }
-): [number, number] {
-  let [start, end] = range;
-  start = Math.min(Math.max(start, bounds.min), bounds.max);
-  end = Math.min(Math.max(end, bounds.min), bounds.max);
-  return start <= end ? [start, end] : [end, start];
-}
-
-function YearRangeFields({ bounds, value, onChange }: YearRangeFieldsProps) {
-  const t = useT();
-  const [draft, setDraft] = useState<[number, number]>(() =>
-    clampYearRange(value, bounds)
-  );
-
-  const commit = useCallback(() => {
-    const normalized = clampYearRange(draft, bounds);
-    setDraft(normalized);
-    onChange?.(normalized);
-  }, [bounds, draft, onChange]);
-
-  const reset = useCallback(() => {
-    const fullRange: [number, number] = [bounds.min, bounds.max];
-    setDraft(fullRange);
-    onChange?.(fullRange);
-  }, [bounds.max, bounds.min, onChange]);
-
-  const isActive = draft[0] !== bounds.min || draft[1] !== bounds.max;
-
-  return (
-    <>
-      <TextField
-        size="small"
-        type="number"
-        label={t('header.startYear')}
-        value={draft[0]}
-        onChange={(e) => {
-          const next = Number.parseInt(e.target.value, 10);
-          if (!Number.isNaN(next)) setDraft([next, draft[1]]);
-        }}
-        onBlur={commit}
-        sx={{
-          width: 75,
-          '& .MuiInputLabel-root': { fontSize: '0.75rem' },
-          '& .MuiInputBase-input': {
-            fontSize: '0.75rem',
-            py: 0.5,
-            px: 1,
-            minWidth: 0,
-          },
-        }}
-        inputProps={{ min: bounds.min, max: bounds.max }}
-      />
-      <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
-        -
-      </Typography>
-      <TextField
-        size="small"
-        type="number"
-        label={t('header.endYear')}
-        value={draft[1]}
-        onChange={(e) => {
-          const next = Number.parseInt(e.target.value, 10);
-          if (!Number.isNaN(next)) setDraft([draft[0], next]);
-        }}
-        onBlur={commit}
-        sx={{
-          width: 85,
-          '& .MuiInputLabel-root': { fontSize: '0.75rem' },
-          '& .MuiInputBase-input': {
-            fontSize: '0.75rem',
-            py: 0.5,
-            px: 1,
-            minWidth: 0,
-          },
-        }}
-        inputProps={{ min: bounds.min, max: bounds.max }}
-      />
-      <Tooltip title={t('header.resetDefault')}>
-        <span>
-          <IconButton
-            size="small"
-            onClick={reset}
-            disabled={!isActive}
-            sx={{
-              width: 28,
-              height: 28,
-              '&:disabled': { opacity: 0.3 },
-            }}
-          >
-            <RestartAlt sx={{ fontSize: 16 }} />
-          </IconButton>
-        </span>
-      </Tooltip>
-    </>
-  );
-}
-
 export function Header({
   onFileDrop,
   onPdfExport,
@@ -195,7 +93,9 @@ export function Header({
   onFileError,
   exporting,
   exportError,
+  exportWarning = null,
   hasData,
+  canExport = hasData,
   lanes = [],
   selectedLanes = [],
   onLaneSelectionChange,
@@ -222,7 +122,8 @@ export function Header({
   const t = useT();
   const { locale, toggleLocale } = useLocale();
   const [isDragOver, setIsDragOver] = useState(false);
-  const [expanded, setExpanded] = useState(hasData);
+  const [expanded, setExpanded] = useState(() => hasData && !(typeof window !== 'undefined' && window.matchMedia?.('(max-width: 599px)').matches));
+  const controlsDisabled = exporting || labelOrientationPending;
   const committedYearRange: [number, number] = activeYearRange ?? [
     yearRange.min,
     yearRange.max,
@@ -236,12 +137,14 @@ export function Header({
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer.types ?? []).includes('Files')) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(true);
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer.types ?? []).includes('Files')) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
@@ -249,6 +152,7 @@ export function Header({
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
+      if (!Array.from(e.dataTransfer.types ?? []).includes('Files')) return;
       e.preventDefault();
       e.stopPropagation();
       setIsDragOver(false);
@@ -278,6 +182,7 @@ export function Header({
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
+      e.target.value = '';
       if (!file) {
         reportError(t('error.noFile'));
         return;
@@ -294,7 +199,6 @@ export function Header({
         return;
       }
       reportError(null);
-      e.target.value = '';
     },
     [onFileDrop, reportError, t]
   );
@@ -406,6 +310,7 @@ export function Header({
                   }}
                 />
                 <Slider
+                  disabled={controlsDisabled}
                   size="small"
                   value={yearHeight}
                   onChange={handleYearHeightChange}
@@ -431,7 +336,7 @@ export function Header({
                     <IconButton
                       size="small"
                       onClick={handleResetYearHeight}
-                      disabled={yearHeight === 24}
+                      disabled={controlsDisabled || yearHeight === 24}
                       sx={{
                         width: 28,
                         height: 28,
@@ -462,6 +367,7 @@ export function Header({
                 }
                 size="small"
                 aria-label={t('header.swapAria')}
+                disabled={controlsDisabled}
                 aria-pressed={orientation === 'horizontal'}
                 color={orientation === 'horizontal' ? 'primary' : 'default'}
               >
@@ -508,7 +414,7 @@ export function Header({
             <span>
               <IconButton
                 component="label"
-                disabled={loading}
+                disabled={loading || controlsDisabled}
                 aria-label={t('header.uploadAria')}
                 sx={{
                   border: '1px dashed',
@@ -526,6 +432,7 @@ export function Header({
               >
                 <input
                   type="file"
+                  disabled={loading || controlsDisabled}
                   accept=".xlsx,.XLSX"
                   onChange={handleFileInput}
                   style={{ display: 'none' }}
@@ -545,7 +452,7 @@ export function Header({
               <span>
                 <IconButton
                   onClick={onPdfExport}
-                  disabled={exporting}
+                  disabled={controlsDisabled || !canExport}
                   aria-label={exporting ? pdfBusyLabel : t('header.pdfAria')}
                 >
                   {exporting ? (
@@ -566,6 +473,7 @@ export function Header({
           <Tooltip title={mode === 'dark' ? t('header.lightMode') : t('header.darkMode')}>
             <IconButton
               onClick={toggleColorMode}
+              disabled={controlsDisabled}
               size="small"
               aria-label={mode === 'dark' ? t('header.lightMode') : t('header.darkMode')}
             >
@@ -576,6 +484,7 @@ export function Header({
           <Tooltip title={langToggleLabel}>
             <IconButton
               onClick={toggleLocale}
+              disabled={controlsDisabled}
               size="small"
               aria-label={langToggleLabel}
             >
@@ -598,6 +507,7 @@ export function Header({
 
           <IconButton
             onClick={() => setExpanded(!expanded)}
+            disabled={controlsDisabled}
             size="small"
             aria-label={expanded ? t('header.expandClose') : t('header.expandOpen')}
           >
@@ -607,7 +517,7 @@ export function Header({
       </Box>
 
       <Collapse in={expanded}>
-        <Box sx={{ px: 2, pb: 1 }}>
+        <Box sx={{ px: 2, pb: 1, maxHeight: { xs: 'min(50dvh, 420px)', md: 'none' }, overflowY: 'auto' }}>
           <Paper
             sx={{
               p: 1.5,
@@ -637,6 +547,7 @@ export function Header({
                   }}
                 >
                   <TextField
+                    disabled={controlsDisabled}
                     size="small"
                     placeholder={t('header.searchPlaceholder')}
                     value={searchQuery}
@@ -677,7 +588,7 @@ export function Header({
                       <IconButton
                         size="small"
                         onClick={onSearchPrev}
-                        disabled={!searchQuery.trim() || searchMatchCount === 0}
+                        disabled={controlsDisabled || !searchQuery.trim() || searchMatchCount === 0}
                         aria-label={t('header.searchPrevAria')}
                       >
                         <KeyboardArrowUp fontSize="small" />
@@ -689,7 +600,7 @@ export function Header({
                       <IconButton
                         size="small"
                         onClick={onSearchNext}
-                        disabled={!searchQuery.trim() || searchMatchCount === 0}
+                        disabled={controlsDisabled || !searchQuery.trim() || searchMatchCount === 0}
                         aria-label={t('header.searchNextAria')}
                       >
                         <KeyboardArrowDown fontSize="small" />
@@ -709,7 +620,7 @@ export function Header({
                     </Typography>
                     <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
                       <YearRangeFields
-                        key={`${yearRange.min}:${yearRange.max}:${committedYearRange[0]}:${committedYearRange[1]}`}
+                        disabled={controlsDisabled}
                         bounds={yearRange}
                         value={committedYearRange}
                         onChange={onYearRangeChange}
@@ -717,6 +628,7 @@ export function Header({
                     </Box>
                     <FormControl size="small" sx={{ minWidth: 128 }}>
                       <Select
+                        disabled={controlsDisabled}
                         value={layoutMode}
                         onChange={(e) => onLayoutModeChange?.(e.target.value as LayoutMode)}
                         aria-label={t('header.layoutModeAria')}
@@ -764,6 +676,7 @@ export function Header({
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1, minWidth: 0 }}>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.25, flex: 1 }}>
                         <DraggableLaneList
+                          disabled={controlsDisabled}
                           lanes={lanes}
                           selectedLanes={selectedLanes}
                           onLaneSelectionChange={onLaneSelectionChange || (() => {})}
@@ -775,7 +688,7 @@ export function Header({
                           <IconButton
                             size="small"
                             onClick={handleResetLaneSelection}
-                            disabled={isLaneSelectionDefault}
+                            disabled={controlsDisabled || isLaneSelectionDefault}
                             sx={{
                               width: 28,
                               height: 28,
@@ -799,7 +712,7 @@ export function Header({
         </Box>
       </Collapse>
 
-      {(error || exportError || fileError) && (
+      {(error || exportError || exportWarning || fileError) && (
         <Box sx={{ px: 2, pb: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
           {error && (
             <CopyableAlert severity="error" kind="error" messages={[error]}>
@@ -819,6 +732,11 @@ export function Header({
               onClose={() => onFileError?.(null)}
             >
               {fileError}
+            </CopyableAlert>
+          )}
+          {exportWarning && (
+            <CopyableAlert severity="warning" kind="warning" messages={[exportWarning]}>
+              {exportWarning}
             </CopyableAlert>
           )}
         </Box>

@@ -8,6 +8,7 @@ import type {
   EventLabelOrientation,
 } from '../lib/types';
 import { computeLayout, layoutOccupancyEnd } from '../lib/computeLayout';
+import { hasYearRange } from '../lib/yearRange';
 
 export interface FilterState {
   yearRange: [number, number];
@@ -100,17 +101,40 @@ export function useFilteredEvents(
       };
     }
 
+    if (layoutMode === 'filter') {
+      const base = baseLayoutConfig && _positionedEvents.length === data.length
+        ? { layoutConfig: baseLayoutConfig, positionedEvents: _positionedEvents, yearRange: { min: baseMinYear, max: baseMaxYear } }
+        : computeLayout(data, yearHeightScale,
+            hasYearRange({ min: baseMinYear, max: baseMaxYear }) ? { min: baseMinYear, max: baseMaxYear } : undefined,
+            orientation, labelOrientation);
+      const widths = filteredData.map((lane) => base.layoutConfig.laneWidthByName[lane.name]);
+      const heights = filteredData.map((lane) => base.layoutConfig.laneHeightByName?.[lane.name] ?? 0);
+      return {
+        filteredData,
+        filteredPositionedEvents: filteredData.map((lane) => {
+          const index = data.findIndex((original) => original.name === lane.name);
+          return base.positionedEvents[index].filter((event) =>
+            layoutOccupancyEnd(event) >= filterStart && event.start <= filterEnd);
+        }),
+        layoutConfig: {
+          ...base.layoutConfig,
+          laneWidths: widths,
+          laneHeights: orientation === 'horizontal' ? heights : undefined,
+          totalWidth: orientation === 'horizontal' ? base.layoutConfig.totalWidth
+            : widths.reduce((sum, width) => sum + width, 0) + base.layoutConfig.yearAxisWidth * 2,
+          timelineHeight: orientation === 'horizontal'
+            ? heights.reduce((sum, height) => sum + height, 0) + (base.layoutConfig.yearAxisHeight ?? 44) * 2
+            : base.layoutConfig.timelineHeight,
+        },
+        yearRange: base.yearRange,
+      };
+    }
+
     // zoom: 選択年レンジで再レイアウト
-    // filter: 全体年レンジを維持しつつ可視イベントだけで再配置（隙間・重なりを解消）
-    const overrideRange =
-      layoutMode === 'zoom'
-        ? {
-            min: Math.floor(filterStart / 10) * 10,
-            max: Math.ceil(filterEnd / 10) * 10,
-          }
-        : baseMinYear > 0 && baseMaxYear > 0
-          ? { min: baseMinYear, max: baseMaxYear }
-          : undefined;
+    const overrideRange = {
+      min: Math.floor(filterStart / 10) * 10,
+      max: Math.ceil(filterEnd / 10) * 10,
+    };
 
     const {
       positionedEvents: recomputedEvents,
@@ -128,12 +152,7 @@ export function useFilteredEvents(
       filteredData,
       filteredPositionedEvents: recomputedEvents,
       layoutConfig: recomputedLayout,
-      yearRange:
-        layoutMode === 'zoom'
-          ? recomputedYearRange
-          : baseMinYear > 0
-            ? { min: baseMinYear, max: baseMaxYear }
-            : recomputedYearRange,
+      yearRange: recomputedYearRange,
     };
   }, [
     data,

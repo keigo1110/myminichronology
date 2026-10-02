@@ -36,6 +36,8 @@ export interface PositionedEvent extends Event {
   y: number;
   width: number;
   height: number;
+  /** 年軸で計算した期間バーの長さ。文字・画像の表示枠とは独立させる。 */
+  rangeLength?: number;
 }
 
 /**
@@ -80,7 +82,8 @@ export type ParseErrorType =
   | 'skipped-sheet'
   | 'year-order'
   | 'year-span'
-  | 'invalid-style';
+  | 'invalid-style'
+  | 'warning-limit';
 
 export interface ParseWarning {
   type: ParseErrorType;

@@ -86,4 +86,21 @@ describe('getCenteredScrollOffset', () => {
     expect(scrollTimelineEventIntoView(target.id)).toBe(true);
     expect(viewportScrollTo).toHaveBeenCalledWith({ left: 1650, top: 1270, behavior: 'auto' });
   });
+
+  it('excludes the sticky lane rail and shows the beginning of an oversized label', () => {
+    const viewport = document.createElement('div'); viewport.dataset.timelineViewport = '';
+    const rail = document.createElement('div'); rail.dataset.laneLabel = '';
+    const target = document.createElement('div'); target.id = 'oversized-event';
+    viewport.append(rail, target); document.body.append(viewport);
+    Object.defineProperties(viewport, {
+      clientWidth: { value: 1000 }, scrollWidth: { value: 4000 },
+      clientHeight: { value: 500 }, scrollHeight: { value: 500 },
+    });
+    viewport.getBoundingClientRect = () => new DOMRect(0, 0, 1000, 500);
+    rail.getBoundingClientRect = () => new DOMRect(0, 0, 180, 500);
+    target.getBoundingClientRect = () => new DOMRect(2100, 200, 1200, 40);
+    viewport.scrollTo = vi.fn();
+    scrollTimelineEventIntoView(target.id);
+    expect(viewport.scrollTo).toHaveBeenCalledWith({ left: 1920, top: 0, behavior: 'auto' });
+  });
 });

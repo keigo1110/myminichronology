@@ -31,14 +31,15 @@ export function getCenteredScrollOffset({
 function getHorizontalOffset(container: HTMLElement, targetRect: DOMRect): number {
   if (container.scrollWidth <= container.clientWidth + 1) return container.scrollLeft;
   const containerRect = container.getBoundingClientRect();
-  return getCenteredScrollOffset({
-    currentScroll: container.scrollLeft,
-    targetStart: targetRect.left,
-    targetSize: targetRect.width,
-    viewportStart: containerRect.left,
-    viewportSize: container.clientWidth,
-    maxScroll: container.scrollWidth - container.clientWidth,
+  let start = containerRect.left;
+  let end = containerRect.right;
+  container.querySelectorAll<HTMLElement>('[data-year-axis="left"], [data-lane-label]').forEach((element) => {
+    const rect = element.getBoundingClientRect();
+    if (intersectsViewport(rect, containerRect) && rect.right > start && rect.left < end) start = Math.max(start, rect.right);
   });
+  const right = container.querySelector<HTMLElement>('[data-year-axis="right"]')?.getBoundingClientRect();
+  if (right && intersectsViewport(right, containerRect) && right.width > 0) end = Math.min(end, right.left);
+  return getFullyVisibleOffset(container.scrollLeft, targetRect.left, targetRect.width, start, Math.max(1, end - start), container.scrollWidth - container.clientWidth);
 }
 
 function getFullyVisibleOffset(
@@ -96,13 +97,17 @@ function getVerticalViewportBounds(
  */
 export function scrollTimelineEventIntoView(
   eventId: string,
-  behavior: ScrollBehavior = 'auto'
+  behavior: ScrollBehavior = 'auto',
+  fallback?: { root: HTMLElement; x: number; y: number; width: number; height: number }
 ): boolean {
   const target = document.getElementById(eventId);
-  if (!target) return false;
+  if (!target && !fallback) return false;
 
-  const targetRect = target.getBoundingClientRect();
-  const viewportScroller = target.closest<HTMLElement>('[data-timeline-viewport]');
+  const rootRect = fallback?.root.getBoundingClientRect();
+  const targetRect = target?.getBoundingClientRect() ?? new DOMRect(
+    rootRect!.left + fallback!.x, rootRect!.top + fallback!.y, fallback!.width, fallback!.height
+  );
+  const viewportScroller = (target ?? fallback!.root).closest<HTMLElement>('[data-timeline-viewport]');
   if (viewportScroller) {
     const viewportRect = viewportScroller.getBoundingClientRect();
     const verticalViewport = getVerticalViewportBounds(viewportScroller, viewportRect);

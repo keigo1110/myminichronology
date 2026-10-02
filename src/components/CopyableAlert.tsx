@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useState } from 'react';
-import { Alert, IconButton, Tooltip, Box } from '@mui/material';
+import { Alert, IconButton, Tooltip, Box, Button, Collapse } from '@mui/material';
 import { Close, ContentCopy, Check } from '@mui/icons-material';
 import {
   AgentIssueKind,
@@ -33,6 +33,7 @@ export function CopyableAlert({
 }: CopyableAlertProps) {
   const t = useT();
   const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const issueKind: AgentIssueKind =
     kind ?? (severity === 'error' ? 'error' : 'warning');
 
@@ -81,6 +82,16 @@ export function CopyableAlert({
       }
     >
       {children}
+      {messages.length > 1 && <>
+        <Button size="small" color="inherit" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
+          {t('alert.details', { count: messages.length })}
+        </Button>
+        <Collapse in={expanded}>
+          <Box component="ul" sx={{ my: 1, pl: 2.5, maxHeight: 240, overflow: 'auto' }}>
+            {messages.map((message, index) => <li key={index}>{message}</li>)}
+          </Box>
+        </Collapse>
+      </>}
     </Alert>
   );
 }
